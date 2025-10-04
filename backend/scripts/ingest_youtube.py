@@ -681,13 +681,10 @@ class EnhancedYouTubeIngester:
             if self.config.newest_first:
                 videos.sort(key=lambda v: v.published_at or datetime.min, reverse=True)
             
-            # Apply limit
-            if self.config.limit and not self.config.limit_unprocessed:
-                # Standard limit: take first N videos from list
-                videos = videos[:self.config.limit]
-            elif self.config.limit and self.config.limit_unprocessed:
-                # Smart limit: find N unprocessed videos
-                logger.info(f"🔍 Filtering to find {self.config.limit} unprocessed videos...")
+            # Apply limit based on mode
+            if self.config.limit_unprocessed and self.config.limit:
+                # Smart limit: find N unprocessed videos (check ALL videos until we find N unprocessed)
+                logger.info(f"🔍 Searching for {self.config.limit} unprocessed videos...")
                 unprocessed_videos = []
                 checked_count = 0
                 
@@ -698,11 +695,20 @@ class EnhancedYouTubeIngester:
                     if not source_id or segment_count == 0:
                         # This video is unprocessed
                         unprocessed_videos.append(video)
+                        logger.debug(f"   Found unprocessed: {video.video_id} ({len(unprocessed_videos)}/{self.config.limit})")
                         if len(unprocessed_videos) >= self.config.limit:
+                            logger.info(f"   ✅ Found {self.config.limit} unprocessed videos (checked {checked_count} total)")
                             break
+                    else:
+                        logger.debug(f"   Skipping processed: {video.video_id} ({segment_count} segments)")
                 
-                logger.info(f"   Checked {checked_count} videos, found {len(unprocessed_videos)} unprocessed")
+                if len(unprocessed_videos) < self.config.limit:
+                    logger.info(f"   ⚠️  Only found {len(unprocessed_videos)} unprocessed videos (checked all {checked_count} videos)")
+                
                 videos = unprocessed_videos
+            elif self.config.limit:
+                # Standard limit: take first N videos from list (may include already processed)
+                videos = videos[:self.config.limit]
         
         logger.info(f"Found {len(videos)} videos to process")
         return videos
