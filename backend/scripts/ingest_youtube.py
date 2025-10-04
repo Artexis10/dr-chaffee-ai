@@ -2101,7 +2101,7 @@ Examples:
                        help='Process newest videos first (default: true)')
     parser.add_argument('--limit', type=int,
                        help='Maximum number of videos to process')
-    parser.add_argument('--limit-unprocessed', action='store_true',
+    parser.add_argument('--limit-unprocessed', action='store_true', dest='limit_unprocessed',
                        help='Apply limit to unprocessed videos only (finds N new videos to process)')
     parser.add_argument('--dry-run', action='store_true',
                        help='Show what would be processed without writing to DB')
@@ -2254,7 +2254,10 @@ Examples:
         skip_shorts=args.skip_shorts,
         newest_first=args.newest_first,
         limit=args.limit,
+        limit_unprocessed=args.limit_unprocessed,
         dry_run=args.dry_run,
+        force_reprocess=args.force_reprocess,
+        skip_existing=args.skip_existing,
         whisper_model=args.whisper_model,
         force_whisper=args.force_whisper,
         allow_youtube_captions=args.allow_youtube_captions,
