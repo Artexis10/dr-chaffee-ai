@@ -330,7 +330,7 @@ class TranscriptFetcher:
                         logger.info(f"Audio stored at: {stored_path}")
                 
                 # Transcribe with optimized faster-whisper directly (GPU batching)
-                segments, metadata = self.transcribe_with_whisper_fallback(audio_file, self.whisper_model)
+                segments, metadata = self.transcribe_with_faster_whisper(audio_file, self.whisper_model)
                 
                 # Add storage info to metadata
                 if stored_path:
@@ -390,11 +390,14 @@ class TranscriptFetcher:
         except Exception as e:
             logger.error(f"Multi-model Whisper failed for {audio_path}: {e}")
             # Fallback to single model
-            return self.transcribe_with_whisper_fallback(audio_path, model_name)
+            return self.transcribe_with_faster_whisper(audio_path, model_name)
     
-    def transcribe_with_whisper_fallback(self, audio_path: Path, model_name: str = None, enable_silence_removal: bool = False) -> Tuple[Optional[List[TranscriptSegment]], Dict[str, Any]]:
+    def transcribe_with_faster_whisper(self, audio_path: Path, model_name: str = None, enable_silence_removal: bool = False) -> Tuple[Optional[List[TranscriptSegment]], Dict[str, Any]]:
         """
-        Transcribe audio using Whisper with enhanced VAD settings and quality assessment
+        Transcribe audio using optimized faster-whisper with GPU batching.
+        
+        This is the primary transcription method (not a fallback).
+        Uses faster-whisper's native CUDA acceleration and batching.
         
         Returns:
             (segments, metadata) where metadata includes quality info and processing flags
@@ -525,7 +528,7 @@ class TranscriptFetcher:
                 return None, 'failed', metadata
             
             # Transcribe with optimized faster-whisper directly (GPU batching)
-            whisper_segments, whisper_metadata = self.transcribe_with_whisper_fallback(
+            whisper_segments, whisper_metadata = self.transcribe_with_faster_whisper(
                 Path(audio_path), 
                 model_name=self.whisper_model
             )
@@ -548,8 +551,8 @@ class TranscriptFetcher:
                     logger.info(f"Quality issues detected ({quality_info['issues']}). "
                                f"Upgrading to {self.whisper_upgrade} for {video_id}")
                     
-                    # Try with upgraded model (fallback method for quality upgrade)
-                    upgrade_segments, upgrade_metadata = self.transcribe_with_whisper_fallback(
+                    # Try with upgraded model for quality upgrade
+                    upgrade_segments, upgrade_metadata = self.transcribe_with_faster_whisper(
                         Path(audio_path),
                         model_name=self.whisper_upgrade,
                         enable_silence_removal=enable_silence_removal
