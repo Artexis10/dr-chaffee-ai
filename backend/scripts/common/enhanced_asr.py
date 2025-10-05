@@ -228,6 +228,13 @@ class EnhancedASR:
     
     def _check_monologue_fast_path(self, audio_path: str) -> Optional[TranscriptionResult]:
         """Check if we can use monologue fast-path (Chaffee only)"""
+        # Check if fast-path is enabled (environment variable takes precedence)
+        enable_fast_path = os.getenv('ENABLE_FAST_PATH', 'true').lower() == 'true'
+        
+        if not enable_fast_path:
+            logger.info("Fast-path disabled via ENABLE_FAST_PATH=false")
+            return None
+            
         if not self.config.assume_monologue:
             return None
         
