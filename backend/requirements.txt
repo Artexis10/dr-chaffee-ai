@@ -3,7 +3,7 @@ psycopg2-binary>=2.9.9
 alembic>=1.13.0
 sqlalchemy>=2.0.07
 python-dotenv==1.0.0
-numpy==1.24.3
+numpy>=1.24.3,<2.0.0  # Use >=1.24.3 for Python 3.12 compatibility (pre-built wheels)
 tqdm==4.66.1
 
 # Web API dependencies
@@ -71,10 +71,5 @@ pytest-asyncio>=0.21.1
 pytest-timeout>=2.1.0
 freezegun>=1.2.2
 hypothesis>=6.82.0
-
-# Optional: Audio transcription fallback (install separately if needed)
-# faster-whisper>=0.10.0
-# torch>=2.3.0
-# torchaudio>=2.3.0
 
 # Note: For Zoom API, we'll use direct requests instead of pyzoom
