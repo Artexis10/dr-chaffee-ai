@@ -2336,7 +2336,12 @@ def main():
         
         # Check critical dependencies first (includes yt-dlp version check)
         logger.info("Checking dependencies...")
-        from backend.scripts.common.dependency_checker import check_and_install_dependencies
+        import sys
+        from pathlib import Path
+        # Add parent directory to path for imports
+        script_dir = Path(__file__).parent
+        sys.path.insert(0, str(script_dir))
+        from common.dependency_checker import check_and_install_dependencies
         
         # Check yt-dlp version if using yt-dlp source and not skipping
         check_ytdlp = (config.source == 'yt-dlp' and not config.skip_ytdlp_update)
@@ -2348,7 +2353,7 @@ def main():
         
         # Force yt-dlp update or use nightly if requested
         if config.source == 'yt-dlp' and (config.force_ytdlp_update or config.use_ytdlp_nightly):
-            from backend.scripts.common.ytdlp_updater import check_and_update_ytdlp
+            from common.ytdlp_updater import check_and_update_ytdlp
             logger.info("Forcing yt-dlp update...")
             ytdlp_ready = check_and_update_ytdlp(
                 force=config.force_ytdlp_update,

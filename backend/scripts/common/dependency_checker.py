@@ -178,8 +178,8 @@ class DependencyChecker:
     def check_ytdlp_version(self) -> bool:
         """Check if yt-dlp is up-to-date and update if needed."""
         try:
-            # Import the updater
-            from backend.scripts.common.ytdlp_updater import check_and_update_ytdlp
+            # Import the updater (relative import)
+            from .ytdlp_updater import check_and_update_ytdlp
             
             logger.info("Checking yt-dlp version...")
             return check_and_update_ytdlp(force=False, use_nightly=False)
