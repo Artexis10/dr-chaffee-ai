@@ -1,5 +1,5 @@
-# Production Requirements (CPU-only, API serving)
-# For bulk processing, use backend/requirements.txt on local machine with GPU
+# Production Requirements (CPU-only)
+# Supports both API serving AND lightweight incremental ingestion
 
 # Core API dependencies
 fastapi==0.104.1
@@ -18,17 +18,25 @@ sentence-transformers==2.2.2
 torch>=2.2.0,<2.9.0  # CPU version automatically installed
 transformers==4.33.2
 
+# Lightweight incremental ingestion (1-2 videos/day on CPU)
+faster-whisper>=1.0.2  # CPU mode works fine for small batches
+whisperx>=3.1.1  # Needed for speaker ID
+pyannote.audio>=3.1.1  # Needed for diarization
+librosa>=0.10.1  # Audio processing
+soundfile>=0.12.1  # Audio I/O
+yt-dlp>=2023.11.16  # Download new videos
+
 # Utilities
 numpy>=1.24.3,<2.0.0
 tqdm==4.66.1
 isodate==0.6.1
+youtube-transcript-api==0.6.1
 
-# Note: The following are NOT needed in production (ingestion done locally):
-# - whisperx (GPU-intensive transcription)
-# - pyannote.audio (GPU-intensive speaker diarization)
-# - librosa (audio processing for ingestion)
-# - faster-whisper (GPU-intensive ASR)
-# - yt-dlp (video downloading for ingestion)
+# Scheduling for automated ingestion
+apscheduler==3.10.4
+
+# Note: CPU mode is slow but acceptable for incremental processing:
+# - Bulk processing (1200h): Use local GPU machine (~24h)
+# - Incremental (1-2 videos/day): Production CPU is fine (~3-5h overnight)
 #
-# These dependencies are only needed on local machine for bulk processing.
-# Production only serves API requests using pre-computed embeddings.
+# Cost: ~$30/month vs $500+/month for GPU instance

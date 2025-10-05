@@ -2332,7 +2332,7 @@ Examples:
 def main():
     """Main entry point"""
     try:
-        # Safety check: prevent ingestion in production (API-only mode)
+        # Safety check: warn if running in production without limit
         if os.getenv('API_ONLY_MODE', '').lower() == 'true':
             logger.error("=" * 80)
             logger.error("❌ INGESTION DISABLED IN API_ONLY_MODE")
@@ -2340,13 +2340,20 @@ def main():
             logger.error("This environment is configured for API serving only.")
             logger.error("")
             logger.error("To run ingestion:")
-            logger.error("  1. Run on local machine with GPU")
-            logger.error("  2. Set API_ONLY_MODE=false or unset it")
-            logger.error("  3. Replicate database to production after processing")
+            logger.error("  1. Run on local machine with GPU (bulk processing)")
+            logger.error("  2. Set API_ONLY_MODE=false for incremental processing")
+            logger.error("  3. Use scheduled_ingestion.py for automated daily updates")
             logger.error("")
             logger.error("See docs/PRODUCTION_DEPLOYMENT.md for details")
             logger.error("=" * 80)
             sys.exit(1)
+        
+        # Warn if running bulk processing in production
+        is_production = os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('RENDER') or os.getenv('PRODUCTION')
+        if is_production:
+            logger.warning("⚠️  Running in production environment (CPU-only)")
+            logger.warning("⚠️  CPU is slow for bulk processing - use local GPU for large batches")
+            logger.warning("⚠️  Recommended: --limit 5 --limit-unprocessed for incremental updates")
         
         config = parse_args()
         

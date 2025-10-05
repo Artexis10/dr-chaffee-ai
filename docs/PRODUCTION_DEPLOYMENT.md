@@ -4,29 +4,41 @@ Guide for deploying Dr. Chaffee AI to production without GPU.
 
 ## Architecture
 
-### Two-Tier Processing Model
+### Hybrid Processing Model
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    LOCAL MACHINE (GPU)                       │
 │  - RTX 5080 for fast processing                            │
 │  - Bulk ingestion (1200h audio in ~24h)                    │
-│  - Speaker identification                                    │
-│  - Embedding generation                                      │
-│  - Database writes                                           │
+│  - Initial corpus processing                                │
+│  - Historical backlog                                        │
 └─────────────────────────────────────────────────────────────┘
                               │
-                              │ Replicate data
+                              │ One-time bulk sync
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                  PRODUCTION (CPU-only)                       │
-│  - No GPU required                                          │
-│  - Serves API requests                                       │
+│  - Serves API requests (fast)                               │
 │  - Semantic search on embeddings                            │
-│  - Read-only database access                                │
-│  - No ingestion/transcription                               │
+│  - Incremental processing (new videos only)                 │
+│  - CPU is fine for 1-2 videos/day                          │
+│  - Cost: ~$30/month                                         │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+### Why This Works
+
+**Bulk Processing (Local GPU)**
+- Process 1200h historical content once
+- Takes ~24h with RTX 5080
+- One-time operation
+
+**Incremental Processing (Production CPU)**
+- Only 1-2 new videos per day (~30min audio)
+- CPU can handle this easily (~3-5 hours)
+- Runs overnight, ready by morning
+- Cheap and sustainable
 
 ## Production Configuration
 
@@ -36,17 +48,17 @@ Guide for deploying Dr. Chaffee AI to production without GPU.
 # .env.production
 DATABASE_URL=postgresql://user:pass@host:5432/db
 
-# Disable GPU-intensive features
-ENABLE_INGESTION=false
-ENABLE_TRANSCRIPTION=false
-ENABLE_SPEAKER_ID=false
-
-# CPU-only mode
+# CPU-only mode (no GPU needed)
 CUDA_VISIBLE_DEVICES=""
 TORCH_DEVICE=cpu
 
-# API only
-API_ONLY_MODE=true
+# Enable lightweight incremental processing
+ENABLE_INGESTION=true  # Allow processing new videos
+INCREMENTAL_ONLY=true  # Only process new videos, not bulk
+
+# Scheduled ingestion (daily at 2 AM)
+INGESTION_SCHEDULE="0 2 * * *"  # Cron format
+INGESTION_LIMIT=5  # Process max 5 new videos per day
 ```
 
 ### requirements-production.txt
@@ -238,28 +250,49 @@ else:
 
 ## Workflow
 
-### Weekly Update Cycle
+### Initial Setup (One-Time)
 
 ```bash
-# Monday: Local processing
+# Step 1: Bulk processing on local GPU machine
 python backend/scripts/ingest_youtube.py \
   --source yt-dlp \
-  --limit 100 \
+  --limit 1200 \
   --limit-unprocessed
 
-# Tuesday: Replicate to production
-pg_dump $LOCAL_DB > weekly_update.sql
-psql $PROD_DB < weekly_update.sql
+# Step 2: Sync to production
+export LOCAL_DATABASE_URL=postgresql://localhost/dr_chaffee_local
+export PRODUCTION_DATABASE_URL=postgresql://prod_host/dr_chaffee_prod
+python backend/scripts/sync_to_production.py
 
-# Production automatically serves new data
+# Step 3: Deploy production with scheduled ingestion
+# Production will now handle new videos automatically
 ```
 
-### Continuous Sync (Advanced)
+### Daily Operations (Automatic)
 
 ```bash
-# Set up logical replication (one-time)
-# Then production DB stays in sync automatically
-# New segments appear in production within seconds
+# Production runs scheduled ingestion daily at 2 AM
+# Processes 1-2 new videos automatically
+# No manual intervention needed
+
+# Command that runs automatically:
+python backend/scripts/ingest_youtube.py \
+  --source yt-dlp \
+  --limit 5 \
+  --limit-unprocessed \
+  --skip-shorts \
+  --newest-first
+```
+
+### Manual Sync (If Needed)
+
+```bash
+# If you process videos locally and want to sync
+python backend/scripts/sync_to_production.py
+
+# Or use pg_dump for full backup
+pg_dump $LOCAL_DB > backup.sql
+psql $PROD_DB < backup.sql
 ```
 
 ## Monitoring
