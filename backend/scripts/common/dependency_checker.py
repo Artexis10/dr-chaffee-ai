@@ -1,0 +1,204 @@
+#!/usr/bin/env python3
+"""
+Automatic dependency checker and installer.
+
+Ensures critical dependencies are installed before running ingestion.
+"""
+import subprocess
+import sys
+import logging
+from typing import List, Tuple
+
+logger = logging.getLogger(__name__)
+
+
+class DependencyChecker:
+    """Checks and installs missing critical dependencies."""
+    
+    # Critical dependencies that must be present
+    CRITICAL_DEPS = {
+        'faster_whisper': 'faster-whisper>=1.0.2',
+        'torch': 'torch>=2.1.0,<2.4.0',
+        'yt_dlp': 'yt-dlp>=2023.11.16',
+        'psycopg2': 'psycopg2-binary>=2.9.9',
+        'transformers': 'transformers==4.33.2',
+    }
+    
+    # Optional dependencies (warn but don't fail)
+    OPTIONAL_DEPS = {
+        'whisperx': 'whisperx>=3.1.1',
+        'pyannote.audio': 'pyannote.audio>=3.1.1',
+        'librosa': 'librosa>=0.10.1',
+    }
+    
+    def __init__(self, auto_install: bool = True):
+        """
+        Args:
+            auto_install: If True, automatically install missing dependencies
+        """
+        self.auto_install = auto_install
+    
+    def check_import(self, module_name: str) -> bool:
+        """Check if a module can be imported."""
+        try:
+            __import__(module_name)
+            return True
+        except ImportError:
+            return False
+    
+    def check_all_dependencies(self) -> Tuple[List[str], List[str]]:
+        """
+        Check all dependencies.
+        
+        Returns:
+            (missing_critical, missing_optional)
+        """
+        missing_critical = []
+        missing_optional = []
+        
+        logger.info("Checking critical dependencies...")
+        for module, package in self.CRITICAL_DEPS.items():
+            if not self.check_import(module):
+                logger.warning(f"❌ Missing critical dependency: {package}")
+                missing_critical.append(package)
+            else:
+                logger.debug(f"✅ {module} available")
+        
+        logger.info("Checking optional dependencies...")
+        for module, package in self.OPTIONAL_DEPS.items():
+            if not self.check_import(module):
+                logger.info(f"⚠️  Optional dependency not installed: {package}")
+                missing_optional.append(package)
+            else:
+                logger.debug(f"✅ {module} available")
+        
+        return missing_critical, missing_optional
+    
+    def install_package(self, package: str) -> bool:
+        """
+        Install a package using pip.
+        
+        Args:
+            package: Package specification (e.g., 'faster-whisper>=1.0.2')
+        
+        Returns:
+            True if installation successful
+        """
+        try:
+            logger.info(f"Installing {package}...")
+            result = subprocess.run(
+                [sys.executable, '-m', 'pip', 'install', package],
+                capture_output=True,
+                text=True,
+                timeout=300  # 5 minutes max
+            )
+            
+            if result.returncode == 0:
+                logger.info(f"✅ Successfully installed {package}")
+                return True
+            else:
+                logger.error(f"Failed to install {package}: {result.stderr}")
+                return False
+        except Exception as e:
+            logger.error(f"Error installing {package}: {e}")
+            return False
+    
+    def auto_fix_dependencies(self) -> bool:
+        """
+        Automatically check and install missing dependencies.
+        
+        Returns:
+            True if all critical dependencies are available
+        """
+        missing_critical, missing_optional = self.check_all_dependencies()
+        
+        # Handle critical dependencies
+        if missing_critical:
+            if not self.auto_install:
+                logger.error("❌ Missing critical dependencies!")
+                logger.error("Install with: pip install " + " ".join(missing_critical))
+                return False
+            
+            logger.warning(f"⚠️  Found {len(missing_critical)} missing critical dependencies")
+            logger.info("Attempting automatic installation...")
+            
+            failed = []
+            for package in missing_critical:
+                if not self.install_package(package):
+                    failed.append(package)
+            
+            if failed:
+                logger.error("❌ Failed to install critical dependencies:")
+                for package in failed:
+                    logger.error(f"  - {package}")
+                logger.error("\nManual installation required:")
+                logger.error(f"  pip install {' '.join(failed)}")
+                return False
+            
+            logger.info("✅ All critical dependencies installed successfully")
+        else:
+            logger.info("✅ All critical dependencies available")
+        
+        # Handle optional dependencies
+        if missing_optional:
+            logger.info(f"ℹ️  {len(missing_optional)} optional dependencies not installed:")
+            for package in missing_optional:
+                logger.info(f"  - {package}")
+            logger.info("These are optional for advanced features (speaker ID, etc.)")
+            logger.info("Install with: pip install " + " ".join(missing_optional))
+        
+        return True
+    
+    def check_gpu_availability(self) -> bool:
+        """Check if GPU/CUDA is available for PyTorch."""
+        try:
+            import torch
+            has_cuda = torch.cuda.is_available()
+            if has_cuda:
+                gpu_name = torch.cuda.get_device_name(0)
+                logger.info(f"✅ GPU available: {gpu_name}")
+            else:
+                logger.warning("⚠️  No GPU detected - will use CPU (slower)")
+            return has_cuda
+        except Exception as e:
+            logger.warning(f"Could not check GPU availability: {e}")
+            return False
+
+
+def check_and_install_dependencies(auto_install: bool = True) -> bool:
+    """
+    Convenience function to check and install dependencies.
+    
+    Args:
+        auto_install: If True, automatically install missing dependencies
+    
+    Returns:
+        True if all critical dependencies are available
+    """
+    checker = DependencyChecker(auto_install=auto_install)
+    
+    # Check dependencies
+    success = checker.auto_fix_dependencies()
+    
+    # Check GPU
+    if success:
+        checker.check_gpu_availability()
+    
+    return success
+
+
+if __name__ == "__main__":
+    # Test the dependency checker
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
+    
+    import argparse
+    parser = argparse.ArgumentParser(description="Check and install dependencies")
+    parser.add_argument('--no-auto-install', action='store_true',
+                       help='Only check, do not auto-install')
+    args = parser.parse_args()
+    
+    success = check_and_install_dependencies(auto_install=not args.no_auto_install)
+    sys.exit(0 if success else 1)
