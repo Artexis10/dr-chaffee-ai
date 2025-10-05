@@ -381,12 +381,15 @@ class EnhancedASR:
             # Stage 1: Primary transcription with distil-large-v3 (fast)
             primary_model = self._get_whisper_model()
             
-            logger.info(f"Stage 1: Primary transcription with {self.config.whisper.model}")
+            # Check VAD setting from environment
+            vad_enabled = os.getenv('WHISPER_VAD', 'false').lower() == 'true'
+            
+            logger.info(f"Stage 1: Primary transcription with {self.config.whisper.model} (VAD: {vad_enabled})")
             segments, info = primary_model.transcribe(
                 audio_path,
                 language="en",
                 word_timestamps=True,
-                vad_filter=True,
+                vad_filter=vad_enabled,
                 beam_size=5
             )
             
@@ -565,12 +568,15 @@ class EnhancedASR:
                 logger.warning(f"ffmpeg extraction failed: {result.stderr}")
                 return []
             
+            # Check VAD setting from environment
+            vad_enabled = os.getenv('WHISPER_VAD', 'false').lower() == 'true'
+            
             # Re-transcribe with refinement model
             segments, _ = refine_model.transcribe(
                 temp_path,
                 language="en", 
                 word_timestamps=True,
-                vad_filter=True,
+                vad_filter=vad_enabled,
                 beam_size=8,  # Higher beam size for quality
                 temperature=[0.0, 0.2, 0.4]  # Multiple temperatures
             )
