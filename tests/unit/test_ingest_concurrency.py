@@ -14,7 +14,7 @@ class TestConcurrencyConfiguration:
     
     def test_config_io_concurrency_default(self, monkeypatch):
         """Test I/O concurrency default value."""
-        from backend.scripts.ingest_youtube_enhanced import IngestionConfig
+        from backend.scripts.ingest_youtube import IngestionConfig
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -25,7 +25,7 @@ class TestConcurrencyConfiguration:
     
     def test_config_asr_concurrency_default(self, monkeypatch):
         """Test ASR concurrency default value."""
-        from backend.scripts.ingest_youtube_enhanced import IngestionConfig
+        from backend.scripts.ingest_youtube import IngestionConfig
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -36,7 +36,7 @@ class TestConcurrencyConfiguration:
     
     def test_config_db_concurrency_default(self, monkeypatch):
         """Test DB concurrency default value."""
-        from backend.scripts.ingest_youtube_enhanced import IngestionConfig
+        from backend.scripts.ingest_youtube import IngestionConfig
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -47,7 +47,7 @@ class TestConcurrencyConfiguration:
     
     def test_config_concurrency_from_env(self, monkeypatch):
         """Test concurrency values read from environment."""
-        from backend.scripts.ingest_youtube_enhanced import IngestionConfig
+        from backend.scripts.ingest_youtube import IngestionConfig
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         monkeypatch.setenv('IO_WORKERS', '8')
@@ -62,7 +62,7 @@ class TestConcurrencyConfiguration:
     
     def test_config_legacy_concurrency(self, monkeypatch):
         """Test legacy concurrency parameter."""
-        from backend.scripts.ingest_youtube_enhanced import IngestionConfig
+        from backend.scripts.ingest_youtube import IngestionConfig
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -329,7 +329,7 @@ class TestQueuePeakTracking:
     
     def test_processing_stats_queue_peaks(self):
         """Test ProcessingStats tracks queue peaks."""
-        from backend.scripts.ingest_youtube_enhanced import ProcessingStats
+        from backend.scripts.ingest_youtube import ProcessingStats
         
         stats = ProcessingStats()
         
@@ -349,7 +349,7 @@ class TestThreadSafety:
     
     def test_stats_lock_prevents_race_conditions(self):
         """Test stats lock prevents race conditions."""
-        from backend.scripts.ingest_youtube_enhanced import ProcessingStats
+        from backend.scripts.ingest_youtube import ProcessingStats
         
         stats = ProcessingStats()
         stats_lock = threading.Lock()
@@ -370,7 +370,7 @@ class TestThreadSafety:
     
     def test_concurrent_stats_updates(self):
         """Test concurrent statistics updates are safe."""
-        from backend.scripts.ingest_youtube_enhanced import ProcessingStats
+        from backend.scripts.ingest_youtube import ProcessingStats
         
         stats = ProcessingStats()
         lock = threading.Lock()

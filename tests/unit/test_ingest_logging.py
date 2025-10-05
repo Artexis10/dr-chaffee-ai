@@ -12,7 +12,7 @@ class TestStructuredLogging:
     
     def test_processing_stats_log_summary(self, caplog):
         """Test ProcessingStats.log_summary produces structured output."""
-        from backend.scripts.ingest_youtube_enhanced import ProcessingStats
+        from backend.scripts.ingest_youtube import ProcessingStats
         
         caplog.set_level(logging.INFO)
         
@@ -42,7 +42,7 @@ class TestStructuredLogging:
     
     def test_processing_stats_rtf_calculation(self):
         """Test real-time factor calculation."""
-        from backend.scripts.ingest_youtube_enhanced import ProcessingStats
+        from backend.scripts.ingest_youtube import ProcessingStats
         
         stats = ProcessingStats()
         stats.total_audio_duration_s = 3600.0  # 1 hour of audio
@@ -56,7 +56,7 @@ class TestStructuredLogging:
     
     def test_processing_stats_rtf_zero_division(self):
         """Test RTF calculation handles zero division."""
-        from backend.scripts.ingest_youtube_enhanced import ProcessingStats
+        from backend.scripts.ingest_youtube import ProcessingStats
         
         stats = ProcessingStats()
         stats.total_audio_duration_s = 0.0
@@ -68,7 +68,7 @@ class TestStructuredLogging:
     
     def test_processing_stats_throughput_calculation(self):
         """Test throughput calculation (hours per hour)."""
-        from backend.scripts.ingest_youtube_enhanced import ProcessingStats
+        from backend.scripts.ingest_youtube import ProcessingStats
         
         stats = ProcessingStats()
         stats.total_audio_duration_s = 180000.0  # 50 hours of audio
@@ -83,7 +83,7 @@ class TestStructuredLogging:
     
     def test_processing_stats_throughput_zero_division(self):
         """Test throughput calculation handles zero division."""
-        from backend.scripts.ingest_youtube_enhanced import ProcessingStats
+        from backend.scripts.ingest_youtube import ProcessingStats
         
         stats = ProcessingStats()
         stats.total_audio_duration_s = 1000.0
@@ -95,7 +95,7 @@ class TestStructuredLogging:
     
     def test_processing_stats_add_audio_duration(self):
         """Test adding audio duration accumulates correctly."""
-        from backend.scripts.ingest_youtube_enhanced import ProcessingStats
+        from backend.scripts.ingest_youtube import ProcessingStats
         
         stats = ProcessingStats()
         
@@ -107,7 +107,7 @@ class TestStructuredLogging:
     
     def test_processing_stats_speaker_breakdown_logging(self, caplog):
         """Test speaker attribution breakdown is logged."""
-        from backend.scripts.ingest_youtube_enhanced import ProcessingStats
+        from backend.scripts.ingest_youtube import ProcessingStats
         
         caplog.set_level(logging.INFO)
         
@@ -129,7 +129,7 @@ class TestStructuredLogging:
     
     def test_processing_stats_performance_target_indicators(self, caplog):
         """Test performance target achievement indicators."""
-        from backend.scripts.ingest_youtube_enhanced import ProcessingStats
+        from backend.scripts.ingest_youtube import ProcessingStats
         
         caplog.set_level(logging.INFO)
         
@@ -149,7 +149,7 @@ class TestStructuredLogging:
     
     def test_processing_stats_1200h_estimate(self, caplog):
         """Test 1200h ingestion time estimate is logged."""
-        from backend.scripts.ingest_youtube_enhanced import ProcessingStats
+        from backend.scripts.ingest_youtube import ProcessingStats
         
         caplog.set_level(logging.INFO)
         
@@ -173,7 +173,7 @@ class TestLoggingNoSecrets:
     
     def test_api_key_not_logged(self, caplog, monkeypatch):
         """Test API key is never logged."""
-        from backend.scripts.ingest_youtube_enhanced import IngestionConfig
+        from backend.scripts.ingest_youtube import IngestionConfig
         
         caplog.set_level(logging.DEBUG)
         
@@ -190,7 +190,7 @@ class TestLoggingNoSecrets:
     
     def test_database_password_not_logged(self, monkeypatch, caplog):
         """Test database URL is not logged."""
-        from backend.scripts.ingest_youtube_enhanced import IngestionConfig
+        from backend.scripts.ingest_youtube import IngestionConfig
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://user:secret_pass@localhost/db')
         
@@ -201,7 +201,7 @@ class TestLoggingNoSecrets:
     
     def test_proxy_credentials_not_logged(self, caplog, monkeypatch):
         """Test proxy credentials are not logged."""
-        from backend.scripts.ingest_youtube_enhanced import IngestionConfig
+        from backend.scripts.ingest_youtube import IngestionConfig
         
         caplog.set_level(logging.DEBUG)
         
@@ -224,7 +224,7 @@ class TestLoggingPerformanceMetrics:
     
     def test_gpu_telemetry_logging(self, caplog, mock_check_output_success):
         """Test GPU telemetry logs performance metrics."""
-        from backend.scripts.ingest_youtube_enhanced import _telemetry_hook, ProcessingStats
+        from backend.scripts.ingest_youtube import _telemetry_hook, ProcessingStats
         
         caplog.set_level(logging.INFO)
         
@@ -244,7 +244,7 @@ class TestLoggingPerformanceMetrics:
     
     def test_gpu_telemetry_performance_warning(self, caplog):
         """Test GPU telemetry warns on low utilization."""
-        from backend.scripts.ingest_youtube_enhanced import _telemetry_hook, ProcessingStats
+        from backend.scripts.ingest_youtube import _telemetry_hook, ProcessingStats
         
         caplog.set_level(logging.WARNING)
         
@@ -261,7 +261,7 @@ class TestLoggingPerformanceMetrics:
     
     def test_optimization_stats_logging(self, caplog):
         """Test optimization statistics are logged."""
-        from backend.scripts.ingest_youtube_enhanced import ProcessingStats
+        from backend.scripts.ingest_youtube import ProcessingStats
         
         caplog.set_level(logging.INFO)
         
@@ -291,7 +291,7 @@ class TestLoggingErrorHandling:
     
     def test_error_logging_includes_context(self, caplog):
         """Test error logs include contextual information."""
-        from backend.scripts.ingest_youtube_enhanced import ProcessingStats
+        from backend.scripts.ingest_youtube import ProcessingStats
         
         caplog.set_level(logging.ERROR)
         

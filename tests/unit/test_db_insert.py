@@ -3,10 +3,8 @@
 
 import sys
 import os
-sys.path.append(os.path.join(os.path.dirname(__file__), 'backend', 'scripts'))
-sys.path.append(os.path.join(os.path.dirname(__file__), 'backend', 'scripts', 'common'))
 
-from segments_database import SegmentsDatabase
+from backend.scripts.common.segments_database import SegmentsDatabase
 import psycopg2
 from dotenv import load_dotenv
 

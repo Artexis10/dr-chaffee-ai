@@ -15,7 +15,7 @@ class TestTempDirectoryCleanup:
     
     def test_get_thread_temp_dir_creates_unique_dir(self):
         """Test that each thread gets a unique temp directory."""
-        from backend.scripts.ingest_youtube_enhanced import get_thread_temp_dir
+        from backend.scripts.ingest_youtube import get_thread_temp_dir
         
         dir1 = get_thread_temp_dir()
         dir2 = get_thread_temp_dir()
@@ -41,7 +41,7 @@ class TestTempDirectoryCleanup:
     
     def test_get_thread_temp_dir_different_threads(self):
         """Test that different threads get different temp directories."""
-        from backend.scripts.ingest_youtube_enhanced import get_thread_temp_dir
+        from backend.scripts.ingest_youtube import get_thread_temp_dir
         
         results = []
         
@@ -72,7 +72,7 @@ class TestTempDirectoryCleanup:
     
     def test_temp_dir_naming_pattern(self):
         """Test temp directory follows expected naming pattern."""
-        from backend.scripts.ingest_youtube_enhanced import get_thread_temp_dir
+        from backend.scripts.ingest_youtube import get_thread_temp_dir
         
         temp_dir = get_thread_temp_dir()
         
@@ -94,7 +94,7 @@ class TestTempDirectoryCleanup:
     
     def test_temp_dir_idempotent_creation(self):
         """Test temp directory creation is idempotent (exist_ok=True)."""
-        from backend.scripts.ingest_youtube_enhanced import get_thread_temp_dir
+        from backend.scripts.ingest_youtube import get_thread_temp_dir
         
         # First call creates directory
         dir1 = get_thread_temp_dir()
@@ -115,7 +115,7 @@ class TestTempDirectoryCleanup:
     
     def test_temp_dir_windows_compatible(self):
         """Test temp directory paths are Windows-compatible."""
-        from backend.scripts.ingest_youtube_enhanced import get_thread_temp_dir
+        from backend.scripts.ingest_youtube import get_thread_temp_dir
         
         temp_dir = get_thread_temp_dir()
         
@@ -141,7 +141,7 @@ class TestCleanupOnException:
     
     def test_cleanup_on_keyboard_interrupt(self, tmp_path, monkeypatch, caplog):
         """Test cleanup occurs on KeyboardInterrupt."""
-        from backend.scripts.ingest_youtube_enhanced import EnhancedYouTubeIngester, IngestionConfig
+        from backend.scripts.ingest_youtube import EnhancedYouTubeIngester, IngestionConfig
         
         # Create test file to track cleanup
         test_file = tmp_path / "test_audio.wav"
@@ -164,7 +164,7 @@ class TestCleanupOnException:
     
     def test_cleanup_on_generic_exception(self, tmp_path, monkeypatch):
         """Test cleanup occurs on generic exceptions."""
-        from backend.scripts.ingest_youtube_enhanced import IngestionConfig
+        from backend.scripts.ingest_youtube import IngestionConfig
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         monkeypatch.setenv('YOUTUBE_API_KEY', 'fake_key')
@@ -251,7 +251,7 @@ class TestCleanupConfiguration:
     
     def test_cleanup_audio_enabled(self, monkeypatch):
         """Test cleanup_audio=True configuration."""
-        from backend.scripts.ingest_youtube_enhanced import IngestionConfig
+        from backend.scripts.ingest_youtube import IngestionConfig
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -266,7 +266,7 @@ class TestCleanupConfiguration:
     
     def test_cleanup_audio_disabled(self, monkeypatch):
         """Test cleanup_audio=False configuration."""
-        from backend.scripts.ingest_youtube_enhanced import IngestionConfig
+        from backend.scripts.ingest_youtube import IngestionConfig
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -281,7 +281,7 @@ class TestCleanupConfiguration:
     
     def test_audio_storage_dir_creation(self, tmp_path, monkeypatch):
         """Test audio storage directory is created if needed."""
-        from backend.scripts.ingest_youtube_enhanced import IngestionConfig
+        from backend.scripts.ingest_youtube import IngestionConfig
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -301,7 +301,7 @@ class TestCleanupConfiguration:
     
     def test_production_mode_disables_storage(self, monkeypatch):
         """Test production mode disables audio storage."""
-        from backend.scripts.ingest_youtube_enhanced import IngestionConfig
+        from backend.scripts.ingest_youtube import IngestionConfig
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         

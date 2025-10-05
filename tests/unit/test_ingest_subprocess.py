@@ -14,7 +14,7 @@ class TestSubprocessPipeline:
     
     def test_telemetry_hook_success(self, mock_check_output_success):
         """Test GPU telemetry with successful nvidia-smi call."""
-        from backend.scripts.ingest_youtube_enhanced import _telemetry_hook, ProcessingStats
+        from backend.scripts.ingest_youtube import _telemetry_hook, ProcessingStats
         
         stats = ProcessingStats()
         stats.io_queue_peak = 5
@@ -33,7 +33,7 @@ class TestSubprocessPipeline:
     
     def test_telemetry_hook_failure_graceful(self):
         """Test GPU telemetry handles nvidia-smi failure gracefully."""
-        from backend.scripts.ingest_youtube_enhanced import _telemetry_hook, ProcessingStats
+        from backend.scripts.ingest_youtube import _telemetry_hook, ProcessingStats
         
         stats = ProcessingStats()
         mock_runner = Mock(side_effect=Exception("nvidia-smi not found"))
@@ -43,7 +43,7 @@ class TestSubprocessPipeline:
     
     def test_telemetry_hook_malformed_output(self):
         """Test GPU telemetry handles malformed nvidia-smi output."""
-        from backend.scripts.ingest_youtube_enhanced import _telemetry_hook, ProcessingStats
+        from backend.scripts.ingest_youtube import _telemetry_hook, ProcessingStats
         
         stats = ProcessingStats()
         mock_runner = Mock(return_value="invalid,output")
@@ -53,7 +53,7 @@ class TestSubprocessPipeline:
     
     def test_fast_duration_ffprobe_success(self, tmp_path):
         """Test duration extraction via ffprobe subprocess."""
-        from backend.scripts.ingest_youtube_enhanced import _fast_duration_seconds
+        from backend.scripts.ingest_youtube import _fast_duration_seconds
         
         # Create a fake audio file
         test_file = tmp_path / "test.wav"
@@ -82,7 +82,7 @@ class TestSubprocessPipeline:
     
     def test_fast_duration_ffprobe_failure(self, tmp_path):
         """Test duration extraction handles ffprobe failure."""
-        from backend.scripts.ingest_youtube_enhanced import _fast_duration_seconds
+        from backend.scripts.ingest_youtube import _fast_duration_seconds
         
         test_file = tmp_path / "test.wav"
         test_file.write_bytes(b"fake audio data")
@@ -97,7 +97,7 @@ class TestSubprocessPipeline:
     
     def test_fast_duration_invalid_json(self, tmp_path):
         """Test duration extraction handles invalid JSON from ffprobe."""
-        from backend.scripts.ingest_youtube_enhanced import _fast_duration_seconds
+        from backend.scripts.ingest_youtube import _fast_duration_seconds
         
         test_file = tmp_path / "test.wav"
         test_file.write_bytes(b"fake audio data")
@@ -116,7 +116,7 @@ class TestSubprocessPipeline:
     
     def test_fast_duration_missing_duration_field(self, tmp_path):
         """Test duration extraction handles missing duration field."""
-        from backend.scripts.ingest_youtube_enhanced import _fast_duration_seconds
+        from backend.scripts.ingest_youtube import _fast_duration_seconds
         
         test_file = tmp_path / "test.wav"
         test_file.write_bytes(b"fake audio data")
@@ -135,7 +135,7 @@ class TestSubprocessPipeline:
     
     def test_fast_duration_non_zero_return_code(self, tmp_path):
         """Test duration extraction handles non-zero return code."""
-        from backend.scripts.ingest_youtube_enhanced import _fast_duration_seconds
+        from backend.scripts.ingest_youtube import _fast_duration_seconds
         
         test_file = tmp_path / "test.wav"
         test_file.write_bytes(b"fake audio data")
@@ -159,7 +159,7 @@ class TestSubprocessPipeline:
     ])
     def test_subprocess_stderr_handling(self, tmp_path, stderr_content, expected_duration):
         """Test subprocess handles stderr warnings correctly."""
-        from backend.scripts.ingest_youtube_enhanced import _fast_duration_seconds
+        from backend.scripts.ingest_youtube import _fast_duration_seconds
         
         test_file = tmp_path / "test.wav"
         test_file.write_bytes(b"fake audio data")
@@ -176,7 +176,7 @@ class TestSubprocessPipeline:
     
     def test_subprocess_timeout_handling(self, tmp_path):
         """Test subprocess handles timeout correctly."""
-        from backend.scripts.ingest_youtube_enhanced import _fast_duration_seconds
+        from backend.scripts.ingest_youtube import _fast_duration_seconds
         import subprocess
         
         test_file = tmp_path / "test.wav"
@@ -192,7 +192,7 @@ class TestSubprocessPipeline:
     
     def test_subprocess_args_validation(self, tmp_path):
         """Test subprocess is called with correct argument structure."""
-        from backend.scripts.ingest_youtube_enhanced import _fast_duration_seconds
+        from backend.scripts.ingest_youtube import _fast_duration_seconds
         
         test_file = tmp_path / "test.wav"
         test_file.write_bytes(b"fake audio data")
@@ -214,7 +214,7 @@ class TestSubprocessPipeline:
     
     def test_subprocess_command_sequence(self, tmp_path):
         """Test subprocess commands are built in correct order."""
-        from backend.scripts.ingest_youtube_enhanced import _fast_duration_seconds
+        from backend.scripts.ingest_youtube import _fast_duration_seconds
         
         test_file = tmp_path / "test.wav"
         test_file.write_bytes(b"fake audio data")
@@ -237,7 +237,7 @@ class TestSubprocessPipeline:
     
     def test_non_utf8_stdout_handling(self, tmp_path):
         """Test subprocess handles non-UTF8 stdout gracefully."""
-        from backend.scripts.ingest_youtube_enhanced import _fast_duration_seconds
+        from backend.scripts.ingest_youtube import _fast_duration_seconds
         
         test_file = tmp_path / "test.wav"
         test_file.write_bytes(b"fake audio data")
@@ -267,7 +267,7 @@ class TestSubprocessErrorCodes:
     ])
     def test_subprocess_return_code_mapping(self, tmp_path, returncode, should_succeed):
         """Test subprocess return codes are properly handled."""
-        from backend.scripts.ingest_youtube_enhanced import _fast_duration_seconds
+        from backend.scripts.ingest_youtube import _fast_duration_seconds
         
         test_file = tmp_path / "test.wav"
         test_file.write_bytes(b"fake audio data")

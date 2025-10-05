@@ -13,7 +13,7 @@ class TestCLIArgumentParsing:
     
     def test_parse_args_minimal(self, monkeypatch):
         """Test parsing with minimal arguments."""
-        from backend.scripts.ingest_youtube_enhanced import parse_args
+        from backend.scripts.ingest_youtube import parse_args
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         monkeypatch.setenv('YOUTUBE_API_KEY', 'test_key')
@@ -27,7 +27,7 @@ class TestCLIArgumentParsing:
     
     def test_parse_args_source_selection(self, monkeypatch):
         """Test source selection via CLI."""
-        from backend.scripts.ingest_youtube_enhanced import parse_args
+        from backend.scripts.ingest_youtube import parse_args
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -39,7 +39,7 @@ class TestCLIArgumentParsing:
     
     def test_parse_args_from_url(self, monkeypatch):
         """Test --from-url argument."""
-        from backend.scripts.ingest_youtube_enhanced import parse_args
+        from backend.scripts.ingest_youtube import parse_args
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -59,7 +59,7 @@ class TestCLIArgumentParsing:
     
     def test_parse_args_concurrency(self, monkeypatch):
         """Test concurrency argument parsing."""
-        from backend.scripts.ingest_youtube_enhanced import parse_args
+        from backend.scripts.ingest_youtube import parse_args
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -71,7 +71,7 @@ class TestCLIArgumentParsing:
     
     def test_parse_args_limit(self, monkeypatch):
         """Test --limit argument."""
-        from backend.scripts.ingest_youtube_enhanced import parse_args
+        from backend.scripts.ingest_youtube import parse_args
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -83,7 +83,7 @@ class TestCLIArgumentParsing:
     
     def test_parse_args_skip_shorts(self, monkeypatch):
         """Test --skip-shorts flag."""
-        from backend.scripts.ingest_youtube_enhanced import parse_args
+        from backend.scripts.ingest_youtube import parse_args
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -95,7 +95,7 @@ class TestCLIArgumentParsing:
     
     def test_parse_args_newest_first(self, monkeypatch):
         """Test --newest-first flag."""
-        from backend.scripts.ingest_youtube_enhanced import parse_args
+        from backend.scripts.ingest_youtube import parse_args
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -107,7 +107,7 @@ class TestCLIArgumentParsing:
     
     def test_parse_args_whisper_model(self, monkeypatch):
         """Test --whisper-model argument."""
-        from backend.scripts.ingest_youtube_enhanced import parse_args
+        from backend.scripts.ingest_youtube import parse_args
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -119,7 +119,7 @@ class TestCLIArgumentParsing:
     
     def test_parse_args_force_whisper(self, monkeypatch):
         """Test --force-whisper flag."""
-        from backend.scripts.ingest_youtube_enhanced import parse_args
+        from backend.scripts.ingest_youtube import parse_args
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -136,7 +136,7 @@ class TestCLIValidation:
     
     def test_invalid_source_rejected(self, monkeypatch):
         """Test invalid source value is rejected."""
-        from backend.scripts.ingest_youtube_enhanced import parse_args
+        from backend.scripts.ingest_youtube import parse_args
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -148,7 +148,7 @@ class TestCLIValidation:
     
     def test_negative_concurrency_accepted(self, monkeypatch):
         """Test negative concurrency value is accepted (argparse doesn't validate by default)."""
-        from backend.scripts.ingest_youtube_enhanced import parse_args
+        from backend.scripts.ingest_youtube import parse_args
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -161,7 +161,7 @@ class TestCLIValidation:
     
     def test_negative_limit_accepted(self, monkeypatch):
         """Test negative limit value is accepted (argparse doesn't validate by default)."""
-        from backend.scripts.ingest_youtube_enhanced import parse_args
+        from backend.scripts.ingest_youtube import parse_args
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -179,7 +179,7 @@ class TestCLIHelp:
     
     def test_help_flag_exits(self, monkeypatch):
         """Test --help flag exits with code 0."""
-        from backend.scripts.ingest_youtube_enhanced import parse_args
+        from backend.scripts.ingest_youtube import parse_args
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -194,7 +194,7 @@ class TestCLIHelp:
     
     def test_help_contains_examples(self, monkeypatch, capsys):
         """Test help output contains usage examples."""
-        from backend.scripts.ingest_youtube_enhanced import parse_args
+        from backend.scripts.ingest_youtube import parse_args
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -219,7 +219,7 @@ class TestCLIMainEntry:
     
     def test_main_keyboard_interrupt(self, monkeypatch):
         """Test main handles KeyboardInterrupt."""
-        from backend.scripts.ingest_youtube_enhanced import main
+        from backend.scripts.ingest_youtube import main
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -237,7 +237,7 @@ class TestCLIMainEntry:
     
     def test_main_generic_exception(self, monkeypatch, caplog):
         """Test main handles generic exceptions."""
-        from backend.scripts.ingest_youtube_enhanced import main
+        from backend.scripts.ingest_youtube import main
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -263,7 +263,7 @@ class TestCLIEdgeCases:
     
     def test_empty_from_url_list(self, monkeypatch):
         """Test --from-url with no URLs."""
-        from backend.scripts.ingest_youtube_enhanced import parse_args
+        from backend.scripts.ingest_youtube import parse_args
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -276,7 +276,7 @@ class TestCLIEdgeCases:
     
     def test_zero_concurrency(self, monkeypatch):
         """Test concurrency=0 is accepted (argparse doesn't validate by default)."""
-        from backend.scripts.ingest_youtube_enhanced import parse_args
+        from backend.scripts.ingest_youtube import parse_args
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -289,7 +289,7 @@ class TestCLIEdgeCases:
     
     def test_very_large_limit(self, monkeypatch):
         """Test very large limit value is accepted."""
-        from backend.scripts.ingest_youtube_enhanced import parse_args
+        from backend.scripts.ingest_youtube import parse_args
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -302,7 +302,7 @@ class TestCLIEdgeCases:
     
     def test_conflicting_flags(self, monkeypatch):
         """Test conflicting flags are handled."""
-        from backend.scripts.ingest_youtube_enhanced import parse_args
+        from backend.scripts.ingest_youtube import parse_args
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -322,7 +322,7 @@ class TestCLILocalSource:
     
     def test_local_source_from_files(self, monkeypatch, tmp_path):
         """Test --source local with --from-files."""
-        from backend.scripts.ingest_youtube_enhanced import parse_args
+        from backend.scripts.ingest_youtube import parse_args
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -344,7 +344,7 @@ class TestCLILocalSource:
     
     def test_local_source_file_patterns(self, monkeypatch, tmp_path):
         """Test --file-patterns argument."""
-        from backend.scripts.ingest_youtube_enhanced import parse_args
+        from backend.scripts.ingest_youtube import parse_args
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         

@@ -13,7 +13,7 @@ class TestConfigurationDefaults:
     
     def test_config_minimal_required_env(self, monkeypatch):
         """Test config with minimal required environment variables."""
-        from backend.scripts.ingest_youtube_enhanced import IngestionConfig
+        from backend.scripts.ingest_youtube import IngestionConfig
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -29,7 +29,7 @@ class TestConfigurationDefaults:
     
     def test_config_missing_database_url(self, monkeypatch):
         """Test config raises error when DATABASE_URL missing."""
-        from backend.scripts.ingest_youtube_enhanced import IngestionConfig
+        from backend.scripts.ingest_youtube import IngestionConfig
         
         monkeypatch.delenv('DATABASE_URL', raising=False)
         
@@ -38,7 +38,7 @@ class TestConfigurationDefaults:
     
     def test_config_env_overrides_defaults(self, monkeypatch):
         """Test environment variables override class defaults."""
-        from backend.scripts.ingest_youtube_enhanced import IngestionConfig
+        from backend.scripts.ingest_youtube import IngestionConfig
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         monkeypatch.setenv('IO_WORKERS', '24')
@@ -61,7 +61,7 @@ class TestConfigurationDefaults:
     
     def test_config_channel_url_default(self, monkeypatch):
         """Test default channel URL is set."""
-        from backend.scripts.ingest_youtube_enhanced import IngestionConfig
+        from backend.scripts.ingest_youtube import IngestionConfig
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -71,7 +71,7 @@ class TestConfigurationDefaults:
     
     def test_config_channel_url_override(self, monkeypatch):
         """Test channel URL can be overridden."""
-        from backend.scripts.ingest_youtube_enhanced import IngestionConfig
+        from backend.scripts.ingest_youtube import IngestionConfig
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         monkeypatch.setenv('YOUTUBE_CHANNEL_URL', 'https://www.youtube.com/@custom')
@@ -82,7 +82,7 @@ class TestConfigurationDefaults:
     
     def test_config_auto_switch_to_ytdlp_for_url(self, monkeypatch):
         """Test config auto-switches to yt-dlp when using --from-url."""
-        from backend.scripts.ingest_youtube_enhanced import IngestionConfig
+        from backend.scripts.ingest_youtube import IngestionConfig
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -98,7 +98,7 @@ class TestConfigurationDefaults:
     
     def test_config_api_key_required_for_api_source(self, monkeypatch):
         """Test API key is required when using API source."""
-        from backend.scripts.ingest_youtube_enhanced import IngestionConfig
+        from backend.scripts.ingest_youtube import IngestionConfig
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         monkeypatch.delenv('YOUTUBE_API_KEY', raising=False)
@@ -111,7 +111,7 @@ class TestConfigurationDefaults:
     
     def test_config_api_key_provided(self, monkeypatch):
         """Test config accepts API key from environment."""
-        from backend.scripts.ingest_youtube_enhanced import IngestionConfig
+        from backend.scripts.ingest_youtube import IngestionConfig
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         monkeypatch.setenv('YOUTUBE_API_KEY', 'test_api_key_12345')
@@ -131,7 +131,7 @@ class TestConfigurationValidation:
     
     def test_config_local_source_requires_from_files(self, monkeypatch):
         """Test local source requires --from-files directory."""
-        from backend.scripts.ingest_youtube_enhanced import IngestionConfig
+        from backend.scripts.ingest_youtube import IngestionConfig
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -143,7 +143,7 @@ class TestConfigurationValidation:
     
     def test_config_local_source_directory_must_exist(self, monkeypatch, tmp_path):
         """Test local source directory must exist."""
-        from backend.scripts.ingest_youtube_enhanced import IngestionConfig
+        from backend.scripts.ingest_youtube import IngestionConfig
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -158,7 +158,7 @@ class TestConfigurationValidation:
     
     def test_config_local_source_valid_directory(self, monkeypatch, tmp_path):
         """Test local source with valid directory."""
-        from backend.scripts.ingest_youtube_enhanced import IngestionConfig
+        from backend.scripts.ingest_youtube import IngestionConfig
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -177,7 +177,7 @@ class TestConfigurationValidation:
     
     def test_config_file_patterns_default(self, monkeypatch, tmp_path):
         """Test default file patterns for local source."""
-        from backend.scripts.ingest_youtube_enhanced import IngestionConfig
+        from backend.scripts.ingest_youtube import IngestionConfig
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -198,7 +198,7 @@ class TestConfigurationValidation:
     
     def test_config_file_patterns_custom(self, monkeypatch, tmp_path):
         """Test custom file patterns."""
-        from backend.scripts.ingest_youtube_enhanced import IngestionConfig
+        from backend.scripts.ingest_youtube import IngestionConfig
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
@@ -217,7 +217,7 @@ class TestConfigurationValidation:
     
     def test_config_concurrency_bounds(self, monkeypatch):
         """Test concurrency values are properly set."""
-        from backend.scripts.ingest_youtube_enhanced import IngestionConfig
+        from backend.scripts.ingest_youtube import IngestionConfig
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         monkeypatch.setenv('IO_WORKERS', '1')
@@ -232,7 +232,7 @@ class TestConfigurationValidation:
     
     def test_config_max_duration_parsing(self, monkeypatch):
         """Test MAX_AUDIO_DURATION parsing."""
-        from backend.scripts.ingest_youtube_enhanced import IngestionConfig
+        from backend.scripts.ingest_youtube import IngestionConfig
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         monkeypatch.setenv('MAX_AUDIO_DURATION', '3600')
@@ -250,7 +250,7 @@ class TestConfigurationSecrets:
     
     def test_config_api_key_not_in_repr(self, monkeypatch):
         """Test API key is not exposed in string representation."""
-        from backend.scripts.ingest_youtube_enhanced import IngestionConfig
+        from backend.scripts.ingest_youtube import IngestionConfig
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         monkeypatch.setenv('YOUTUBE_API_KEY', 'secret_key_12345')
@@ -268,7 +268,7 @@ class TestConfigurationSecrets:
     
     def test_config_db_url_not_logged(self, monkeypatch, caplog):
         """Test database URL is not logged."""
-        from backend.scripts.ingest_youtube_enhanced import IngestionConfig
+        from backend.scripts.ingest_youtube import IngestionConfig
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://user:secret_pass@localhost/db')
         
@@ -284,7 +284,7 @@ class TestWhisperPresetSelection:
     
     def test_pick_whisper_preset_short_video(self):
         """Test preset selection for short videos (≤20min)."""
-        from backend.scripts.ingest_youtube_enhanced import pick_whisper_preset
+        from backend.scripts.ingest_youtube import pick_whisper_preset
         
         preset = pick_whisper_preset(duration_minutes=15.0, is_interview=False)
         
@@ -295,7 +295,7 @@ class TestWhisperPresetSelection:
     
     def test_pick_whisper_preset_long_monologue(self):
         """Test preset selection for long monologues."""
-        from backend.scripts.ingest_youtube_enhanced import pick_whisper_preset
+        from backend.scripts.ingest_youtube import pick_whisper_preset
         
         preset = pick_whisper_preset(duration_minutes=45.0, is_interview=False)
         
@@ -304,7 +304,7 @@ class TestWhisperPresetSelection:
     
     def test_pick_whisper_preset_interview(self):
         """Test preset selection for interviews."""
-        from backend.scripts.ingest_youtube_enhanced import pick_whisper_preset
+        from backend.scripts.ingest_youtube import pick_whisper_preset
         
         preset = pick_whisper_preset(duration_minutes=30.0, is_interview=True)
         
@@ -313,7 +313,7 @@ class TestWhisperPresetSelection:
     
     def test_pick_whisper_preset_boundary_20min(self):
         """Test preset selection at 20-minute boundary."""
-        from backend.scripts.ingest_youtube_enhanced import pick_whisper_preset
+        from backend.scripts.ingest_youtube import pick_whisper_preset
         
         preset_at = pick_whisper_preset(duration_minutes=20.0, is_interview=False)
         preset_above = pick_whisper_preset(duration_minutes=20.1, is_interview=False)
@@ -328,7 +328,7 @@ class TestContentHashing:
     
     def test_compute_content_hash_video_id_only(self):
         """Test content hash with video ID only."""
-        from backend.scripts.ingest_youtube_enhanced import compute_content_hash
+        from backend.scripts.ingest_youtube import compute_content_hash
         
         hash1 = compute_content_hash('video123')
         hash2 = compute_content_hash('video123')
@@ -342,7 +342,7 @@ class TestContentHashing:
     
     def test_compute_content_hash_with_upload_date(self):
         """Test content hash includes upload date."""
-        from backend.scripts.ingest_youtube_enhanced import compute_content_hash
+        from backend.scripts.ingest_youtube import compute_content_hash
         from datetime import datetime, timezone
         
         date1 = datetime(2024, 1, 1, tzinfo=timezone.utc)
@@ -356,7 +356,7 @@ class TestContentHashing:
     
     def test_compute_content_hash_deterministic(self):
         """Test content hash is deterministic."""
-        from backend.scripts.ingest_youtube_enhanced import compute_content_hash
+        from backend.scripts.ingest_youtube import compute_content_hash
         from datetime import datetime, timezone
         
         date = datetime(2024, 1, 1, tzinfo=timezone.utc)
@@ -371,7 +371,7 @@ class TestContentHashing:
     
     def test_compute_content_hash_missing_audio_file(self, tmp_path):
         """Test content hash handles missing audio file gracefully."""
-        from backend.scripts.ingest_youtube_enhanced import compute_content_hash
+        from backend.scripts.ingest_youtube import compute_content_hash
         
         non_existent = str(tmp_path / "missing.wav")
         
