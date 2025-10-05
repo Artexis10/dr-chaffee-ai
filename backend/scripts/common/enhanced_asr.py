@@ -214,14 +214,22 @@ class EnhancedASR:
                     try:
                         import librosa
                         duration = librosa.get_duration(path=audio_path)
-                        logger.warning(f"Using fallback single-speaker diarization for {duration:.2f}s audio")
+                        logger.error("="*80)
+                        logger.error("CRITICAL: USING FALLBACK SINGLE-SPEAKER DIARIZATION!")
+                        logger.error("Pyannote failed to load - ALL SPEAKERS WILL BE MERGED!")
+                        logger.error("This will cause incorrect speaker attribution in interviews!")
+                        logger.error(f"Audio duration: {duration:.2f}s")
+                        logger.error("="*80)
                         return [(0.0, duration, 0)]
                     except Exception:
                         logger.error("Failed to get audio duration, using 60s default")
                         return [(0.0, 60.0, 0)]
                 
                 self._diarization_pipeline = fallback_diarization
-                logger.warning("Using fallback single-speaker diarization")
+                logger.error("="*80)
+                logger.error("CRITICAL WARNING: Pyannote diarization FAILED to load!")
+                logger.error("Using fallback single-speaker mode - interviews will be mislabeled!")
+                logger.error("="*80)
         
         return self._diarization_pipeline
     
@@ -699,7 +707,11 @@ class EnhancedASR:
             # Check if this is fallback (returns list) or pyannote (returns Annotation object)
             if isinstance(diarization, list):
                 # Fallback diarization already returns list of tuples
-                logger.info("Using fallback diarization (single speaker)")
+                logger.error("="*80)
+                logger.error("CRITICAL: USING FALLBACK DIARIZATION (SINGLE SPEAKER)!")
+                logger.error("Pyannote is NOT running - all audio will be labeled as one speaker!")
+                logger.error("This WILL cause incorrect attribution in interviews!")
+                logger.error("="*80)
                 segments = diarization
                 num_speakers = len(set(s[2] for s in segments))
             else:
@@ -707,7 +719,13 @@ class EnhancedASR:
                 # Get the number of speakers detected
                 try:
                     num_speakers = len(set(s for _, _, s in diarization.itertracks(yield_label=True)))
-                    logger.info(f"Pyannote detected {num_speakers} speakers")
+                    logger.info("="*80)
+                    logger.info(f"PYANNOTE DETECTED {num_speakers} SPEAKERS")
+                    logger.info("="*80)
+                    
+                    if num_speakers == 1:
+                        logger.warning("WARNING: Only 1 speaker detected - may be monologue or clustering too aggressive")
+                        logger.warning("Consider lowering PYANNOTE_CLUSTERING_THRESHOLD if this is an interview")
                 except Exception as e:
                     logger.warning(f"Could not determine number of speakers: {e}")
                     num_speakers = 'unknown'
