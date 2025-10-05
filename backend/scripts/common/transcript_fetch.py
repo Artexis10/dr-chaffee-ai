@@ -329,8 +329,8 @@ class TranscriptFetcher:
                     if stored_path:
                         logger.info(f"Audio stored at: {stored_path}")
                 
-                # Transcribe with parallel Whisper (uses multi-model if configured)
-                segments, metadata = self.transcribe_with_whisper_parallel(audio_file)
+                # Transcribe with optimized faster-whisper directly (GPU batching)
+                segments, metadata = self.transcribe_with_whisper_fallback(audio_file, self.whisper_model)
                 
                 # Add storage info to metadata
                 if stored_path:
@@ -524,8 +524,8 @@ class TranscriptFetcher:
                 metadata["error"] = "audio_download_failed"
                 return None, 'failed', metadata
             
-            # Transcribe with parallel Whisper (uses multi-model if configured)
-            whisper_segments, whisper_metadata = self.transcribe_with_whisper_parallel(
+            # Transcribe with optimized faster-whisper directly (GPU batching)
+            whisper_segments, whisper_metadata = self.transcribe_with_whisper_fallback(
                 Path(audio_path), 
                 model_name=self.whisper_model
             )
