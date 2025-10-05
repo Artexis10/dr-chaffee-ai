@@ -138,7 +138,7 @@ class AlignmentConfig:
     
     # Speaker diarization
     enable_diarization: bool = False
-    diarization_model: str = "pyannote/speaker-diarization-3.1"  # Compatible with pyannote.audio 3.x
+    diarization_model: str = "pyannote/speaker-diarization-community-1"  # Superior speaker counting & assignment
     min_speakers: Optional[int] = None
     max_speakers: Optional[int] = None
     
