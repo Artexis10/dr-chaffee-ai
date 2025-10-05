@@ -1,6 +1,16 @@
 #!/usr/bin/env python3
 """
-Multi-Model Whisper Manager for Maximum RTX 5080 Utilization
+Multi-Model Whisper Manager for CPU Multi-Threading (DEPRECATED for GPU)
+
+WARNING: This is designed for CPU-only environments to bypass Python's GIL.
+For GPU processing, use single model with batching (faster-whisper directly).
+
+On GPU, multi-model is SLOWER due to:
+- Memory overhead (multiple models loaded)
+- Context switching between models  
+- No actual GPU parallelism benefit (GPU already parallelizes internally)
+
+Use this ONLY for CPU-only environments where you need multi-threading.
 """
 
 import logging
@@ -14,8 +24,13 @@ logger = logging.getLogger(__name__)
 
 class MultiModelWhisperManager:
     """
-    Manages multiple Whisper models for maximum GPU utilization
-    Thread-safe round-robin assignment of models to transcription tasks
+    DEPRECATED for GPU: Manages multiple Whisper models for CPU multi-threading.
+    
+    This bypasses Python's GIL by loading multiple models in separate threads.
+    Useful for CPU-only environments.
+    
+    WARNING: On GPU, use single model instead. GPU already parallelizes internally,
+    so multiple models just waste VRAM and add overhead.
     """
     
     def __init__(self, num_models: int = 2, model_size: str = None):
