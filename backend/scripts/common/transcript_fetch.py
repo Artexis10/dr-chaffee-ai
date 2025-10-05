@@ -376,7 +376,9 @@ class TranscriptFetcher:
             
             # Get the global multi-model manager
             # Use environment variable for model size and number of models
-            num_models = int(os.getenv('WHISPER_PARALLEL_MODELS', '2'))
+            # Default to 1 model (faster for single videos, less VRAM)
+            # Use 2+ only for batch processing with queued videos
+            num_models = int(os.getenv('WHISPER_PARALLEL_MODELS', '1'))
             model_size = os.getenv('WHISPER_MODEL_ENHANCED', 'large-v3')
             manager = get_multi_model_manager(num_models=num_models, model_size=model_size)
             
