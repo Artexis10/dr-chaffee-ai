@@ -413,30 +413,45 @@ class TranscriptFetcher:
             pipe_mode=self.preprocessing_config.pipe_mode
         )
         
+        # Check VAD setting from environment
+        vad_enabled = os.getenv('WHISPER_VAD', 'false').lower() == 'true'
+        
         metadata = {
             "model": model_name,
             "preprocessing": preprocessing_config.to_dict(),
-            "vad_enabled": True
+            "vad_enabled": vad_enabled
         }
         
         try:
             model = self._get_whisper_model(model_name)
             
-            # Enhanced VAD parameters for better voice activity detection
+            # Enhanced VAD parameters for better voice activity detection (if enabled)
             vad_parameters = {
                 "min_silence_duration_ms": 700,  # More sensitive than default 1000ms
                 "speech_pad_ms": 400,           # Padding around speech segments
                 "max_speech_duration_s": 30,     # Maximum continuous speech duration
             }
             
-            # Transcribe with enhanced settings
+            # Transcribe with settings from environment
+            transcribe_kwargs = {
+                "beam_size": int(os.getenv('BEAM_SIZE', '5')),
+                "word_timestamps": True,
+                "language": "en",
+                "temperature": float(os.getenv('TEMPERATURE', '0.0'))
+            }
+            
+            # Add VAD parameters only if VAD is enabled
+            if vad_enabled:
+                transcribe_kwargs["vad_filter"] = True
+                transcribe_kwargs["vad_parameters"] = vad_parameters
+                logger.debug("VAD enabled with custom parameters")
+            else:
+                transcribe_kwargs["vad_filter"] = False
+                logger.debug("VAD disabled for maximum speed")
+            
             segments, info = self.whisper_model.transcribe(
                 str(audio_path),
-                beam_size=5,
-                word_timestamps=True,
-                vad_filter=True,  # Enable VAD to filter out silence/non-speech
-                language="en",  # Force English for better performance
-                vad_parameters=vad_parameters  # Pass custom VAD parameters
+                **transcribe_kwargs
             )
             
             # Convert to normalized format
