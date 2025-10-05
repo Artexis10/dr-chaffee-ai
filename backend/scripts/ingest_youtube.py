@@ -2332,6 +2332,22 @@ Examples:
 def main():
     """Main entry point"""
     try:
+        # Safety check: prevent ingestion in production (API-only mode)
+        if os.getenv('API_ONLY_MODE', '').lower() == 'true':
+            logger.error("=" * 80)
+            logger.error("❌ INGESTION DISABLED IN API_ONLY_MODE")
+            logger.error("=" * 80)
+            logger.error("This environment is configured for API serving only.")
+            logger.error("")
+            logger.error("To run ingestion:")
+            logger.error("  1. Run on local machine with GPU")
+            logger.error("  2. Set API_ONLY_MODE=false or unset it")
+            logger.error("  3. Replicate database to production after processing")
+            logger.error("")
+            logger.error("See docs/PRODUCTION_DEPLOYMENT.md for details")
+            logger.error("=" * 80)
+            sys.exit(1)
+        
         config = parse_args()
         
         # Check critical dependencies first (includes yt-dlp version check)

@@ -4,6 +4,7 @@ Automatic dependency checker and installer.
 
 Ensures critical dependencies are installed before running ingestion.
 """
+import os
 import subprocess
 import sys
 import logging
@@ -16,24 +17,32 @@ class DependencyChecker:
     """Checks and installs missing critical dependencies."""
     
     # Critical dependencies that must be present
+    # Note: In production (API_ONLY_MODE), only a subset is needed
     CRITICAL_DEPS = {
-        # Core transcription
+        # Core transcription (skip in production)
         'faster_whisper': 'faster-whisper>=1.0.2',
         'whisperx': 'whisperx>=3.1.1',
         
-        # Speaker identification (required for Dr. Chaffee attribution)
+        # Speaker identification (skip in production)
         'pyannote.audio': 'pyannote.audio>=3.1.1',
         'librosa': 'librosa>=0.10.1',
         'soundfile': 'soundfile>=0.12.1',
         
-        # ML/AI
-        'torch': 'torch>=2.1.0,<2.4.0',
+        # ML/AI (always needed)
+        'torch': 'torch>=2.2.0,<2.9.0',
         'transformers': 'transformers==4.33.2',
         
-        # YouTube downloads
+        # YouTube downloads (skip in production)
         'yt_dlp': 'yt-dlp>=2023.11.16',
         
-        # Database
+        # Database (always needed)
+        'psycopg2': 'psycopg2-binary>=2.9.9',
+    }
+    
+    # Production-only dependencies (API serving)
+    PRODUCTION_ONLY_DEPS = {
+        'torch': 'torch>=2.2.0,<2.9.0',
+        'transformers': 'transformers==4.33.2',
         'psycopg2': 'psycopg2-binary>=2.9.9',
     }
     
@@ -67,8 +76,17 @@ class DependencyChecker:
         missing_critical = []
         missing_optional = []
         
-        logger.info("Checking critical dependencies...")
-        for module, package in self.CRITICAL_DEPS.items():
+        # Check if in production mode (API-only)
+        is_production = os.getenv('API_ONLY_MODE', '').lower() == 'true'
+        
+        if is_production:
+            logger.info("Production mode detected - checking minimal dependencies...")
+            deps_to_check = self.PRODUCTION_ONLY_DEPS
+        else:
+            logger.info("Checking critical dependencies...")
+            deps_to_check = self.CRITICAL_DEPS
+        
+        for module, package in deps_to_check.items():
             if not self.check_import(module):
                 logger.warning(f"❌ Missing critical dependency: {package}")
                 missing_critical.append(package)

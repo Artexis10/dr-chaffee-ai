@@ -32,7 +32,8 @@ sentence-transformers[cross-encoder]==2.2.2
 
 # Enhanced Audio transcription with latest Whisper models
 faster-whisper>=1.0.2  # Supports large-v3, distil-large-v3, large-v3-turbo
-# Ensure GPU-compatible Torch for RTX 5080 optimization (Python 3.12 requires >=2.2.0)
+# Torch for ML models (Python 3.12 requires >=2.2.0)
+# Note: CPU-only version is fine for production (bulk processing done locally with GPU)
 torch>=2.2.0,<2.9.0
 torchaudio>=2.2.0,<2.9.0
 # System monitoring for VRAM tracking
