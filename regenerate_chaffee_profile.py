@@ -10,11 +10,15 @@ import sys
 import json
 import logging
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables FIRST
+load_dotenv()
 
 # Add backend to path
 sys.path.insert(0, str(Path(__file__).parent / 'backend' / 'scripts'))
 
-from common.voice_enrollment_optimized import VoiceEnrollmentManager
+from common.voice_enrollment_optimized import VoiceEnrollment
 from common.embeddings import EmbeddingGenerator
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -41,10 +45,12 @@ def regenerate_profile():
                 logger.info("✅ Profile dimensions match! No regeneration needed.")
                 return
             else:
-                logger.warning(f"⚠️  Dimension mismatch: {old_dims} vs {current_dims}")
+                logger.warning(f"WARNING: Dimension mismatch: {old_dims} vs {current_dims}")
                 logger.info("Backing up old profile...")
                 backup_path = profile_path.with_suffix('.json.bak')
-                profile_path.rename(backup_path)
+                # Use shutil.copy instead of rename to avoid file lock issues
+                import shutil
+                shutil.copy2(profile_path, backup_path)
                 logger.info(f"Backed up to: {backup_path}")
     
     # Get seed videos for Chaffee - try multiple seed files
@@ -92,28 +98,30 @@ def regenerate_profile():
     
     logger.info(f"Found {len(video_ids)} seed videos")
     
-    # Initialize voice enrollment manager
-    manager = VoiceEnrollmentManager(voices_dir='voices')
+    # Initialize voice enrollment
+    enrollment = VoiceEnrollment(voices_dir='voices')
     
-    # Enroll from videos
-    logger.info("Extracting embeddings from seed videos...")
-    success_count = 0
+    # For now, we'll use the setup_chaffee_profile.py script instead
+    # This is more complex than expected - the enrollment needs audio files
+    logger.info("=" * 80)
+    logger.info("MANUAL STEPS REQUIRED:")
+    logger.info("=" * 80)
+    logger.info("")
+    logger.info("To regenerate the Chaffee profile with correct dimensions:")
+    logger.info("")
+    logger.info("1. Run the setup script with seed videos:")
+    logger.info("   python setup_chaffee_profile.py")
+    logger.info("")
+    logger.info("2. Or manually download a few Chaffee-only videos and run:")
+    logger.info(f"   python backend/scripts/ingest_youtube.py --setup-chaffee <audio_files>")
+    logger.info("")
+    logger.info("Seed videos to use (Chaffee-only monologues):")
+    for i, video_id in enumerate(video_ids[:5], 1):
+        logger.info(f"   {i}. https://www.youtube.com/watch?v={video_id}")
+    logger.info("")
+    logger.info("=" * 80)
     
-    for video_id in video_ids[:5]:  # Use first 5 videos
-        logger.info(f"Processing video: {video_id}")
-        try:
-            # Download and extract embeddings
-            # This will use the current embedding model
-            result = manager.enroll_from_youtube(
-                speaker_name='chaffee',
-                video_id=video_id,
-                force=True
-            )
-            if result:
-                success_count += 1
-                logger.info(f"✅ Successfully enrolled from {video_id}")
-        except Exception as e:
-            logger.error(f"Failed to enroll from {video_id}: {e}")
+    return
     
     if success_count > 0:
         logger.info(f"✅ Profile regenerated successfully using {success_count} videos")
