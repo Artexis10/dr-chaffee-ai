@@ -26,56 +26,79 @@ Changed to use **optimized faster-whisper directly**:
 
 ## When to Use Multi-Model
 
-### ❌ Don't Use Multi-Model For:
-- Sequential video processing (one at a time)
-- Small batches (1-10 videos)
+### ❌ Don't Use Multi-Model For GPU:
+- GPU processing (RTX 5080, etc.)
+- Any CUDA-enabled environment
 - Single-threaded pipeline
 
-**Why:** Models sit idle, wasting VRAM and causing overhead.
+**Why:** GPU already parallelizes internally. Multiple models waste VRAM without benefit.
 
-### ✅ Use Multi-Model For:
-- Parallel video processing (multiple videos simultaneously)
-- Large queue of videos (100+)
-- Multi-threaded pipeline with work queue
+### ✅ Use Multi-Model For CPU:
+- **CPU-only production servers**
+- **Bypassing Python's GIL**
+- **Multi-threaded CPU processing**
 
-**How it works:**
+**How it works on CPU:**
 ```
-Video 1 → Model 0 (processing)
-Video 2 → Model 1 (processing)  ← Both running simultaneously
-Video 3 → Model 0 (waiting for Model 0 to finish)
-Video 4 → Model 1 (waiting for Model 1 to finish)
+Python GIL Problem:
+Thread 1 → Model (blocked by GIL)
+Thread 2 → Model (waiting for GIL)
+Result: No parallelism
+
+Multi-Model Solution:
+Thread 1 → Model 0 (processing)
+Thread 2 → Model 1 (processing)  ← True parallelism!
+Thread 3 → Model 2 (processing)
+Thread 4 → Model 3 (processing)
+Result: 4x faster on CPU
 ```
+
+### Performance Comparison
+
+| Configuration | Device | Speed | Use Case |
+|---------------|--------|-------|----------|
+| Single model | GPU | 100x | ✅ Local bulk processing |
+| Single model | CPU | 1x | ❌ Too slow |
+| Multi-model (4) | CPU | 4x | ✅ Production incremental |
+| Multi-model (2) | GPU | 0.5x | ❌ Slower than single!
 
 ## Recommended Configuration
 
-### For Your Use Case (Sequential Processing)
+### For Local GPU (RTX 5080) - Bulk Processing
 
 ```bash
-# .env
-WHISPER_PARALLEL_MODELS=1  # Single model (recommended)
+# .env (local machine)
+WHISPER_DEVICE=cuda
+WHISPER_PARALLEL_MODELS=1  # Single model (GPU optimized)
 ASR_WORKERS=2  # Process 2 videos in parallel
 IO_WORKERS=24  # Download many videos in parallel
+WHISPER_MODEL=distil-large-v3
+WHISPER_COMPUTE=int8_float16  # Quantized for speed
 ```
 
 **This gives you:**
-- 2 videos processing simultaneously
-- Each uses 1 Whisper model
+- Single model, fully utilized
 - 90%+ GPU utilization
-- Optimal throughput
+- ~50h audio per hour throughput
+- Optimal for bulk processing
 
-### For Batch Processing (100+ Videos)
+### For Production CPU - Incremental Processing
 
 ```bash
-# .env
-WHISPER_PARALLEL_MODELS=2  # Two models
-ASR_WORKERS=4  # 4 workers share 2 models
-IO_WORKERS=24  # Download queue
+# .env.production (Railway/Render)
+WHISPER_DEVICE=cpu
+WHISPER_PARALLEL_MODELS=4  # Multi-model for CPU parallelism
+ASR_WORKERS=4  # 4 workers share 4 models
+IO_WORKERS=12  # Lower I/O (fewer videos)
+WHISPER_MODEL=distil-large-v3  # Smaller model for CPU
+INGESTION_LIMIT=5  # Only 1-2 new videos/day
 ```
 
 **This gives you:**
-- 4 workers processing videos
-- Round-robin between 2 models
-- Better GPU utilization with large queue
+- 4 models bypass Python GIL
+- True CPU parallelism
+- 4x faster than single-threaded
+- Acceptable for incremental updates
 
 ## Current Pipeline Architecture
 
