@@ -285,7 +285,8 @@ class TestCleanupConfiguration:
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
-        # Don't pass audio_storage_dir - let config create default
+        # Enable audio storage in environment (takes precedence)
+        monkeypatch.setenv('STORE_AUDIO_LOCALLY', 'true')
         monkeypatch.setenv('AUDIO_STORAGE_DIR', str(tmp_path / "audio_storage"))
         
         config = IngestionConfig(

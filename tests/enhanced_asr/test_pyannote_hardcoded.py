@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 import os
 import torch
+import pytest
 
 # Get token from environment variable
 token = os.getenv("HUGGINGFACE_TOKEN")
 if not token:
-    raise ValueError("HUGGINGFACE_TOKEN environment variable not set")
+    pytest.skip("HUGGINGFACE_TOKEN environment variable not set", allow_module_level=True)
 print(f"Token: {token[:5]}...")
 
 try:
