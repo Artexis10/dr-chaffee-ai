@@ -223,10 +223,10 @@ class TestCLIMainEntry:
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
-        test_args = ['ingest_youtube_enhanced.py', '--dry-run']
+        test_args = ['ingest_youtube.py', '--dry-run']
         
         with patch.object(sys, 'argv', test_args):
-            with patch('backend.scripts.ingest_youtube_enhanced.EnhancedYouTubeIngester') as mock_ingester:
+            with patch('backend.scripts.ingest_youtube.EnhancedYouTubeIngester') as mock_ingester:
                 mock_ingester.return_value.run.side_effect = KeyboardInterrupt()
                 
                 with pytest.raises(SystemExit) as exc_info:
@@ -241,10 +241,10 @@ class TestCLIMainEntry:
         
         monkeypatch.setenv('DATABASE_URL', 'postgresql://test:test@localhost/test')
         
-        test_args = ['ingest_youtube_enhanced.py', '--dry-run']
+        test_args = ['ingest_youtube.py', '--dry-run']
         
         with patch.object(sys, 'argv', test_args):
-            with patch('backend.scripts.ingest_youtube_enhanced.EnhancedYouTubeIngester') as mock_ingester:
+            with patch('backend.scripts.ingest_youtube.EnhancedYouTubeIngester') as mock_ingester:
                 mock_ingester.return_value.run.side_effect = Exception("Test error")
                 
                 with pytest.raises(SystemExit) as exc_info:

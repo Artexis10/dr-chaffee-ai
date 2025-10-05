@@ -1,13 +1,21 @@
-# How to Run Unit Tests
+# How to Run Tests
 
-## Quick Start
+This document explains how to run the test suite for the Dr. Chaffee AI project.
 
+## Quick Start (Windows)
+
+**Important:** On Windows, you need to use the full path to pytest or activate the virtual environment.
+
+### Option 1: Use Full Path (Recommended)
 ```powershell
 # Navigate to project root
 cd c:\Users\hugoa\Desktop\ask-dr-chaffee
 
-# Run all new unit tests
-.\backend\venv\Scripts\python.exe -m pytest tests/unit/test_ingest_*.py -m unit -v
+# Run all tests
+.\backend\venv\Scripts\python.exe -m pytest tests/unit/ -v
+
+# Run specific test file
+.\backend\venv\Scripts\python.exe -m pytest tests/unit/test_ingest_flags.py -v
 
 # Run with coverage
 .\backend\venv\Scripts\python.exe -m pytest tests/unit/test_ingest_*.py -m unit --cov=backend/scripts/ingest_youtube_enhanced.py --cov-branch --cov-report=term-missing

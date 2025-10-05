@@ -4,9 +4,13 @@ import os
 import numpy as np
 from pathlib import Path
 from dotenv import load_dotenv
+import pytest
 
 # Load environment variables
 load_dotenv()
+
+# Skip test if librosa is not available (optional dependency)
+pytest.importorskip("librosa", reason="librosa not installed (optional dependency for voice enrollment)")
 
 def test_similarity_directly():
     """Test similarity computation directly"""
