@@ -184,6 +184,19 @@ class EnhancedASR:
                     
                     if self._device == "cuda":
                         self._diarization_pipeline = self._diarization_pipeline.to(torch.device("cuda"))
+                    
+                    # Configure clustering threshold for better multi-speaker detection
+                    # Lower threshold = more sensitive to voice differences
+                    clustering_threshold = float(os.getenv('PYANNOTE_CLUSTERING_THRESHOLD', '0.7'))
+                    if hasattr(self._diarization_pipeline, 'instantiate'):
+                        self._diarization_pipeline.instantiate({
+                            "clustering": {
+                                "method": "centroid",
+                                "min_cluster_size": 15,
+                                "threshold": clustering_threshold
+                            }
+                        })
+                        logger.info(f"Configured pyannote clustering threshold: {clustering_threshold}")
                         
                     logger.info("Successfully loaded pyannote diarization pipeline")
                 except Exception as e:
