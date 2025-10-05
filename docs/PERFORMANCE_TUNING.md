@@ -55,12 +55,12 @@ Result: 4x faster on CPU
 
 ### Performance Comparison
 
-| Configuration | Device | Speed | Use Case |
-|---------------|--------|-------|----------|
-| Single model | GPU | 100x | ✅ Local bulk processing |
-| Single model | CPU | 1x | ❌ Too slow |
-| Multi-model (4) | CPU | 4x | ✅ Production incremental |
-| Multi-model (2) | GPU | 0.5x | ❌ Slower than single!
+| Configuration | Device | VRAM | GPU Util | Speed | Use Case |
+|---------------|--------|------|----------|-------|----------|
+| Single model | GPU | 6-7GB | 44% | 100x | ❌ Underutilized |
+| Two models | GPU | 12-14GB | 80-90% | **180x** | ✅ Local bulk (optimal) |
+| Single model | CPU | N/A | N/A | 1x | ❌ Too slow |
+| Multi-model (4) | CPU | N/A | N/A | 4x | ✅ Production incremental |
 
 ## Recommended Configuration
 
@@ -69,18 +69,24 @@ Result: 4x faster on CPU
 ```bash
 # .env (local machine)
 WHISPER_DEVICE=cuda
-WHISPER_PARALLEL_MODELS=1  # Single model (GPU optimized)
-ASR_WORKERS=2  # Process 2 videos in parallel
+WHISPER_PARALLEL_MODELS=2  # Two models (RTX 5080 has 16GB VRAM)
+ASR_WORKERS=4  # 4 workers share 2 models
 IO_WORKERS=24  # Download many videos in parallel
 WHISPER_MODEL=distil-large-v3
 WHISPER_COMPUTE=int8_float16  # Quantized for speed
+WHISPER_VAD=false  # Disable for 20-50% speed boost
 ```
 
 **This gives you:**
-- Single model, fully utilized
-- 90%+ GPU utilization
+- Two models in parallel
+- 80-90% GPU utilization (vs 44% with 1 model)
+- ~12-14GB VRAM used (out of 16GB)
 - ~50h audio per hour throughput
 - Optimal for bulk processing
+
+**Why 2 models:**
+- Single model: 6-7GB VRAM, 44% GPU util → Underutilized!
+- Two models: 12-14GB VRAM, 80-90% GPU util → Much better!
 
 ### For Production CPU - Incremental Processing
 

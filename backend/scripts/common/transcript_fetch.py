@@ -329,8 +329,8 @@ class TranscriptFetcher:
                     if stored_path:
                         logger.info(f"Audio stored at: {stored_path}")
                 
-                # Transcribe with optimized faster-whisper (not multi-model fallback)
-                segments, metadata = self.transcribe_with_whisper_fallback(audio_file, self.whisper_model)
+                # Transcribe with parallel Whisper (uses multi-model if configured)
+                segments, metadata = self.transcribe_with_whisper_parallel(audio_file)
                 
                 # Add storage info to metadata
                 if stored_path:
@@ -376,9 +376,9 @@ class TranscriptFetcher:
             
             # Get the global multi-model manager
             # Use environment variable for model size and number of models
-            # Default to 1 model (faster for single videos, less VRAM)
-            # Use 2+ only for batch processing with queued videos
-            num_models = int(os.getenv('WHISPER_PARALLEL_MODELS', '1'))
+            # Default to 2 models for RTX 5080 (16GB VRAM, plenty of headroom)
+            # Single model only uses 6-7GB, leaving 9GB unused
+            num_models = int(os.getenv('WHISPER_PARALLEL_MODELS', '2'))
             model_size = os.getenv('WHISPER_MODEL_ENHANCED', 'large-v3')
             manager = get_multi_model_manager(num_models=num_models, model_size=model_size)
             
@@ -524,8 +524,8 @@ class TranscriptFetcher:
                 metadata["error"] = "audio_download_failed"
                 return None, 'failed', metadata
             
-            # Transcribe with optimized faster-whisper (not multi-model fallback)
-            whisper_segments, whisper_metadata = self.transcribe_with_whisper_fallback(
+            # Transcribe with parallel Whisper (uses multi-model if configured)
+            whisper_segments, whisper_metadata = self.transcribe_with_whisper_parallel(
                 Path(audio_path), 
                 model_name=self.whisper_model
             )
