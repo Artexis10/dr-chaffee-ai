@@ -200,7 +200,9 @@ class EnhancedASR:
                         
                     logger.info("Successfully loaded pyannote diarization pipeline")
                 except Exception as e:
-                    logger.error(f"Failed to load pyannote pipeline: {e}")
+                    logger.error(f"CRITICAL: Failed to load pyannote pipeline: {e}")
+                    import traceback
+                    logger.error(f"Traceback: {traceback.format_exc()}")
                     raise
                 
             except ImportError:
