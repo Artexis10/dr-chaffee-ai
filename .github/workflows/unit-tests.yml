@@ -38,7 +38,7 @@ jobs:
       
       - name: Run unit tests with coverage
         run: |
-          pytest tests/unit/test_ingest_*.py -m unit --cov=backend/scripts/ingest_youtube_enhanced.py --cov-branch --cov-report=xml --cov-report=term-missing -v
+          pytest tests/unit/ -k "test_ingest" -m unit --cov=backend/scripts/ingest_youtube.py --cov-branch --cov-report=xml --cov-report=term-missing -v
         env:
           PYTHONPATH: ${{ github.workspace }};${{ github.workspace }}/backend
       
@@ -90,7 +90,7 @@ jobs:
       
       - name: Run unit tests
         run: |
-          pytest tests/unit/test_ingest_*.py -m unit -v
+          pytest tests/unit/ -k "test_ingest" -m unit -v
         env:
           PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/backend
       
