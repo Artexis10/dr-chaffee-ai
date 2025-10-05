@@ -49,10 +49,14 @@ class EmbeddingGenerator:
                 if self.model is None:
                     try:
                         from sentence_transformers import SentenceTransformer
-                        logger.info(f"Loading local embedding model: {self.model_name}")
-                        self.model = SentenceTransformer(self.model_name, device="cpu")
+                        import torch
+                        
+                        # Use GPU if available, otherwise CPU
+                        device = "cuda" if torch.cuda.is_available() else "cpu"
+                        logger.info(f"Loading local embedding model: {self.model_name} on {device}")
+                        self.model = SentenceTransformer(self.model_name, device=device)
                         self.model.eval()
-                        logger.info("Local embedding model loaded successfully")
+                        logger.info(f"Local embedding model loaded successfully on {device}")
                     except ImportError:
                         raise ImportError("sentence-transformers package not available. Install with: pip install sentence-transformers")
                     except Exception as e:
@@ -106,8 +110,16 @@ class EmbeddingGenerator:
         model = self._load_local_model()
         
         try:
-            # Generate embeddings in batches
-            embeddings = model.encode(texts, batch_size=32, show_progress_bar=len(texts) > 10)
+            # Generate embeddings in batches (larger batch size for GPU efficiency)
+            # Read batch size from environment, default to 256 for GPU
+            batch_size = int(os.getenv('EMBEDDING_BATCH_SIZE', '256'))
+            embeddings = model.encode(
+                texts, 
+                batch_size=batch_size,
+                show_progress_bar=len(texts) > 10,
+                convert_to_numpy=True,
+                normalize_embeddings=True  # Normalize for better similarity search
+            )
             
             # Convert to list of lists for JSON serialization
             result = [embedding.tolist() if hasattr(embedding, 'tolist') else embedding for embedding in embeddings]
