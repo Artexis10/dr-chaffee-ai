@@ -251,7 +251,7 @@ class IngestionConfig:
     embedding_batch_size: int = 1024  # Batch size (will read from .env in __post_init__)
     
     # Audio storage configuration
-    store_audio_locally: bool = True   # Store downloaded audio files locally
+    store_audio_locally: bool = False  # Store downloaded audio files locally (default: False to save disk space)
     audio_storage_dir: Optional[Path] = None  # Directory to store audio files
     production_mode: bool = False      # Disable audio storage in production
     
@@ -363,7 +363,13 @@ class IngestionConfig:
         if self.file_patterns is None:
             self.file_patterns = ['*.mp4', '*.mkv', '*.avi', '*.mov', '*.wav', '*.mp3', '*.m4a', '*.webm']
         
-        # Handle audio storage configuration
+        # Handle audio storage configuration from environment
+        # Read from environment first, then check production mode
+        env_store_audio = os.getenv('STORE_AUDIO_LOCALLY', 'false').lower() == 'true'
+        if env_store_audio != self.store_audio_locally:
+            self.store_audio_locally = env_store_audio
+            logger.info(f"Audio storage from environment: {self.store_audio_locally}")
+        
         if self.production_mode:
             self.store_audio_locally = False
             logger.info("Production mode enabled: Audio storage disabled")
@@ -372,6 +378,8 @@ class IngestionConfig:
             self.audio_storage_dir = Path(os.getenv('AUDIO_STORAGE_DIR', './audio_storage'))
             self.audio_storage_dir.mkdir(exist_ok=True)
             logger.info(f"Audio will be stored in: {self.audio_storage_dir}")
+        elif not self.store_audio_locally:
+            logger.info("Audio storage disabled - files will be deleted after processing")
         
         # Configure speaker identification from environment
         if self.voices_dir is None:
