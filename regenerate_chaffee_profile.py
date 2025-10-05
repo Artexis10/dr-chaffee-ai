@@ -47,18 +47,35 @@ def regenerate_profile():
                 profile_path.rename(backup_path)
                 logger.info(f"Backed up to: {backup_path}")
     
-    # Get seed videos for Chaffee
-    seed_file = Path('chaffee_voice_seeds.json')
-    if not seed_file.exists():
-        logger.error(f"Seed file not found: {seed_file}")
-        logger.info("Please create chaffee_voice_seeds.json with known Chaffee-only video URLs")
+    # Get seed videos for Chaffee - try multiple seed files
+    seed_files = [
+        Path('chaffee_seed_urls.json'),
+        Path('chaffee_voice_seeds.json')
+    ]
+    
+    seeds = None
+    for seed_file in seed_files:
+        if seed_file.exists():
+            logger.info(f"Using seed file: {seed_file}")
+            with open(seed_file) as f:
+                seeds = json.load(f)
+            break
+    
+    if not seeds:
+        logger.error("No seed file found!")
+        logger.info("Please create chaffee_seed_urls.json or chaffee_voice_seeds.json")
         return
     
-    with open(seed_file) as f:
-        seeds = json.load(f)
+    # Extract video IDs from URLs (handle both file formats)
+    urls = []
     
-    # Extract video IDs from URLs
-    urls = seeds.get('chaffee', {}).get('urls', [])
+    # Format 1: chaffee_seed_urls.json (list of sources)
+    if 'sources' in seeds:
+        urls = [source['url'] for source in seeds['sources']]
+    # Format 2: chaffee_voice_seeds.json (nested structure)
+    elif 'chaffee' in seeds:
+        urls = seeds['chaffee'].get('urls', [])
+    
     if not urls:
         logger.error("No URLs found in seed file")
         return
