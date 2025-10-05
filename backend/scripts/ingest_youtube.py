@@ -241,6 +241,11 @@ class IngestionConfig:
     cleanup_audio: bool = True
     since_published: Optional[str] = None  # ISO8601 or YYYY-MM-DD format
     
+    # yt-dlp update options
+    skip_ytdlp_update: bool = False  # Skip automatic yt-dlp version check
+    force_ytdlp_update: bool = False  # Force yt-dlp update check (ignore cache)
+    use_ytdlp_nightly: bool = False  # Use nightly build from GitHub
+    
     # RTX 5080 optimized embedding options for maximum throughput - FROM .ENV
     embed_later: bool = False  # Enqueue IDs for separate embedding worker
     embedding_batch_size: int = 1024  # Batch size (will read from .env in __post_init__)
@@ -2197,6 +2202,14 @@ Examples:
     parser.add_argument('--verbose', '-v', action='store_true',
                        help='Enable verbose logging')
     
+    # yt-dlp update options
+    parser.add_argument('--skip-ytdlp-update', action='store_true',
+                       help='Skip automatic yt-dlp version check and update')
+    parser.add_argument('--force-ytdlp-update', action='store_true',
+                       help='Force yt-dlp update check (ignore cache)')
+    parser.add_argument('--use-ytdlp-nightly', action='store_true',
+                       help='Use yt-dlp nightly build from GitHub (latest fixes)')
+    
     args = parser.parse_args()
     
     # Set log level
@@ -2258,6 +2271,9 @@ Examples:
         dry_run=args.dry_run,
         force_reprocess=args.force_reprocess,
         skip_existing=args.skip_existing,
+        skip_ytdlp_update=args.skip_ytdlp_update,
+        force_ytdlp_update=args.force_ytdlp_update,
+        use_ytdlp_nightly=args.use_ytdlp_nightly,
         whisper_model=args.whisper_model,
         force_whisper=args.force_whisper,
         allow_youtube_captions=args.allow_youtube_captions,
@@ -2317,6 +2333,18 @@ def main():
     """Main entry point"""
     try:
         config = parse_args()
+        
+        # Auto-update yt-dlp if using yt-dlp source
+        if config.source == 'yt-dlp' and not config.skip_ytdlp_update:
+            from backend.scripts.common.ytdlp_updater import check_and_update_ytdlp
+            logger.info("Checking yt-dlp version...")
+            ytdlp_ready = check_and_update_ytdlp(
+                force=config.force_ytdlp_update,
+                use_nightly=config.use_ytdlp_nightly
+            )
+            if not ytdlp_ready:
+                logger.warning("⚠️  yt-dlp update failed, continuing anyway...")
+        
         ingester = EnhancedYouTubeIngester(config)
         ingester.run()
     except KeyboardInterrupt:
