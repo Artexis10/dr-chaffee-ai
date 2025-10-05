@@ -17,18 +17,29 @@ class DependencyChecker:
     
     # Critical dependencies that must be present
     CRITICAL_DEPS = {
+        # Core transcription
         'faster_whisper': 'faster-whisper>=1.0.2',
+        'whisperx': 'whisperx>=3.1.1',
+        
+        # Speaker identification (required for Dr. Chaffee attribution)
+        'pyannote.audio': 'pyannote.audio>=3.1.1',
+        'librosa': 'librosa>=0.10.1',
+        'soundfile': 'soundfile>=0.12.1',
+        
+        # ML/AI
         'torch': 'torch>=2.1.0,<2.4.0',
-        'yt_dlp': 'yt-dlp>=2023.11.16',
-        'psycopg2': 'psycopg2-binary>=2.9.9',
         'transformers': 'transformers==4.33.2',
+        
+        # YouTube downloads
+        'yt_dlp': 'yt-dlp>=2023.11.16',
+        
+        # Database
+        'psycopg2': 'psycopg2-binary>=2.9.9',
     }
     
     # Optional dependencies (warn but don't fail)
     OPTIONAL_DEPS = {
-        'whisperx': 'whisperx>=3.1.1',
-        'pyannote.audio': 'pyannote.audio>=3.1.1',
-        'librosa': 'librosa>=0.10.1',
+        'speechbrain': 'speechbrain>=0.5.16',
     }
     
     def __init__(self, auto_install: bool = True):
@@ -163,14 +174,27 @@ class DependencyChecker:
         except Exception as e:
             logger.warning(f"Could not check GPU availability: {e}")
             return False
+    
+    def check_ytdlp_version(self) -> bool:
+        """Check if yt-dlp is up-to-date and update if needed."""
+        try:
+            # Import the updater
+            from backend.scripts.common.ytdlp_updater import check_and_update_ytdlp
+            
+            logger.info("Checking yt-dlp version...")
+            return check_and_update_ytdlp(force=False, use_nightly=False)
+        except Exception as e:
+            logger.warning(f"Could not check yt-dlp version: {e}")
+            return True  # Don't fail if check fails
 
 
-def check_and_install_dependencies(auto_install: bool = True) -> bool:
+def check_and_install_dependencies(auto_install: bool = True, check_ytdlp: bool = True) -> bool:
     """
     Convenience function to check and install dependencies.
     
     Args:
         auto_install: If True, automatically install missing dependencies
+        check_ytdlp: If True, also check and update yt-dlp version
     
     Returns:
         True if all critical dependencies are available
@@ -183,6 +207,10 @@ def check_and_install_dependencies(auto_install: bool = True) -> bool:
     # Check GPU
     if success:
         checker.check_gpu_availability()
+    
+    # Check yt-dlp version
+    if success and check_ytdlp:
+        checker.check_ytdlp_version()
     
     return success
 

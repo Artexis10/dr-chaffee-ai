@@ -2334,18 +2334,22 @@ def main():
     try:
         config = parse_args()
         
-        # Check critical dependencies first
+        # Check critical dependencies first (includes yt-dlp version check)
         logger.info("Checking dependencies...")
         from backend.scripts.common.dependency_checker import check_and_install_dependencies
-        if not check_and_install_dependencies(auto_install=True):
+        
+        # Check yt-dlp version if using yt-dlp source and not skipping
+        check_ytdlp = (config.source == 'yt-dlp' and not config.skip_ytdlp_update)
+        
+        if not check_and_install_dependencies(auto_install=True, check_ytdlp=check_ytdlp):
             logger.error("❌ Critical dependencies missing - cannot continue")
             logger.error("Install manually with: pip install -r backend/requirements.txt")
             sys.exit(1)
         
-        # Auto-update yt-dlp if using yt-dlp source
-        if config.source == 'yt-dlp' and not config.skip_ytdlp_update:
+        # Force yt-dlp update or use nightly if requested
+        if config.source == 'yt-dlp' and (config.force_ytdlp_update or config.use_ytdlp_nightly):
             from backend.scripts.common.ytdlp_updater import check_and_update_ytdlp
-            logger.info("Checking yt-dlp version...")
+            logger.info("Forcing yt-dlp update...")
             ytdlp_ready = check_and_update_ytdlp(
                 force=config.force_ytdlp_update,
                 use_nightly=config.use_ytdlp_nightly
