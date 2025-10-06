@@ -834,7 +834,26 @@ class EnhancedASR:
                 logger.info(f"Cluster {cluster_id}: Extracting embeddings from {min(len(segments), 10)} segments for variance analysis")
                 logger.info(f"Cluster {cluster_id}: Total segments in cluster: {len(segments)}")
                 
-                for start, end in segments[:10]:  # Check first 10 segments for variance
+                # If pyannote returned only 1 massive segment, split it into chunks for variance analysis
+                segments_to_check = []
+                if len(segments) == 1:
+                    start, end = segments[0]
+                    duration = end - start
+                    logger.warning(f"Cluster {cluster_id}: Pyannote returned single {duration:.1f}s segment - splitting for variance analysis")
+                    
+                    # Split into 30-second chunks (up to 10 chunks)
+                    chunk_size = 30.0
+                    num_chunks = min(10, int(duration / chunk_size))
+                    for i in range(num_chunks):
+                        chunk_start = start + (i * chunk_size)
+                        chunk_end = min(chunk_start + chunk_size, end)
+                        segments_to_check.append((chunk_start, chunk_end))
+                    
+                    logger.info(f"Cluster {cluster_id}: Split into {len(segments_to_check)} chunks for analysis")
+                else:
+                    segments_to_check = segments[:10]
+                
+                for start, end in segments_to_check:  # Check segments/chunks for variance
                     duration = end - start
                     if duration >= 0.5:  # Only use segments >= 0.5 seconds
                         try:
