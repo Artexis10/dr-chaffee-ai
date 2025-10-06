@@ -41,7 +41,7 @@ psutil>=5.9.0
 
 # Advanced ASR with speaker identification
 whisperx>=3.1.1
-pyannote.audio>=3.1.1
+pyannote.audio>=4.0.0  # v4 with new community pipeline and exclusive mode
 speechbrain>=0.5.16
 librosa>=0.10.1
 soundfile>=0.12.1
