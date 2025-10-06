@@ -225,7 +225,11 @@ def main():
     args = parser.parse_args()
     
     # Initialize database
-    db = SegmentsDatabase()
+    db_url = os.getenv('DATABASE_URL')
+    if not db_url:
+        logger.error("DATABASE_URL environment variable not set!")
+        return 1
+    db = SegmentsDatabase(db_url)
     
     # Initialize voice enrollment
     voices_dir = Path(os.getenv('VOICES_DIR', 'voices'))
