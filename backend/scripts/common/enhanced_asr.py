@@ -1079,11 +1079,27 @@ class EnhancedASR:
                                     seg_embedding = np.mean(seg_embeddings, axis=0)
                                     seg_sim = float(enrollment.compute_similarity(seg_embedding, profiles['chaffee']))
                                     
-                                    # Determine speaker (threshold: 0.7)
-                                    if seg_sim > 0.7:
+                                    # IMPROVED: Multi-tier threshold for better accuracy
+                                    # High confidence: > 0.75 (definitely Chaffee)
+                                    # Medium confidence: 0.65-0.75 (likely Chaffee, use context)
+                                    # Low confidence: < 0.65 (likely Guest)
+                                    
+                                    if seg_sim > 0.75:
+                                        # High confidence Chaffee
                                         seg_speaker = 'Chaffee'
                                         seg_conf = seg_sim
+                                    elif seg_sim > 0.65:
+                                        # Medium confidence - use temporal context
+                                        # If previous segment was Chaffee, likely Chaffee
+                                        if speaker_segments and speaker_segments[-1].speaker == 'Chaffee':
+                                            seg_speaker = 'Chaffee'
+                                            seg_conf = seg_sim
+                                        else:
+                                            seg_speaker = 'GUEST'
+                                            seg_conf = 1.0 - seg_sim
+                                            guest_count += 1
                                     else:
+                                        # Low confidence - likely Guest
                                         seg_speaker = 'GUEST'
                                         seg_conf = 1.0 - seg_sim
                                         guest_count += 1
@@ -1123,6 +1139,27 @@ class EnhancedASR:
                             ))
                     
                     logger.info(f"✅ Cluster {cluster_id} split complete: {len(segments_to_identify) - guest_count} Chaffee, {guest_count} Guest segments")
+                    
+                    # POST-PROCESSING: Smooth isolated misidentifications
+                    # If a single segment is surrounded by the opposite speaker, likely misidentified
+                    smoothed_count = 0
+                    for i in range(1, len(speaker_segments) - 1):
+                        prev_speaker = speaker_segments[i-1].speaker
+                        curr_speaker = speaker_segments[i].speaker
+                        next_speaker = speaker_segments[i+1].speaker
+                        
+                        # If surrounded by same speaker and different from current
+                        if prev_speaker == next_speaker and curr_speaker != prev_speaker:
+                            # Check if it's a short segment (< 10s)
+                            duration = speaker_segments[i].end - speaker_segments[i].start
+                            if duration < 10:
+                                # Smooth to match surrounding
+                                speaker_segments[i].speaker = prev_speaker
+                                smoothed_count += 1
+                                logger.debug(f"  Smoothed segment {i} to {prev_speaker}")
+                    
+                    if smoothed_count > 0:
+                        logger.info(f"   Smoothed {smoothed_count} isolated misidentifications")
                 else:
                     # Normal cluster-level attribution
                     for start, end in segments:
