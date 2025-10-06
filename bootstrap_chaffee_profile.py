@@ -50,10 +50,10 @@ def get_high_chaffee_videos(db: SegmentsDatabase, num_videos: int = 30, min_chaf
     SELECT 
         video_id,
         COUNT(*) as total_segments,
-        SUM(CASE WHEN speaker = 'Chaffee' THEN 1 ELSE 0 END) as chaffee_segments,
-        SUM(CASE WHEN speaker = 'Chaffee' THEN 1 ELSE 0 END) * 100.0 / COUNT(*) as chaffee_pct
+        SUM(CASE WHEN speaker_label = 'Chaffee' THEN 1 ELSE 0 END) as chaffee_segments,
+        SUM(CASE WHEN speaker_label = 'Chaffee' THEN 1 ELSE 0 END) * 100.0 / COUNT(*) as chaffee_pct
     FROM segments
-    WHERE speaker IS NOT NULL
+    WHERE speaker_label IS NOT NULL
     GROUP BY video_id
     HAVING chaffee_pct >= %s
     ORDER BY total_segments DESC, chaffee_pct DESC
@@ -92,7 +92,7 @@ def extract_chaffee_embeddings(db: SegmentsDatabase, video_ids: list, enrollment
         query = """
         SELECT start_time, end_time, embedding
         FROM segments
-        WHERE video_id = %s AND speaker = 'Chaffee'
+        WHERE video_id = %s AND speaker_label = 'Chaffee'
         ORDER BY start_time
         """
         
