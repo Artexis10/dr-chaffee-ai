@@ -55,8 +55,8 @@ def get_high_chaffee_videos(db: SegmentsDatabase, num_videos: int = 30, min_chaf
     FROM segments
     WHERE speaker_label IS NOT NULL
     GROUP BY video_id
-    HAVING chaffee_pct >= %s
-    ORDER BY total_segments DESC, chaffee_pct DESC
+    HAVING SUM(CASE WHEN speaker_label = 'Chaffee' THEN 1 ELSE 0 END) * 100.0 / COUNT(*) >= %s
+    ORDER BY total_segments DESC, SUM(CASE WHEN speaker_label = 'Chaffee' THEN 1 ELSE 0 END) * 100.0 / COUNT(*) DESC
     LIMIT %s
     """
     
