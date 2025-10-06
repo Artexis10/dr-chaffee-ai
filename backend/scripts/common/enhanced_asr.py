@@ -1122,7 +1122,7 @@ class EnhancedASR:
                                 cluster_id=cluster_id
                             ))
                     
-                    logger.info(f"✅ Cluster {cluster_id} split complete: {len(segments) - guest_count} Chaffee, {guest_count} Guest segments")
+                    logger.info(f"✅ Cluster {cluster_id} split complete: {len(segments_to_identify) - guest_count} Chaffee, {guest_count} Guest segments")
                 else:
                     # Normal cluster-level attribution
                     for start, end in segments:
