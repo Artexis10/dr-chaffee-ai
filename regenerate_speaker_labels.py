@@ -55,11 +55,13 @@ def get_all_segments_with_embeddings(db: SegmentsDatabase):
     
     segments = []
     for row in results:
+        # Convert embedding to numpy array (suppress printing)
+        emb = np.array(row[3]) if row[3] else None
         segments.append({
             'id': row[0],
             'video_id': row[1],
             'speaker_label': row[2],
-            'embedding': np.array(row[3]) if row[3] else None,
+            'embedding': emb,
             'start_sec': float(row[4]),
             'end_sec': float(row[5])
         })
