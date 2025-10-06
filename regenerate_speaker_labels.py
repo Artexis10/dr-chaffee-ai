@@ -42,10 +42,10 @@ def get_all_segments_with_embeddings(db: SegmentsDatabase):
     logger.info("Fetching all segments with embeddings from database...")
     
     query = """
-    SELECT id, video_id, speaker_label, embedding, start_time, end_time
+    SELECT id, video_id, speaker_label, embedding, start_sec, end_sec
     FROM segments
     WHERE embedding IS NOT NULL
-    ORDER BY video_id, start_time
+    ORDER BY video_id, start_sec
     """
     
     with db.get_connection() as conn:
@@ -60,8 +60,8 @@ def get_all_segments_with_embeddings(db: SegmentsDatabase):
             'video_id': row[1],
             'speaker_label': row[2],
             'embedding': np.array(row[3]) if row[3] else None,
-            'start_time': row[4],
-            'end_time': row[5]
+            'start_sec': float(row[4]),
+            'end_sec': float(row[5])
         })
     
     logger.info(f"Found {len(segments)} segments with embeddings")
@@ -126,7 +126,7 @@ def smooth_speaker_labels(segments_by_video):
             # If surrounded by same speaker and different from current
             if prev_speaker == next_speaker and curr_speaker != prev_speaker:
                 # Check if it's a short segment (< 10s)
-                duration = segments[i]['end_time'] - segments[i]['start_time']
+                duration = segments[i]['end_sec'] - segments[i]['start_sec']
                 if duration < 10:
                     # Smooth to match surrounding
                     segments[i]['new_speaker'] = prev_speaker
