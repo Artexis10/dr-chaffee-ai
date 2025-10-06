@@ -831,6 +831,9 @@ class EnhancedASR:
                 total_duration = 0
                 segments_used = 0
                 
+                logger.info(f"Cluster {cluster_id}: Extracting embeddings from {min(len(segments), 10)} segments for variance analysis")
+                logger.info(f"Cluster {cluster_id}: Total segments in cluster: {len(segments)}")
+                
                 for start, end in segments[:10]:  # Check first 10 segments for variance
                     duration = end - start
                     if duration >= 0.5:  # Only use segments >= 0.5 seconds
@@ -851,9 +854,14 @@ class EnhancedASR:
                                     cluster_embeddings.extend(seg_embeddings)
                                     total_duration += duration
                                     segments_used += 1
+                                    logger.debug(f"  Segment [{start:.1f}-{end:.1f}s]: Extracted {len(seg_embeddings)} embeddings")
+                                else:
+                                    logger.warning(f"  Segment [{start:.1f}-{end:.1f}s]: No embeddings extracted")
                         except Exception as e:
                             logger.warning(f"Failed to load segment {start}-{end}: {e}")
                             continue
+                
+                logger.info(f"Cluster {cluster_id}: Extracted {len(per_segment_embeddings)} per-segment embeddings, {len(cluster_embeddings)} total embeddings")
                 
                 # CRITICAL: Check if this "single cluster" actually has multiple speakers
                 # by analyzing PER-SEGMENT embedding variance against Chaffee profile
