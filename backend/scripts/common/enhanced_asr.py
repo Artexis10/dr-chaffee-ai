@@ -868,6 +868,31 @@ class EnhancedASR:
                         if embeddings:  # Check if embeddings were extracted
                             cluster_embeddings.extend(embeddings)
                             logger.info(f"Cluster {cluster_id}: Successfully extracted {len(embeddings)} embeddings")
+                            
+                            # CRITICAL: Check if this "single cluster" actually has multiple speakers
+                            # by analyzing embedding variance against Chaffee profile
+                            if len(embeddings) >= 5 and 'chaffee' in profiles:
+                                chaffee_profile = profiles['chaffee']
+                                similarities = []
+                                for emb in embeddings:
+                                    sim = enrollment.compute_similarity(emb, chaffee_profile)
+                                    if hasattr(sim, 'item'):
+                                        sim = sim.item()
+                                    similarities.append(float(sim))
+                                
+                                # Check variance - if high, this cluster has mixed speakers
+                                sim_variance = np.var(similarities)
+                                sim_mean = np.mean(similarities)
+                                sim_min = np.min(similarities)
+                                sim_max = np.max(similarities)
+                                
+                                logger.info(f"Cluster {cluster_id} voice analysis: mean={sim_mean:.3f}, var={sim_variance:.3f}, range=[{sim_min:.3f}, {sim_max:.3f}]")
+                                
+                                # If variance is high OR we have both high and low similarities, split needed
+                                if sim_variance > 0.05 or (sim_max - sim_min) > 0.3:
+                                    logger.warning(f"⚠️  Cluster {cluster_id} has HIGH VARIANCE - likely contains multiple speakers!")
+                                    logger.warning(f"   Pyannote merged distinct voices (Indian vs Australian accent)")
+                                    logger.warning(f"   Will attempt per-segment speaker identification")
                         else:
                             logger.warning(f"Cluster {cluster_id}: No embeddings extracted from combined audio")
                     except Exception as e:
