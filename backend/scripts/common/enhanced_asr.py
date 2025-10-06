@@ -1031,16 +1031,35 @@ class EnhancedASR:
                 logger.info(f"Cluster {cluster_id} -> {speaker_name} (conf={confidence:.3f}, level={confidence_level}, margin={margin:.3f})")
                 
                 # Create speaker segments
-                # Check if this cluster was split (has mixed speakers)
+                # Check if this cluster was split (has mixed speakers) OR if it's a single massive segment
                 has_split_info = any(isinstance(item, tuple) and len(item) == 3 and item[0] == 'split_cluster' 
                                     for item in cluster_embeddings if isinstance(item, tuple))
                 
-                if has_split_info and 'chaffee' in profiles:
-                    # PER-SEGMENT identification for split clusters
-                    logger.info(f"🔄 Cluster {cluster_id}: Using per-segment identification (mixed speakers detected)")
+                # CRITICAL: If pyannote returned only 1 segment, do per-segment ID regardless of variance
+                # This handles the case where pyannote over-merged speakers
+                is_single_massive_segment = len(segments) == 1 and (segments[0][1] - segments[0][0]) > 300
+                
+                if (has_split_info or is_single_massive_segment) and 'chaffee' in profiles:
+                    # PER-SEGMENT identification for split clusters or massive segments
+                    if is_single_massive_segment:
+                        logger.warning(f"🔄 Cluster {cluster_id}: Pyannote over-merged - forcing per-segment identification")
+                        # Split the massive segment into 30-second chunks
+                        start, end = segments[0]
+                        chunk_size = 30.0
+                        segments_to_identify = []
+                        current = start
+                        while current < end:
+                            chunk_end = min(current + chunk_size, end)
+                            segments_to_identify.append((current, chunk_end))
+                            current = chunk_end
+                        logger.info(f"   Split {end - start:.1f}s segment into {len(segments_to_identify)} chunks")
+                    else:
+                        logger.info(f"🔄 Cluster {cluster_id}: Using per-segment identification (mixed speakers detected)")
+                        segments_to_identify = segments
+                    
                     guest_count = 0
                     
-                    for seg_idx, (start, end) in enumerate(segments):
+                    for seg_idx, (start, end) in enumerate(segments_to_identify):
                         # Extract embedding for this specific segment
                         try:
                             duration = end - start
