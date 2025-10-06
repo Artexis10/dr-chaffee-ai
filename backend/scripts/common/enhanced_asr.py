@@ -841,15 +841,20 @@ class EnhancedASR:
                     duration = end - start
                     logger.warning(f"Cluster {cluster_id}: Pyannote returned single {duration:.1f}s segment - splitting for variance analysis")
                     
-                    # Split into 30-second chunks (up to 10 chunks)
+                    # Extract chunks from DIFFERENT parts of the video (beginning, middle, end)
+                    # to capture different speakers
                     chunk_size = 30.0
-                    num_chunks = min(10, int(duration / chunk_size))
+                    num_chunks = 10
+                    
+                    # Distribute chunks across the entire duration
                     for i in range(num_chunks):
-                        chunk_start = start + (i * chunk_size)
+                        # Calculate position: spread evenly across duration
+                        position = start + (i * duration / num_chunks)
+                        chunk_start = position
                         chunk_end = min(chunk_start + chunk_size, end)
                         segments_to_check.append((chunk_start, chunk_end))
                     
-                    logger.info(f"Cluster {cluster_id}: Split into {len(segments_to_check)} chunks for analysis")
+                    logger.info(f"Cluster {cluster_id}: Split into {len(segments_to_check)} chunks across {duration:.1f}s duration")
                 else:
                     segments_to_check = segments[:10]
                 
