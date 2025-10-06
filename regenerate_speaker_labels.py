@@ -173,7 +173,11 @@ def regenerate_labels(db: SegmentsDatabase, dry_run=False):
     changes = 0
     prev_speaker_by_video = {}
     
-    for seg in tqdm(segments, desc="Re-identifying speakers"):
+    logger.info(f"Re-identifying speakers for {len(segments)} segments...")
+    for idx, seg in enumerate(segments, 1):
+        if idx % 100 == 0:
+            logger.info(f"  Progress: {idx}/{len(segments)} segments ({idx/len(segments)*100:.1f}%)")
+        
         video_id = seg['video_id']
         prev_speaker = prev_speaker_by_video.get(video_id)
         
@@ -223,7 +227,10 @@ def regenerate_labels(db: SegmentsDatabase, dry_run=False):
         
         with db.get_connection() as conn:
             with conn.cursor() as cur:
-                for seg in tqdm(segments, desc="Updating database"):
+                for idx, seg in enumerate(segments, 1):
+                    if idx % 100 == 0:
+                        logger.info(f"  Updating: {idx}/{len(segments)} segments ({idx/len(segments)*100:.1f}%)")
+                    
                     if seg['speaker_label'] != seg['new_speaker']:
                         cur.execute("""
                             UPDATE segments
