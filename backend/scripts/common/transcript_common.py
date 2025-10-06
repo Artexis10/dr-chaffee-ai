@@ -27,6 +27,7 @@ class TranscriptSegment:
     re_asr: bool = False
     is_overlap: bool = False
     needs_refinement: bool = False
+    voice_embedding: Optional[list] = None  # 192-dim SpeechBrain ECAPA embedding for speaker ID
     
     @classmethod
     def from_youtube_transcript(cls, data) -> 'TranscriptSegment':

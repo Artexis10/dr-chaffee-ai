@@ -127,20 +127,23 @@ class SegmentsDatabase:
                         video_id, start_sec, end_sec, speaker_label, speaker_conf,
                         text, avg_logprob, compression_ratio, no_speech_prob,
                         temperature_used, re_asr, is_overlap, needs_refinement,
-                        embedding
+                        embedding, voice_embedding
                     ) VALUES %s
                 """
                 
                 # Prepare values for batch insert
                 values = []
                 for segment in segments:
-                    # Determine if this segment should get an embedding
+                    # Determine if this segment should get text embedding
                     embedding = None
                     if self._get_segment_value(segment, 'embedding'):
                         speaker_label = self._get_segment_value(segment, 'speaker_label', 'GUEST')
                         # Only embed Chaffee segments if embed_chaffee_only is enabled
                         if not embed_chaffee_only or speaker_label == 'Chaffee':
                             embedding = self._get_segment_value(segment, 'embedding')
+                    
+                    # Get voice embedding (always store for speaker identification)
+                    voice_embedding = self._get_segment_value(segment, 'voice_embedding')
                     
                     # Convert numpy types to Python native types to avoid "schema np does not exist" error
                     def to_native(val):
@@ -179,7 +182,8 @@ class SegmentsDatabase:
                         bool(self._get_segment_value(segment, 're_asr', False)),
                         bool(self._get_segment_value(segment, 'is_overlap', False)),
                         bool(self._get_segment_value(segment, 'needs_refinement', False)),
-                        embedding
+                        embedding,
+                        voice_embedding
                     ))
                 
                 # Execute batch insert

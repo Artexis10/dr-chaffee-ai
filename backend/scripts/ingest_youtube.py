@@ -977,7 +977,8 @@ class EnhancedYouTubeIngester:
                         're_asr': bool(segment.re_asr),
                         'is_overlap': bool(segment.is_overlap),
                         'needs_refinement': bool(segment.needs_refinement),
-                        'embedding': getattr(segment, 'embedding', None)
+                        'embedding': getattr(segment, 'embedding', None),  # Text embedding (1536-dim)
+                        'voice_embedding': getattr(segment, 'voice_embedding', None)  # Voice embedding (192-dim)
                     }
                     segment_dicts.append(segment_dict)
                 else:

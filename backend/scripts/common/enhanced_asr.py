@@ -697,8 +697,9 @@ class EnhancedASR:
                 logger.info(f"Setting maximum speakers to {max_speakers}")
             
             # Run diarization (either pyannote or fallback)
+            # exclusive=True ensures no overlapping speakers (ideal for Whisper timestamp alignment)
             logger.info(f"Running diarization with params: {diarization_params}")
-            diarization = diarization_pipeline(diarization_audio_path, **diarization_params)
+            diarization = diarization_pipeline(diarization_audio_path, exclusive=True, **diarization_params)
             
             # Check if this is fallback (returns list) or pyannote (returns Annotation object)
             if isinstance(diarization, list):
@@ -930,105 +931,123 @@ class EnhancedASR:
                         ))
                     continue
                 
-                # Compute average embedding for cluster (with length weighting)
-                cluster_embedding = np.mean(cluster_embeddings, axis=0)
+                # Check if this cluster needs per-segment identification
+                has_split_marker = any(isinstance(item, tuple) and len(item) == 3 and item[0] == 'split_cluster' 
+                                      for item in cluster_embeddings)
+                
+                # If cluster has split marker, skip cluster-level identification
+                # (will be handled in per-segment section below)
+                if has_split_marker:
+                    # Use dummy values for cluster-level vars (won't be used)
+                    cluster_embedding = None
+                    speaker_name = self.config.unknown_label
+                    confidence = 0.0
+                    margin = 0.0
+                else:
+                    # Compute average embedding for cluster (with length weighting)
+                    cluster_embedding = np.mean(cluster_embeddings, axis=0)
                 
                 # Calculate total duration for this cluster
                 total_duration = sum(end - start for start, end in segments)
                 
-                # Compare against all profiles
-                best_match = None
-                best_similarity = 0.0
-                similarities = {}
-                confidence_level = "unknown"
-                
-                # Debug info
-                logger.info(f"Cluster {cluster_id}: Testing against {len(profiles)} profiles (duration: {total_duration:.1f}s)")
-                
-                for profile_name, profile in profiles.items():
-                    # Fix NumPy array comparison issue
-                    try:
-                        # Ensure we get a scalar float
-                        sim = float(enrollment.compute_similarity(cluster_embedding, profile))
-                        similarities[profile_name] = sim
-                        
-                        # Apply duration-based confidence boost for longer segments
-                        duration_boost = 1.0
-                        if total_duration > 10:  # Long segments get accuracy boost
-                            duration_boost = 1.05
-                        elif total_duration > 5:
-                            duration_boost = 1.02
-                        
-                        boosted_sim = sim * duration_boost
-                        
-                        logger.info(f"Cluster {cluster_id}: Similarity with {profile_name}: {sim:.3f} (boosted: {boosted_sim:.3f})")
-                        
-                        # Simple float comparison using boosted similarity
-                        if boosted_sim > best_similarity:
-                            best_similarity = boosted_sim
-                            best_match = profile_name
-                    except Exception as e:
-                        logger.warning(f"Error computing similarity for {profile_name}: {e}")
-                        similarities[profile_name] = 0.0
-                
-                # Determine speaker attribution
-                speaker_name = self.config.unknown_label
-                confidence = 0.0
-                margin = 0.0
-                
-                if best_match:
-                    # Get appropriate threshold
-                    if best_match.lower() == 'chaffee':
-                        base_threshold = self.config.chaffee_min_sim
-                    else:
-                        base_threshold = self.config.guest_min_sim
+                # Only do cluster-level identification if not marked for per-segment split
+                if not has_split_marker:
+                    # Compare against all profiles
+                    best_match = None
+                    best_similarity = 0.0
+                    similarities = {}
+                    confidence_level = "unknown"
                     
-                    # Multi-confidence level thresholds
-                    high_confidence_threshold = base_threshold + 0.15  # e.g., 0.65
-                    medium_confidence_threshold = base_threshold + 0.05  # e.g., 0.55
+                    # Debug info
+                    logger.info(f"Cluster {cluster_id}: Testing against {len(profiles)} profiles (duration: {total_duration:.1f}s)")
                     
-                    # Get the raw similarity (without boost) for threshold comparison
-                    raw_similarity = similarities[best_match]
+                    for profile_name, profile in profiles.items():
+                        # Fix NumPy array comparison issue
+                        try:
+                            # Ensure we get a scalar float
+                            sim = float(enrollment.compute_similarity(cluster_embedding, profile))
+                            similarities[profile_name] = sim
+                            
+                            # Apply duration-based confidence boost for longer segments
+                            duration_boost = 1.0
+                            if total_duration > 10:  # Long segments get accuracy boost
+                                duration_boost = 1.05
+                            elif total_duration > 5:
+                                duration_boost = 1.02
+                            
+                            boosted_sim = sim * duration_boost
+                            
+                            logger.info(f"Cluster {cluster_id}: Similarity with {profile_name}: {sim:.3f} (boosted: {boosted_sim:.3f})")
+                            
+                            # Simple float comparison using boosted similarity
+                            if boosted_sim > best_similarity:
+                                best_similarity = boosted_sim
+                                best_match = profile_name
+                        except Exception as e:
+                            logger.warning(f"Error computing similarity for {profile_name}: {e}")
+                            similarities[profile_name] = 0.0
                     
-                    # Determine confidence level and apply appropriate logic
-                    if raw_similarity >= high_confidence_threshold:
-                        confidence_level = "high"
-                        threshold = base_threshold  # Use base threshold for high confidence
-                    elif raw_similarity >= medium_confidence_threshold:
-                        confidence_level = "medium"
-                        threshold = base_threshold  # Will be processed with temporal consistency later
-                    else:
-                        confidence_level = "low"
-                        threshold = base_threshold
+                    # Determine speaker attribution
+                    speaker_name = self.config.unknown_label
+                    confidence = 0.0
+                    margin = 0.0
                     
-                    logger.info(f"Cluster {cluster_id}: Confidence level: {confidence_level} (raw: {raw_similarity:.3f}, threshold: {threshold:.3f})")
-                    
-                    # Check if similarity meets threshold
-                    if best_similarity >= threshold:
-                        # Check margin (difference from second-best with different value)
-                        # Filter out duplicate similarities to handle backup profiles with identical centroids
-                        unique_sims = sorted(set(similarities.values()), reverse=True)
-                        if len(unique_sims) > 1:
-                            margin = unique_sims[0] - unique_sims[1]
+                    if best_match:
+                        # Get appropriate threshold
+                        if best_match.lower() == 'chaffee':
+                            base_threshold = self.config.chaffee_min_sim
                         else:
-                            # Only one unique similarity value (could be from multiple identical profiles)
-                            # If we matched "chaffee" specifically, accept it even without margin
-                            if best_match == 'chaffee':
-                                margin = self.config.attr_margin  # Accept the main profile
-                                logger.info(f"Cluster {cluster_id}: Matched main 'chaffee' profile, accepting without margin check")
+                            base_threshold = self.config.guest_min_sim
+                        
+                        # Multi-confidence level thresholds
+                        high_confidence_threshold = base_threshold + 0.15  # e.g., 0.65
+                        medium_confidence_threshold = base_threshold + 0.05  # e.g., 0.55
+                        
+                        # Get the raw similarity (without boost) for threshold comparison
+                        raw_similarity = similarities[best_match]
+                        
+                        # Determine confidence level and apply appropriate logic
+                        if raw_similarity >= high_confidence_threshold:
+                            confidence_level = "high"
+                            threshold = base_threshold  # Use base threshold for high confidence
+                        elif raw_similarity >= medium_confidence_threshold:
+                            confidence_level = "medium"
+                            threshold = base_threshold  # Will be processed with temporal consistency later
+                        else:
+                            confidence_level = "low"
+                            threshold = base_threshold
+                        
+                        logger.info(f"Cluster {cluster_id}: Confidence level: {confidence_level} (raw: {raw_similarity:.3f}, threshold: {threshold:.3f})")
+                        
+                        # Check if similarity meets threshold
+                        if best_similarity >= threshold:
+                            # Check margin (difference from second-best with different value)
+                            # Filter out duplicate similarities to handle backup profiles with identical centroids
+                            unique_sims = sorted(set(similarities.values()), reverse=True)
+                            if len(unique_sims) > 1:
+                                margin = unique_sims[0] - unique_sims[1]
                             else:
-                                margin = best_similarity  # Only one profile or all same
-                        
-                        if margin >= self.config.attr_margin:
-                            speaker_name = best_match.title()
-                            confidence = best_similarity
+                                # Only one unique similarity value (could be from multiple identical profiles)
+                                # If we matched "chaffee" specifically, accept it even without margin
+                                if best_match == 'chaffee':
+                                    margin = self.config.attr_margin  # Accept the main profile
+                                    logger.info(f"Cluster {cluster_id}: Matched main 'chaffee' profile, accepting without margin check")
+                                else:
+                                    margin = best_similarity  # Only one profile or all same
+                            
+                            if margin >= self.config.attr_margin:
+                                speaker_name = best_match.title()
+                                confidence = best_similarity
+                            else:
+                                logger.info(f"Cluster {cluster_id}: Insufficient margin {margin:.3f} < {self.config.attr_margin:.3f}")
+                                logger.info(f"Cluster {cluster_id}: Consider removing duplicate backup profiles with identical centroids")
                         else:
-                            logger.info(f"Cluster {cluster_id}: Insufficient margin {margin:.3f} < {self.config.attr_margin:.3f}")
-                            logger.info(f"Cluster {cluster_id}: Consider removing duplicate backup profiles with identical centroids")
-                    else:
-                        logger.info(f"Cluster {cluster_id}: Best similarity {best_similarity:.3f} < threshold {threshold:.3f}")
-                
-                logger.info(f"Cluster {cluster_id} -> {speaker_name} (conf={confidence:.3f}, level={confidence_level}, margin={margin:.3f})")
+                            logger.info(f"Cluster {cluster_id}: Best similarity {best_similarity:.3f} < threshold {threshold:.3f}")
+                    
+                    logger.info(f"Cluster {cluster_id} -> {speaker_name} (conf={confidence:.3f}, level={confidence_level}, margin={margin:.3f})")
+                else:
+                    # For split clusters, log will happen in per-segment section
+                    logger.info(f"Cluster {cluster_id} marked for per-segment identification (skipping cluster-level)")
                 
                 # Create speaker segments
                 # Check if this cluster was split (has mixed speakers) OR if it's a single massive segment
@@ -1260,6 +1279,15 @@ class EnhancedASR:
                         
                         segment['speaker'] = majority_speaker
                         segment['speaker_confidence'] = avg_confidence
+                        
+                        # Find corresponding speaker segment to get voice embedding
+                        for spk_seg in speaker_segments:
+                            # Check if this speaker segment overlaps with transcript segment
+                            if not (segment['end'] <= spk_seg.start or segment['start'] >= spk_seg.end):
+                                # Found overlapping speaker segment with same speaker
+                                if spk_seg.speaker == majority_speaker and spk_seg.embedding:
+                                    segment['voice_embedding'] = spk_seg.embedding
+                                    break
                     else:
                         segment['speaker'] = self.config.unknown_label
                         segment['speaker_confidence'] = 0.0
