@@ -823,119 +823,66 @@ class EnhancedASR:
                         ))
                     continue
                 
-                # Extract embeddings for this cluster (combine segments for better quality)
+                # Extract embeddings for this cluster
+                # CRITICAL: Extract from EACH segment separately to detect variance
                 cluster_embeddings = []
+                per_segment_embeddings = []  # Track embeddings per segment for variance analysis
                 
-                # Combine segments to get at least 5 seconds of audio for embedding extraction
-                combined_audio = []
                 total_duration = 0
                 segments_used = 0
                 
-                for start, end in segments:
-                    if segments_used >= 5:  # Don't use too many segments
-                        break
-                    
+                for start, end in segments[:10]:  # Check first 10 segments for variance
                     duration = end - start
                     if duration >= 0.5:  # Only use segments >= 0.5 seconds
                         try:
                             audio, sr = librosa.load(audio_path, sr=16000, offset=start, duration=duration)
                             if len(audio) > sr * 0.5:  # At least 0.5 seconds of actual audio
-                                combined_audio.extend(audio)
-                                total_duration += duration
-                                segments_used += 1
+                                # Save to temp file for embedding extraction
+                                with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_file:
+                                    tmp_path = tmp_file.name
                                 
-                                # Stop when we have enough audio
-                                if total_duration >= 5.0 or len(combined_audio) >= sr * 5:
-                                    break
+                                sf.write(tmp_path, audio, sr)
+                                seg_embeddings = enrollment._extract_embeddings_from_audio(tmp_path)
+                                os.unlink(tmp_path)
+                                
+                                if seg_embeddings:
+                                    # Store first embedding from this segment
+                                    per_segment_embeddings.append(seg_embeddings[0])
+                                    cluster_embeddings.extend(seg_embeddings)
+                                    total_duration += duration
+                                    segments_used += 1
                         except Exception as e:
                             logger.warning(f"Failed to load segment {start}-{end}: {e}")
                             continue
                 
-                # Process combined audio if we have enough
-                if len(combined_audio) >= sr * 2:  # At least 2 seconds total
-                    # Save to temp file for embedding extraction
-                    with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_file:
-                        tmp_path = tmp_file.name
+                # CRITICAL: Check if this "single cluster" actually has multiple speakers
+                # by analyzing PER-SEGMENT embedding variance against Chaffee profile
+                if len(per_segment_embeddings) >= 3 and 'chaffee' in profiles:
+                    chaffee_profile = profiles['chaffee']
+                    similarities = []
+                    for emb in per_segment_embeddings:
+                        sim = enrollment.compute_similarity(emb, chaffee_profile)
+                        if hasattr(sim, 'item'):
+                            sim = sim.item()
+                        similarities.append(float(sim))
                     
-                    try:
-                        combined_audio_array = np.array(combined_audio, dtype=np.float32)
-                        sf.write(tmp_path, combined_audio_array, sr)
-                        # Add small delay to ensure file is written
-                        time.sleep(0.1)
+                    # Check variance - if high, this cluster has mixed speakers
+                    sim_variance = np.var(similarities)
+                    sim_mean = np.mean(similarities)
+                    sim_min = np.min(similarities)
+                    sim_max = np.max(similarities)
+                    
+                    logger.info(f"Cluster {cluster_id} voice analysis: mean={sim_mean:.3f}, var={sim_variance:.3f}, range=[{sim_min:.3f}, {sim_max:.3f}]")
+                    
+                    # If variance is high OR we have both high and low similarities, split needed
+                    if sim_variance > 0.05 or (sim_max - sim_min) > 0.3:
+                        logger.warning(f"⚠️  Cluster {cluster_id} has HIGH VARIANCE - likely contains multiple speakers!")
+                        logger.warning(f"   Pyannote merged distinct voices - will split cluster")
+                        logger.warning(f"   Variance: {sim_variance:.3f}, Range: {sim_max - sim_min:.3f}")
                         
-                        logger.info(f"Cluster {cluster_id}: Extracting embeddings from {total_duration:.1f}s of combined audio")
-                        embeddings = enrollment._extract_embeddings_from_audio(tmp_path)
-                        if embeddings:  # Check if embeddings were extracted
-                            cluster_embeddings.extend(embeddings)
-                            logger.info(f"Cluster {cluster_id}: Successfully extracted {len(embeddings)} embeddings")
-                            
-                            # CRITICAL: Check if this "single cluster" actually has multiple speakers
-                            # by analyzing embedding variance against Chaffee profile
-                            if len(embeddings) >= 5 and 'chaffee' in profiles:
-                                chaffee_profile = profiles['chaffee']
-                                similarities = []
-                                for emb in embeddings:
-                                    sim = enrollment.compute_similarity(emb, chaffee_profile)
-                                    if hasattr(sim, 'item'):
-                                        sim = sim.item()
-                                    similarities.append(float(sim))
-                                
-                                # Check variance - if high, this cluster has mixed speakers
-                                sim_variance = np.var(similarities)
-                                sim_mean = np.mean(similarities)
-                                sim_min = np.min(similarities)
-                                sim_max = np.max(similarities)
-                                
-                                logger.info(f"Cluster {cluster_id} voice analysis: mean={sim_mean:.3f}, var={sim_variance:.3f}, range=[{sim_min:.3f}, {sim_max:.3f}]")
-                                
-                                # If variance is high OR we have both high and low similarities, split needed
-                                if sim_variance > 0.05 or (sim_max - sim_min) > 0.3:
-                                    logger.warning(f"⚠️  Cluster {cluster_id} has HIGH VARIANCE - likely contains multiple speakers!")
-                                    logger.warning(f"   Pyannote merged distinct voices - will split cluster")
-                                    logger.warning(f"   Variance: {sim_variance:.3f}, Range: {sim_max - sim_min:.3f}")
-                                    
-                                    # SPLIT CLUSTER: Use k-means on embeddings
-                                    try:
-                                        from sklearn.cluster import KMeans
-                                        
-                                        # Try k=2 first (most common: Chaffee + 1 guest)
-                                        embeddings_array = np.array(embeddings)
-                                        kmeans = KMeans(n_clusters=2, random_state=42, n_init=10)
-                                        sub_clusters = kmeans.fit_predict(embeddings_array)
-                                        
-                                        logger.info(f"   Split cluster {cluster_id} into 2 sub-clusters using k-means")
-                                        
-                                        # Identify which sub-cluster is Chaffee
-                                        for sub_id in range(2):
-                                            sub_mask = sub_clusters == sub_id
-                                            sub_embeddings = embeddings_array[sub_mask]
-                                            sub_centroid = np.mean(sub_embeddings, axis=0)
-                                            sub_sim = float(enrollment.compute_similarity(sub_centroid, chaffee_profile))
-                                            
-                                            if sub_sim > 0.7:
-                                                logger.info(f"   Sub-cluster {sub_id}: Chaffee (similarity: {sub_sim:.3f})")
-                                            else:
-                                                logger.info(f"   Sub-cluster {sub_id}: Guest (similarity: {sub_sim:.3f})")
-                                        
-                                        # Store sub-cluster info for per-segment identification
-                                        cluster_embeddings.append(('split_cluster', sub_clusters, embeddings_array))
-                                        
-                                    except Exception as e:
-                                        logger.error(f"   Failed to split cluster: {e}")
-                                        logger.warning(f"   Falling back to per-segment identification")
-                        else:
-                            logger.warning(f"Cluster {cluster_id}: No embeddings extracted from combined audio")
-                    except Exception as e:
-                        logger.warning(f"Failed to extract embeddings for cluster {cluster_id}: {e}")
-                    finally:
-                        # Ensure file cleanup even if extraction fails
-                        try:
-                            if os.path.exists(tmp_path):
-                                os.unlink(tmp_path)
-                        except:
-                            pass  # Ignore cleanup errors
-                else:
-                    logger.warning(f"Cluster {cluster_id}: Not enough audio ({len(combined_audio)/sr:.1f}s) for embedding extraction")
+                        # Mark cluster for per-segment identification
+                        cluster_embeddings.append(('split_cluster', None, None))
+                        logger.info(f"   Will perform per-segment speaker identification")
                 
                 if not cluster_embeddings:
                     logger.warning(f"No embeddings extracted for cluster {cluster_id}")
