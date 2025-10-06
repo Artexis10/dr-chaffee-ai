@@ -891,8 +891,38 @@ class EnhancedASR:
                                 # If variance is high OR we have both high and low similarities, split needed
                                 if sim_variance > 0.05 or (sim_max - sim_min) > 0.3:
                                     logger.warning(f"⚠️  Cluster {cluster_id} has HIGH VARIANCE - likely contains multiple speakers!")
-                                    logger.warning(f"   Pyannote merged distinct voices (Indian vs Australian accent)")
-                                    logger.warning(f"   Will attempt per-segment speaker identification")
+                                    logger.warning(f"   Pyannote merged distinct voices - will split cluster")
+                                    logger.warning(f"   Variance: {sim_variance:.3f}, Range: {sim_max - sim_min:.3f}")
+                                    
+                                    # SPLIT CLUSTER: Use k-means on embeddings
+                                    try:
+                                        from sklearn.cluster import KMeans
+                                        
+                                        # Try k=2 first (most common: Chaffee + 1 guest)
+                                        embeddings_array = np.array(embeddings)
+                                        kmeans = KMeans(n_clusters=2, random_state=42, n_init=10)
+                                        sub_clusters = kmeans.fit_predict(embeddings_array)
+                                        
+                                        logger.info(f"   Split cluster {cluster_id} into 2 sub-clusters using k-means")
+                                        
+                                        # Identify which sub-cluster is Chaffee
+                                        for sub_id in range(2):
+                                            sub_mask = sub_clusters == sub_id
+                                            sub_embeddings = embeddings_array[sub_mask]
+                                            sub_centroid = np.mean(sub_embeddings, axis=0)
+                                            sub_sim = float(enrollment.compute_similarity(sub_centroid, chaffee_profile))
+                                            
+                                            if sub_sim > 0.7:
+                                                logger.info(f"   Sub-cluster {sub_id}: Chaffee (similarity: {sub_sim:.3f})")
+                                            else:
+                                                logger.info(f"   Sub-cluster {sub_id}: Guest (similarity: {sub_sim:.3f})")
+                                        
+                                        # Store sub-cluster info for per-segment identification
+                                        cluster_embeddings.append(('split_cluster', sub_clusters, embeddings_array))
+                                        
+                                    except Exception as e:
+                                        logger.error(f"   Failed to split cluster: {e}")
+                                        logger.warning(f"   Falling back to per-segment identification")
                         else:
                             logger.warning(f"Cluster {cluster_id}: No embeddings extracted from combined audio")
                     except Exception as e:
@@ -1022,16 +1052,91 @@ class EnhancedASR:
                 logger.info(f"Cluster {cluster_id} -> {speaker_name} (conf={confidence:.3f}, level={confidence_level}, margin={margin:.3f})")
                 
                 # Create speaker segments
-                for start, end in segments:
-                    speaker_segments.append(SpeakerSegment(
-                        start=start,
-                        end=end,
-                        speaker=speaker_name,
-                        confidence=confidence,
-                        margin=margin,
-                        embedding=cluster_embedding.tolist(),
-                        cluster_id=cluster_id
-                    ))
+                # Check if this cluster was split (has mixed speakers)
+                has_split_info = any(isinstance(item, tuple) and len(item) == 3 and item[0] == 'split_cluster' 
+                                    for item in cluster_embeddings if isinstance(item, tuple))
+                
+                if has_split_info and 'chaffee' in profiles:
+                    # PER-SEGMENT identification for split clusters
+                    logger.info(f"🔄 Cluster {cluster_id}: Using per-segment identification (mixed speakers detected)")
+                    guest_count = 0
+                    
+                    for seg_idx, (start, end) in enumerate(segments):
+                        # Extract embedding for this specific segment
+                        try:
+                            duration = end - start
+                            if duration >= 0.5:
+                                audio, sr = librosa.load(audio_path, sr=16000, offset=start, duration=duration)
+                                
+                                # Save to temp file
+                                with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_file:
+                                    tmp_path = tmp_file.name
+                                
+                                sf.write(tmp_path, audio, sr)
+                                seg_embeddings = enrollment._extract_embeddings_from_audio(tmp_path)
+                                os.unlink(tmp_path)
+                                
+                                if seg_embeddings:
+                                    # Compare to Chaffee profile
+                                    seg_embedding = np.mean(seg_embeddings, axis=0)
+                                    seg_sim = float(enrollment.compute_similarity(seg_embedding, profiles['chaffee']))
+                                    
+                                    # Determine speaker (threshold: 0.7)
+                                    if seg_sim > 0.7:
+                                        seg_speaker = 'Chaffee'
+                                        seg_conf = seg_sim
+                                    else:
+                                        seg_speaker = 'GUEST'
+                                        seg_conf = 1.0 - seg_sim
+                                        guest_count += 1
+                                    
+                                    logger.debug(f"  [{start:.1f}-{end:.1f}s]: {seg_speaker} (sim: {seg_sim:.3f})")
+                                    
+                                    speaker_segments.append(SpeakerSegment(
+                                        start=start,
+                                        end=end,
+                                        speaker=seg_speaker,
+                                        confidence=seg_conf,
+                                        margin=0.0,
+                                        embedding=seg_embedding.tolist(),
+                                        cluster_id=cluster_id
+                                    ))
+                                else:
+                                    # Fallback
+                                    speaker_segments.append(SpeakerSegment(
+                                        start=start,
+                                        end=end,
+                                        speaker=speaker_name,
+                                        confidence=confidence,
+                                        margin=margin,
+                                        embedding=cluster_embedding.tolist(),
+                                        cluster_id=cluster_id
+                                    ))
+                        except Exception as e:
+                            logger.warning(f"  Failed per-segment ID [{start:.1f}-{end:.1f}s]: {e}")
+                            speaker_segments.append(SpeakerSegment(
+                                start=start,
+                                end=end,
+                                speaker=speaker_name,
+                                confidence=confidence,
+                                margin=margin,
+                                embedding=cluster_embedding.tolist(),
+                                cluster_id=cluster_id
+                            ))
+                    
+                    logger.info(f"✅ Cluster {cluster_id} split complete: {len(segments) - guest_count} Chaffee, {guest_count} Guest segments")
+                else:
+                    # Normal cluster-level attribution
+                    for start, end in segments:
+                        speaker_segments.append(SpeakerSegment(
+                            start=start,
+                            end=end,
+                            speaker=speaker_name,
+                            confidence=confidence,
+                            margin=margin,
+                            embedding=cluster_embedding.tolist(),
+                            cluster_id=cluster_id
+                        ))
             
             # Post-processing: Apply temporal consistency filtering
             # speaker_segments = self._apply_temporal_consistency(speaker_segments)
