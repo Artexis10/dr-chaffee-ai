@@ -32,69 +32,74 @@ class VoiceEnrollment:
         logger.info(f"Voice enrollment initialized with profiles directory: {self.voices_dir}")
     
     def _get_embedding_model(self):
-        """Lazy-load a simplified embedding model to avoid Windows symlink issues"""
+        """Lazy-load SpeechBrain ECAPA-TDNN model with Windows-safe loading"""
         if self._embedding_model is None:
+            import torch
+            from speechbrain.inference.speaker import EncoderClassifier
+            import os
+            import shutil
+            from pathlib import Path
+            
+            # Determine device
+            self._device = "cuda" if torch.cuda.is_available() else "cpu"
+            
+            # Use cache directory for models
+            cache_dir = Path(os.getenv('PRETRAINED_MODELS_DIR', 'pretrained_models'))
+            cache_dir.mkdir(exist_ok=True)
+            
+            logger.info(f"Loading SpeechBrain ECAPA-TDNN model on {self._device}")
+            logger.info(f"Cache directory: {cache_dir}")
+            
+            # Windows workaround: Manually copy files from HF cache to avoid symlink issues
             try:
-                import torch
-                import os
+                hf_cache = Path.home() / '.cache' / 'huggingface' / 'hub' / 'models--speechbrain--spkrec-ecapa-voxceleb'
                 
-                # Determine device
-                self._device = "cuda" if torch.cuda.is_available() else "cpu"
-                
-                # Create a simple model wrapper that just returns random embeddings
-                # This is a fallback solution since we're having issues with the model
-                class SimpleEmbeddingModel:
-                    def __init__(self, device="cuda"):
-                        self.device = device
-                        import torch
-                        import numpy as np
-                        
-                        # Create a fixed set of embeddings for consistency
-                        np.random.seed(42)  # For reproducibility
-                        self.chaffee_embedding = torch.tensor(
-                            np.random.normal(0, 1, (192,)), 
-                            dtype=torch.float32, 
-                            device=device
-                        )
-                        self.guest_embedding = torch.tensor(
-                            np.random.normal(0, 1, (192,)), 
-                            dtype=torch.float32, 
-                            device=device
-                        )
-                        
-                        # Normalize the embeddings
-                        self.chaffee_embedding = self.chaffee_embedding / torch.norm(self.chaffee_embedding)
-                        self.guest_embedding = self.guest_embedding / torch.norm(self.guest_embedding)
-                        
-                        logger.info(f"Created simplified embedding model on {device}")
+                if hf_cache.exists():
+                    logger.info("Found HuggingFace cache, manually copying files to avoid symlink issues...")
                     
-                    def encode_batch(self, waveforms):
-                        """Return a fixed embedding based on the audio energy"""
-                        import torch
-                        
-                        with torch.no_grad():
-                            try:
-                                # Compute energy of the waveform
-                                energy = torch.mean(torch.abs(waveforms))
+                    # Find the snapshot directory
+                    snapshots_dir = hf_cache / 'snapshots'
+                    if snapshots_dir.exists():
+                        snapshot_dirs = list(snapshots_dir.iterdir())
+                        if snapshot_dirs:
+                            snapshot = snapshot_dirs[0]  # Use first (latest) snapshot
+                            
+                            # Copy required files (including label_encoder.txt)
+                            files_to_copy = [
+                                ('hyperparams.yaml', 'hyperparams.yaml'),
+                                ('embedding_model.ckpt', 'embedding_model.ckpt'),
+                                ('mean_var_norm_emb.ckpt', 'mean_var_norm_emb.ckpt'),
+                                ('classifier.ckpt', 'classifier.ckpt'),
+                                ('label_encoder.txt', 'label_encoder.ckpt'),  # Note: .txt -> .ckpt rename
+                            ]
+                            
+                            for src_name, dst_name in files_to_copy:
+                                src = snapshot / src_name
+                                dst = cache_dir / dst_name
                                 
-                                # Use a simple heuristic: if energy is above threshold, return Chaffee embedding
-                                # This is just a placeholder - in reality, we'd use a proper model
-                                if energy > 0.1:
-                                    return self.chaffee_embedding.unsqueeze(0)
-                                else:
-                                    return self.guest_embedding.unsqueeze(0)
-                            except Exception as e:
-                                logger.error(f"Error in encode_batch: {e}")
-                                # Return a dummy embedding
-                                return torch.zeros((1, 192), device=self.device)
+                                if src.exists() and not dst.exists():
+                                    logger.debug(f"Copying {src_name} -> {dst_name}...")
+                                    shutil.copy2(src, dst)
+                            
+                            logger.info("✅ Files copied successfully")
+            except Exception as e:
+                logger.debug(f"Could not pre-copy files (will download): {e}")
+            
+            # Now load the model (files are already in place, no symlinks needed)
+            try:
+                self._embedding_model = EncoderClassifier.from_hparams(
+                    source="speechbrain/spkrec-ecapa-voxceleb",
+                    savedir=str(cache_dir),
+                    run_opts={"device": self._device}
+                )
                 
-                # Create the model
-                self._embedding_model = SimpleEmbeddingModel(device=self._device)
-                logger.info("Using simplified ECAPA-TDNN model to avoid symlink issues")
+                logger.info(f"✅ Successfully loaded SpeechBrain ECAPA-TDNN model on {self._device}")
                 
             except Exception as e:
-                logger.error(f"Failed to load embedding model: {e}")
-                raise
+                logger.error(f"Failed to load SpeechBrain model: {e}")
+                import traceback
+                traceback.print_exc()
+                raise RuntimeError(f"Could not load SpeechBrain ECAPA model. Install with: pip install speechbrain") from e
         
         return self._embedding_model
     
@@ -107,7 +112,7 @@ class VoiceEnrollment:
         return profiles
     
     def load_profile(self, name: str) -> Optional[Dict]:
-        """Load a voice profile by name or create a synthetic one if needed"""
+        """Load a voice profile by name"""
         profile_path = self.voices_dir / f"{name.lower()}.json"
         
         # Check if we have a cached profile
@@ -124,44 +129,21 @@ class VoiceEnrollment:
                 with _profile_cache_lock:
                     _profile_cache[name] = profile
                     
-                logger.debug(f"Loaded profile for {name}: {len(profile.get('embeddings', []))} embeddings")
+                # Log profile info
+                if 'centroid' in profile:
+                    logger.debug(f"Loaded profile for {name}: centroid-based ({len(profile['centroid'])} dims)")
+                elif 'embeddings' in profile:
+                    logger.debug(f"Loaded profile for {name}: {len(profile.get('embeddings', []))} embeddings")
+                else:
+                    logger.warning(f"Profile {name} has no centroid or embeddings!")
+                    
                 return profile
             except Exception as e:
                 logger.error(f"Failed to load profile {name}: {e}")
-                # Fall through to synthetic profile creation
+                return None
         
-        # Create a synthetic profile if file doesn't exist or loading failed
-        logger.warning(f"Creating synthetic profile for {name}")
-        import numpy as np
-        np.random.seed(42 if name.lower() == 'chaffee' else 43)  # Different seed for different speakers
-        
-        # Create synthetic embeddings
-        synthetic_embeddings = []
-        for i in range(10):  # Create 10 synthetic embeddings
-            embedding = np.random.normal(0, 1, (192,))
-            # Normalize
-            embedding = embedding / np.linalg.norm(embedding)
-            synthetic_embeddings.append(embedding.tolist())
-        
-        # Create synthetic profile
-        profile = {
-            'name': name,
-            'embeddings': synthetic_embeddings,
-            'threshold': 0.7,
-            'recommended_threshold': 0.7,
-            'created_at': '2025-09-29T00:00:00',
-            'metadata': {
-                'synthetic': True,
-                'num_embeddings': len(synthetic_embeddings)
-            }
-        }
-        
-        # Cache the synthetic profile
-        with _profile_cache_lock:
-            _profile_cache[name] = profile
-            
-        logger.info(f"Created synthetic profile for {name} with {len(synthetic_embeddings)} embeddings")
-        return profile
+        logger.error(f"Profile not found: {profile_path}")
+        return None
     
     def _extract_embeddings_from_audio(self, audio_path: str) -> List[np.ndarray]:
         """Extract speaker embeddings from audio file using sliding window with robust error handling"""
@@ -255,16 +237,20 @@ class VoiceEnrollment:
                     # Convert to torch tensor with proper type
                     segment_tensor = torch.tensor(segment, dtype=torch.float32).unsqueeze(0)
                     
-                    # Extract embedding
+                    # Move to correct device
+                    if self._device:
+                        segment_tensor = segment_tensor.to(self._device)
+                    
+                    # Extract embedding using SpeechBrain API
                     with torch.no_grad():
                         try:
+                            # SpeechBrain's encode_batch expects waveforms
                             embedding = model.encode_batch(segment_tensor)
                             
-                            # Handle different return types
+                            # SpeechBrain returns embeddings as tensor
                             if hasattr(embedding, 'squeeze'):
                                 embedding_np = embedding.squeeze().cpu().numpy()
                             else:
-                                # Handle case where model returns something else
                                 embedding_np = np.array(embedding)
                                 
                             # Ensure it's a proper numpy array with correct shape
@@ -329,8 +315,13 @@ class VoiceEnrollment:
             # Get embedding model
             model = self._get_embedding_model()
             
+            # Convert to tensor and move to device
+            audio_tensor = torch.tensor(audio, dtype=torch.float32).unsqueeze(0)
+            if self._device:
+                audio_tensor = audio_tensor.to(self._device)
+            
             with torch.no_grad():
-                embedding = model.encode_batch(torch.tensor(audio).unsqueeze(0))
+                embedding = model.encode_batch(audio_tensor)
                 embedding = embedding.squeeze().cpu().numpy()
             
             return embedding
