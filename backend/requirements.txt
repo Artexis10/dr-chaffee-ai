@@ -31,7 +31,9 @@ transformers==4.33.2
 sentence-transformers[cross-encoder]==2.2.2
 
 # Enhanced Audio transcription with latest Whisper models
+# Removed WhisperX - using faster-whisper + pyannote v4 directly
 faster-whisper>=1.0.2  # Supports large-v3, distil-large-v3, large-v3-turbo
+ctranslate2>=4.4.0,<4.5.0  # CTranslate2 for faster-whisper (compatible version)
 # Torch for ML models (Python 3.12 requires >=2.2.0)
 # Note: CPU-only version is fine for production (bulk processing done locally with GPU)
 torch>=2.2.0,<2.9.0
@@ -40,12 +42,10 @@ torchaudio>=2.2.0,<2.9.0
 psutil>=5.9.0
 
 # Advanced ASR with speaker identification
-whisperx>=3.1.1
 pyannote.audio>=4.0.0  # v4 with new community pipeline and exclusive mode
-speechbrain>=0.5.16
-librosa>=0.10.1
-soundfile>=0.12.1
-webvtt>=0.4.6
+speechbrain>=0.5.16  # For voice embeddings (speaker identification)
+soundfile>=0.12.1  # Audio I/O
+webvtt>=0.4.6  # VTT subtitle parsing
 
 # Date/time parsing
 isodate==0.6.1
