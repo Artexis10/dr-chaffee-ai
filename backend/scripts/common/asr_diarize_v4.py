@@ -119,7 +119,7 @@ def diarize_turns(
     max_speakers: Optional[int] = None,
 ) -> List[Turn]:
     """
-    Perform speaker diarization using pyannote.audio v4 community pipeline.
+    Perform speaker diarization using pyannote.audio v4.
     
     Args:
         audio_path: Path to audio file
@@ -130,6 +130,9 @@ def diarize_turns(
     Returns:
         List of Turn with start/end/speaker (non-overlapping due to exclusive=True)
     """
+    import torch
+    import soundfile as sf
+    
     logger.info("Loading pyannote speaker-diarization-community-1 pipeline")
     pipeline = Pipeline.from_pretrained(
         "pyannote/speaker-diarization-community-1",
@@ -143,8 +146,31 @@ def diarize_turns(
     if max_speakers is not None:
         params['max_speakers'] = max_speakers
     
-    logger.info(f"Running diarization with exclusive=True, params: {params}")
-    diarization = pipeline(str(audio_path), exclusive=True, **params)
+    # WORKAROUND for AudioDecoder error: Preload audio with soundfile
+    # pyannote v4 has issues with torchcodec on Windows
+    logger.info(f"Preloading audio to avoid AudioDecoder error: {audio_path}")
+    try:
+        waveform, sample_rate = sf.read(str(audio_path))
+        # Convert to torch tensor and ensure correct shape (channels, samples)
+        if waveform.ndim == 1:
+            waveform = waveform[None, :]  # Add channel dimension
+        else:
+            waveform = waveform.T  # Transpose to (channels, samples)
+        
+        waveform_tensor = torch.from_numpy(waveform).float()
+        
+        # Pass preloaded audio as dict to avoid file loading
+        audio_dict = {
+            "waveform": waveform_tensor,
+            "sample_rate": sample_rate
+        }
+        
+        logger.info(f"Running diarization with exclusive=True, params: {params}")
+        diarization = pipeline(audio_dict, exclusive=True, **params)
+    except Exception as e:
+        logger.warning(f"Preloading failed, falling back to file path: {e}")
+        # Fallback to direct file path (may fail with AudioDecoder error)
+        diarization = pipeline(str(audio_path), exclusive=True, **params)
     
     turns: List[Turn] = []
     for segment, _, speaker in diarization.itertracks(yield_label=True):
