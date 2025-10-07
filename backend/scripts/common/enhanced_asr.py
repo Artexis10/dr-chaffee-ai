@@ -572,8 +572,14 @@ class EnhancedASR:
         
         logger.info(f"Splitting {len(transcription_result.segments)} Whisper segments at speaker boundaries")
         
+        # Find the earliest diarization start time
+        earliest_diarization = min(start for start, _, _ in diarization_segments)
+        logger.info(f"Diarization starts at {earliest_diarization:.2f}s")
+        
         # Create a list of speaker change points
         speaker_boundaries = set()
+        # Add 0.0 as a boundary to handle segments before diarization starts
+        speaker_boundaries.add(0.0)
         for start, end, speaker_id in diarization_segments:
             speaker_boundaries.add(start)
             speaker_boundaries.add(end)
