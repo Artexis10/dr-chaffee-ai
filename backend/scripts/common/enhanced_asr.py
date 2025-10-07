@@ -565,9 +565,12 @@ class EnhancedASR:
             
             logger.info("Performing speaker diarization with pyannote v4...")
             
-            # Get min/max speakers from config or environment
-            min_speakers = self.config.min_speakers
-            max_speakers = self.config.max_speakers
+            # Get min/max speakers from environment variables
+            min_speakers_env = os.getenv('MIN_SPEAKERS')
+            max_speakers_env = os.getenv('MAX_SPEAKERS')
+            
+            min_speakers = int(min_speakers_env) if min_speakers_env and min_speakers_env.isdigit() else None
+            max_speakers = int(max_speakers_env) if max_speakers_env and max_speakers_env.isdigit() else None
             
             if min_speakers:
                 logger.info(f"Setting minimum speakers to {min_speakers}")
