@@ -166,12 +166,12 @@ def diarize_turns(
             "sample_rate": sample_rate
         }
         
-        logger.info(f"Running diarization with exclusive=True, params: {params}")
-        diarization = pipeline(audio_dict, exclusive=True, **params)
+        logger.info(f"Running diarization with params: {params}")
+        diarization = pipeline(audio_dict, **params)
     except Exception as e:
         logger.warning(f"Preloading failed, falling back to file path: {e}")
         # Fallback to direct file path (may fail with AudioDecoder error)
-        diarization = pipeline(str(audio_path), exclusive=True, **params)
+        diarization = pipeline(str(audio_path), **params)
     
     turns: List[Turn] = []
     for segment, _, speaker in diarization.itertracks(yield_label=True):
