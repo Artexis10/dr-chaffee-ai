@@ -110,16 +110,19 @@ class EmbeddingGenerator:
         model = self._load_local_model()
         
         try:
-            # Generate embeddings in batches (larger batch size for GPU efficiency)
-            # Read batch size from environment, default to 256 for GPU
-            batch_size = int(os.getenv('EMBEDDING_BATCH_SIZE', '256'))
-            embeddings = model.encode(
-                texts, 
-                batch_size=batch_size,
-                show_progress_bar=len(texts) > 10,
-                convert_to_numpy=True,
-                normalize_embeddings=True  # Normalize for better similarity search
-            )
+            # CRITICAL: Lock during embedding generation to prevent GPU contention
+            # Multiple threads calling model.encode() simultaneously causes massive slowdown
+            with EmbeddingGenerator._lock:
+                # Generate embeddings in batches (larger batch size for GPU efficiency)
+                # Read batch size from environment, default to 256 for GPU
+                batch_size = int(os.getenv('EMBEDDING_BATCH_SIZE', '256'))
+                embeddings = model.encode(
+                    texts, 
+                    batch_size=batch_size,
+                    show_progress_bar=len(texts) > 10,
+                    convert_to_numpy=True,
+                    normalize_embeddings=True  # Normalize for better similarity search
+                )
             
             # Convert to list of lists for JSON serialization
             result = [embedding.tolist() if hasattr(embedding, 'tolist') else embedding for embedding in embeddings]
