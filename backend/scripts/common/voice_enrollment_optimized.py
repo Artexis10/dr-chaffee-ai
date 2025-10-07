@@ -164,39 +164,70 @@ class VoiceEnrollment:
                 logger.error(f"Audio file does not exist: {audio_path_str}")
                 return []
                 
-            # Try soundfile first (much faster)
-            try:
-                logger.debug(f"Loading audio with soundfile: {audio_path_str}")
-                
-                # Use chunks to avoid loading entire file for long audio
-                with sf.SoundFile(audio_path_str) as f:
-                    sr = f.samplerate
-                    # Load full audio for embedding extraction
-                    audio = f.read()
-                    
-                    # Convert to mono if needed
-                    if len(audio.shape) > 1 and audio.shape[1] > 1:
-                        audio = np.mean(audio, axis=1)
-                    
-                    # Resample to 16kHz if needed
-                    if sr != 16000:
-                        try:
-                            import resampy
-                            audio = resampy.resample(audio, sr, 16000)
-                        except ImportError:
-                            # Fallback to scipy for resampling
-                            from scipy import signal
-                            audio = signal.resample(audio, int(len(audio) * 16000 / sr))
-                        sr = 16000
+            # WORKAROUND: Convert MP4 to WAV first (soundfile/librosa can't handle MP4 on Windows)
+            import tempfile
+            import subprocess
             
-            except Exception as e:
-                # Fallback to librosa
-                logger.debug(f"Soundfile failed, using librosa: {e}")
+            # Check if it's an MP4 file
+            if audio_path_str.lower().endswith('.mp4'):
+                logger.debug(f"Converting MP4 to WAV for audio loading: {audio_path_str}")
+                
+                # Create temporary WAV file
+                with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_wav:
+                    wav_path = tmp_wav.name
+                
                 try:
+                    # Convert to WAV using ffmpeg
+                    cmd = [
+                        'ffmpeg', '-i', audio_path_str,
+                        '-ar', '16000',  # 16kHz sample rate
+                        '-ac', '1',       # Mono
+                        '-y',             # Overwrite
+                        '-loglevel', 'error',  # Suppress output
+                        wav_path
+                    ]
+                    
+                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+                    if result.returncode != 0:
+                        raise Exception(f"ffmpeg failed: {result.stderr}")
+                    
+                    # Load the WAV file
+                    audio, sr = librosa.load(wav_path, sr=16000)
+                    
+                finally:
+                    # Clean up temp WAV
+                    try:
+                        if os.path.exists(wav_path):
+                            os.unlink(wav_path)
+                    except:
+                        pass
+            else:
+                # Try soundfile first for WAV files (much faster)
+                try:
+                    logger.debug(f"Loading audio with soundfile: {audio_path_str}")
+                    
+                    with sf.SoundFile(audio_path_str) as f:
+                        sr = f.samplerate
+                        audio = f.read()
+                        
+                        # Convert to mono if needed
+                        if len(audio.shape) > 1 and audio.shape[1] > 1:
+                            audio = np.mean(audio, axis=1)
+                        
+                        # Resample to 16kHz if needed
+                        if sr != 16000:
+                            try:
+                                import resampy
+                                audio = resampy.resample(audio, sr, 16000)
+                            except ImportError:
+                                from scipy import signal
+                                audio = signal.resample(audio, int(len(audio) * 16000 / sr))
+                            sr = 16000
+                
+                except Exception as e:
+                    # Fallback to librosa
+                    logger.debug(f"Soundfile failed, using librosa: {e}")
                     audio, sr = librosa.load(audio_path_str, sr=16000)
-                except Exception as e2:
-                    logger.error(f"Both soundfile and librosa failed to load audio: {e2}")
-                    return []
             
             logger.debug(f"Loaded audio: {len(audio)} samples at {sr}Hz")
             
