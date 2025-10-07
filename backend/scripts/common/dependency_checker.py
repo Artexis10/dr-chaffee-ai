@@ -21,11 +21,10 @@ class DependencyChecker:
     CRITICAL_DEPS = {
         # Core transcription (skip in production)
         'faster_whisper': 'faster-whisper>=1.0.2',
-        'whisperx': 'whisperx>=3.1.1',
+        # Removed whisperx - using faster-whisper + asr_diarize_v4 directly
         
         # Speaker identification (skip in production)
-        'pyannote.audio': 'pyannote.audio>=3.1.1',
-        'librosa': 'librosa>=0.10.1',
+        'pyannote.audio': 'pyannote.audio>=4.0.0',  # v4 with community pipeline
         'soundfile': 'soundfile>=0.12.1',
         
         # ML/AI (always needed)
