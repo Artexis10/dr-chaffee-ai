@@ -145,33 +145,52 @@ def diarize_turns(
     if max_speakers is not None:
         params['max_speakers'] = max_speakers
     
-    # WORKAROUND for AudioDecoder error: Preload audio with librosa
+    # WORKAROUND for AudioDecoder error: Convert MP4 to WAV first
     # pyannote v4 has issues with torchcodec on Windows
-    # soundfile can't read MP4, so use librosa which handles all formats
-    logger.info(f"Preloading audio to avoid AudioDecoder error: {audio_path}")
+    # Preloading audio dict causes hangs, so convert to WAV instead
+    logger.info(f"Converting audio to WAV to avoid AudioDecoder error: {audio_path}")
+    
+    import tempfile
+    import subprocess
+    import time
+    
+    # Create temporary WAV file
+    with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_wav:
+        wav_path = tmp_wav.name
+    
     try:
-        import librosa
-        import numpy as np
+        # Convert to WAV using ffmpeg (fast and reliable)
+        cmd = [
+            'ffmpeg', '-i', str(audio_path),
+            '-ar', '16000',  # 16kHz sample rate
+            '-ac', '1',       # Mono
+            '-y',             # Overwrite
+            wav_path
+        ]
         
-        # Load audio with librosa (handles MP4, WAV, etc.)
-        waveform, sample_rate = librosa.load(str(audio_path), sr=16000, mono=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        if result.returncode != 0:
+            raise Exception(f"ffmpeg failed: {result.stderr}")
         
-        # Convert to torch tensor and ensure correct shape (channels, samples)
-        waveform = waveform[None, :]  # Add channel dimension (1, samples)
-        waveform_tensor = torch.from_numpy(waveform).float()
-        
-        # Pass preloaded audio as dict to avoid file loading
-        audio_dict = {
-            "waveform": waveform_tensor,
-            "sample_rate": sample_rate
-        }
-        
+        logger.info(f"Audio converted to WAV: {wav_path}")
         logger.info(f"Running diarization with params: {params}")
-        diarization = pipeline(audio_dict, **params)
+        
+        start_time = time.time()
+        diarization = pipeline(wav_path, **params)
+        elapsed = time.time() - start_time
+        logger.info(f"Diarization completed in {elapsed:.1f}s")
+        
     except Exception as e:
-        logger.warning(f"Preloading failed, falling back to file path: {e}")
-        # Fallback to direct file path (may fail with AudioDecoder error)
-        diarization = pipeline(str(audio_path), **params)
+        logger.error(f"WAV conversion or diarization failed: {e}")
+        raise
+    finally:
+        # Clean up temp WAV file
+        try:
+            import os
+            if os.path.exists(wav_path):
+                os.unlink(wav_path)
+        except:
+            pass
     
     turns: List[Turn] = []
     for segment, _, speaker in diarization.itertracks(yield_label=True):
