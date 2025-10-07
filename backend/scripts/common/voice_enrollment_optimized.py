@@ -248,6 +248,8 @@ class VoiceEnrollment:
             embeddings = []
             batch_size = 32  # Process 32 segments at a time
             
+            logger.info(f"Processing {len(segments)} segments in batches of {batch_size}")
+            
             for batch_start in range(0, len(segments), batch_size):
                 batch_end = min(batch_start + batch_size, len(segments))
                 batch_segments = segments[batch_start:batch_end]
@@ -274,9 +276,13 @@ class VoiceEnrollment:
                         for i in range(len(batch_segments)):
                             emb = batch_embeddings_np[i] if batch_embeddings_np.ndim > 1 else batch_embeddings_np
                             embeddings.append(emb.astype(np.float64))
+                    
+                    logger.debug(f"✅ Batch {batch_start//batch_size + 1}: Processed {len(batch_segments)} segments")
                             
                 except Exception as batch_error:
-                    logger.warning(f"Batch processing failed, falling back to sequential: {batch_error}")
+                    logger.error(f"❌ Batch processing failed, falling back to sequential: {batch_error}")
+                    import traceback
+                    traceback.print_exc()
                     # Fallback to sequential processing for this batch
                     for segment in batch_segments:
                         try:
