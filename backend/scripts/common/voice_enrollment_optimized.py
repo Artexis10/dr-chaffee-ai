@@ -225,46 +225,72 @@ class VoiceEnrollment:
                 padding = np.zeros(window_size - len(audio))
                 audio = np.concatenate([audio, padding])
             
-            embeddings = []
+            # OPTIMIZATION: Batch process segments instead of one-by-one
+            # Collect all segments first
+            segments = []
+            segment_indices = []
             for start in range(0, len(audio) - window_size + 1, int(stride)):
+                end = start + window_size
+                segment = audio[start:end]
+                
+                # Skip segments with very low energy (likely silence)
+                if np.mean(np.abs(segment)) < 0.0001:
+                    continue
+                
+                segments.append(segment)
+                segment_indices.append(start)
+            
+            if not segments:
+                logger.warning("No valid segments found in audio")
+                return []
+            
+            # Batch process all segments at once (much faster!)
+            embeddings = []
+            batch_size = 32  # Process 32 segments at a time
+            
+            for batch_start in range(0, len(segments), batch_size):
+                batch_end = min(batch_start + batch_size, len(segments))
+                batch_segments = segments[batch_start:batch_end]
+                
                 try:
-                    end = start + window_size
-                    segment = audio[start:end]
-                    
-                    # Skip segments with very low energy (likely silence)
-                    if np.mean(np.abs(segment)) < 0.0001:
-                        continue
-                        
-                    # Convert to torch tensor with proper type
-                    segment_tensor = torch.tensor(segment, dtype=torch.float32).unsqueeze(0)
+                    # Stack segments into batch tensor
+                    batch_tensor = torch.tensor(np.stack(batch_segments), dtype=torch.float32)
                     
                     # Move to correct device
                     if self._device:
-                        segment_tensor = segment_tensor.to(self._device)
+                        batch_tensor = batch_tensor.to(self._device)
                     
-                    # Extract embedding using SpeechBrain API
+                    # Extract embeddings for entire batch
                     with torch.no_grad():
-                        try:
-                            # SpeechBrain's encode_batch expects waveforms
-                            embedding = model.encode_batch(segment_tensor)
+                        batch_embeddings = model.encode_batch(batch_tensor)
+                        
+                        # Convert to numpy
+                        if hasattr(batch_embeddings, 'cpu'):
+                            batch_embeddings_np = batch_embeddings.cpu().numpy()
+                        else:
+                            batch_embeddings_np = np.array(batch_embeddings)
+                        
+                        # Add each embedding to list
+                        for i in range(len(batch_segments)):
+                            emb = batch_embeddings_np[i] if batch_embeddings_np.ndim > 1 else batch_embeddings_np
+                            embeddings.append(emb.astype(np.float64))
                             
-                            # SpeechBrain returns embeddings as tensor
-                            if hasattr(embedding, 'squeeze'):
-                                embedding_np = embedding.squeeze().cpu().numpy()
-                            else:
-                                embedding_np = np.array(embedding)
-                                
-                            # Ensure it's a proper numpy array with correct shape
-                            if embedding_np.size > 0:
-                                # Ensure it's float64 to avoid type issues
-                                embedding_np = embedding_np.astype(np.float64)
-                                embeddings.append(embedding_np)
-                        except Exception as encode_error:
-                            logger.warning(f"Error encoding segment: {encode_error}")
+                except Exception as batch_error:
+                    logger.warning(f"Batch processing failed, falling back to sequential: {batch_error}")
+                    # Fallback to sequential processing for this batch
+                    for segment in batch_segments:
+                        try:
+                            segment_tensor = torch.tensor(segment, dtype=torch.float32).unsqueeze(0)
+                            if self._device:
+                                segment_tensor = segment_tensor.to(self._device)
+                            
+                            with torch.no_grad():
+                                embedding = model.encode_batch(segment_tensor)
+                                embedding_np = embedding.squeeze().cpu().numpy() if hasattr(embedding, 'squeeze') else np.array(embedding)
+                                if embedding_np.size > 0:
+                                    embeddings.append(embedding_np.astype(np.float64))
+                        except Exception as e:
                             continue
-                except Exception as segment_error:
-                    logger.warning(f"Error processing segment at {start/sr:.2f}s: {segment_error}")
-                    continue
                     
             logger.info(f"Extracted {len(embeddings)} embeddings from {audio_path}")
             return embeddings
