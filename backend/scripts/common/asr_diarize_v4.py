@@ -145,6 +145,13 @@ def diarize_turns(
     if max_speakers is not None:
         params['max_speakers'] = max_speakers
     
+    # Configure for detecting short utterances (like brief guest questions)
+    # min_duration_on: minimum duration of speech segments (default: 0.0s, but pipeline may have internal min)
+    # min_duration_off: minimum duration of silence between speech segments (default: 0.0s)
+    # Lowering these helps detect brief guest questions at the start
+    params['min_duration_on'] = 0.0  # Detect even very short speech
+    params['min_duration_off'] = 0.0  # Don't require long silences between speakers
+    
     # WORKAROUND for AudioDecoder error: Convert MP4 to WAV first
     # pyannote v4 has issues with torchcodec on Windows
     # Preloading audio dict causes hangs, so convert to WAV instead
