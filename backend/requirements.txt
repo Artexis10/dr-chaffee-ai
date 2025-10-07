@@ -31,9 +31,9 @@ transformers==4.33.2
 sentence-transformers[cross-encoder]==2.2.2
 
 # Enhanced Audio transcription with latest Whisper models
-# Removed WhisperX - using faster-whisper + pyannote v4 directly
+# Removed WhisperX - using faster-whisper + asr_diarize_v4 directly
 faster-whisper>=1.0.2  # Supports large-v3, distil-large-v3, large-v3-turbo
-ctranslate2>=4.4.0,<4.5.0  # CTranslate2 for faster-whisper (compatible version)
+ctranslate2>=4.4.0  # CTranslate2 for faster-whisper (4.6.0+ for CUDA 13.0)
 # Torch for ML models (Python 3.12 requires >=2.2.0)
 # Note: CPU-only version is fine for production (bulk processing done locally with GPU)
 torch>=2.2.0,<2.9.0
