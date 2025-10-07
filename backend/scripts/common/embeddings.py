@@ -9,6 +9,9 @@ class EmbeddingGenerator:
     """Enhanced embedding generator supporting OpenAI and local models"""
     # Class-level lock for thread safety
     _lock = threading.Lock()
+    # Class-level model cache (shared across all instances)
+    _shared_model = None
+    _shared_model_name = None
     
     def __init__(self, model_name: str = None, embedding_provider: str = None):
         # Determine embedding provider (openai or local)
@@ -22,7 +25,6 @@ class EmbeddingGenerator:
             # Local sentence-transformers - read dimensions from environment
             self.model_name = model_name or os.getenv('EMBEDDING_MODEL', 'sentence-transformers/all-MiniLM-L6-v2')
             self.embedding_dimensions = int(os.getenv('EMBEDDING_DIMENSIONS', '384'))  # Read from .env
-            self.model = None
         
         logger.info(f"Embedding provider: {self.provider}, model: {self.model_name}, dimensions: {self.embedding_dimensions}")
         
@@ -43,10 +45,12 @@ class EmbeddingGenerator:
         return self.openai_client
     
     def _load_local_model(self):
-        """Load local SentenceTransformer model"""
-        if self.model is None:
+        """Load local SentenceTransformer model (shared across all instances)"""
+        # Check if we need to load or reload the model
+        if EmbeddingGenerator._shared_model is None or EmbeddingGenerator._shared_model_name != self.model_name:
             with EmbeddingGenerator._lock:
-                if self.model is None:
+                # Double-check after acquiring lock
+                if EmbeddingGenerator._shared_model is None or EmbeddingGenerator._shared_model_name != self.model_name:
                     try:
                         from sentence_transformers import SentenceTransformer
                         import torch
@@ -54,15 +58,16 @@ class EmbeddingGenerator:
                         # Use GPU if available, otherwise CPU
                         device = "cuda" if torch.cuda.is_available() else "cpu"
                         logger.info(f"Loading local embedding model: {self.model_name} on {device}")
-                        self.model = SentenceTransformer(self.model_name, device=device)
-                        self.model.eval()
+                        EmbeddingGenerator._shared_model = SentenceTransformer(self.model_name, device=device)
+                        EmbeddingGenerator._shared_model.eval()
+                        EmbeddingGenerator._shared_model_name = self.model_name
                         logger.info(f"Local embedding model loaded successfully on {device}")
                     except ImportError:
                         raise ImportError("sentence-transformers package not available. Install with: pip install sentence-transformers")
                     except Exception as e:
                         raise ValueError(f"Failed to load local model: {e}")
         
-        return self.model
+        return EmbeddingGenerator._shared_model
     
     def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
         """Generate embeddings for a list of texts"""
