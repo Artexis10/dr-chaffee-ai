@@ -133,7 +133,7 @@ def diarize_turns(
     logger.info("Loading pyannote speaker-diarization-community-1 pipeline")
     pipeline = Pipeline.from_pretrained(
         "pyannote/speaker-diarization-community-1",
-        use_auth_token=hf_token
+        token=hf_token  # Changed from use_auth_token in pyannote v4
     )
     
     # Build diarization parameters
