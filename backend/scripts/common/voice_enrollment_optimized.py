@@ -104,10 +104,11 @@ class VoiceEnrollment:
         return self._embedding_model
     
     def list_profiles(self) -> List[str]:
-        """List available voice profiles"""
+        """List available voice profiles (excludes backups)"""
         profiles = []
         for file_path in self.voices_dir.glob("*.json"):
-            if not file_path.name.endswith(".meta.json"):  # Skip meta files
+            # Skip meta files and backup profiles
+            if not file_path.name.endswith(".meta.json") and "_backup_" not in file_path.name:
                 profiles.append(file_path.stem)
         return profiles
     
@@ -546,6 +547,29 @@ class VoiceEnrollment:
                     'total_duration': total_duration
                 }
             }
+            
+            # Backup existing profile before overwriting
+            if profile_path.exists():
+                backup_dir = self.voices_dir / "backups"
+                backup_dir.mkdir(exist_ok=True)
+                
+                # Create backup with timestamp
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                backup_path = backup_dir / f"{name.lower()}_backup_{timestamp}.json"
+                
+                try:
+                    import shutil
+                    shutil.copy2(profile_path, backup_path)
+                    logger.info(f"📦 Backed up existing profile to: backups/{backup_path.name}")
+                    
+                    # Clean up old backups (keep only last 3)
+                    backups = sorted(backup_dir.glob(f"{name.lower()}_backup_*.json"))
+                    if len(backups) > 3:
+                        for old_backup in backups[:-3]:
+                            old_backup.unlink()
+                            logger.info(f"🗑️  Removed old backup: {old_backup.name}")
+                except Exception as e:
+                    logger.warning(f"Failed to backup profile: {e}")
             
             # Save profile
             with open(profile_path, 'w', encoding='utf-8') as f:
