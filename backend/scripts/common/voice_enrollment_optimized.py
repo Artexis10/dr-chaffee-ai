@@ -167,9 +167,11 @@ class VoiceEnrollment:
             # WORKAROUND: Convert MP4 to WAV first (soundfile/librosa can't handle MP4 on Windows)
             import tempfile
             import subprocess
+            import shutil
             
-            # Check if it's an MP4 file
-            if audio_path_str.lower().endswith('.mp4'):
+            # Check if it's an MP4 file and ffmpeg is available
+            ffmpeg_path = shutil.which('ffmpeg')
+            if audio_path_str.lower().endswith('.mp4') and ffmpeg_path:
                 logger.debug(f"Converting MP4 to WAV for audio loading: {audio_path_str}")
                 
                 # Create temporary WAV file
@@ -179,7 +181,7 @@ class VoiceEnrollment:
                 try:
                     # Convert to WAV using ffmpeg
                     cmd = [
-                        'ffmpeg', '-i', audio_path_str,
+                        ffmpeg_path, '-i', audio_path_str,
                         '-ar', '16000',  # 16kHz sample rate
                         '-ac', '1',       # Mono
                         '-y',             # Overwrite
@@ -201,6 +203,10 @@ class VoiceEnrollment:
                             os.unlink(wav_path)
                     except:
                         pass
+            elif audio_path_str.lower().endswith('.mp4'):
+                # ffmpeg not available, try librosa directly (may fail but worth a try)
+                logger.warning("ffmpeg not found in PATH, trying librosa directly on MP4 (may fail)")
+                audio, sr = librosa.load(audio_path_str, sr=16000)
             else:
                 # Try soundfile first for WAV files (much faster)
                 try:
