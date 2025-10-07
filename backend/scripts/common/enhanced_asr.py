@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 Enhanced ASR system with speaker identification and diarization
-Integrates faster-whisper → WhisperX → pyannote pipeline with voice profiles
+Integrates faster-whisper (with word timestamps) + pyannote v4 + voice profiles
+Removed WhisperX dependency - using direct faster-whisper + asr_diarize_v4
 """
 import os
 import json
@@ -103,8 +104,6 @@ class EnhancedASR:
     def __init__(self, config: Optional[EnhancedASRConfig] = None):
         self.config = config or EnhancedASRConfig()
         self._whisper_model = None
-        self._whisperx_model = None
-        self._diarization_pipeline = None
         self._voice_enrollment = None
         self._device = "cuda" if torch.cuda.is_available() else "cpu"
         
@@ -127,107 +126,6 @@ class EnhancedASR:
                 raise ImportError("faster-whisper not available. Install with: pip install faster-whisper")
         
         return self._whisper_model
-    
-    def _get_whisperx_model(self):
-        """Lazy load WhisperX model for word alignment"""
-        if self._whisperx_model is None:
-            try:
-                import whisperx
-                
-                logger.info("Loading WhisperX alignment model")
-                self._whisperx_model = whisperx.load_align_model(
-                    language_code="en", 
-                    device=self._device
-                )
-                
-            except ImportError:
-                raise ImportError("WhisperX not available. Install with: pip install whisperx")
-        
-        return self._whisperx_model
-    
-    def _get_diarization_pipeline(self):
-        """Lazy load diarization pipeline using pyannote for high accuracy"""
-        if self._diarization_pipeline is None:
-            try:
-                # Debug environment variables
-                logger.info("=== Diarization Environment Variables ===")
-                logger.info(f"DIARIZE={os.getenv('DIARIZE', 'true')}")
-                logger.info(f"MIN_SPEAKERS={os.getenv('MIN_SPEAKERS', 'None')}")
-                logger.info(f"MAX_SPEAKERS={os.getenv('MAX_SPEAKERS', 'None')}")
-                logger.info(f"HUGGINGFACE_HUB_TOKEN={os.getenv('HUGGINGFACE_HUB_TOKEN', 'None')[:5] if os.getenv('HUGGINGFACE_HUB_TOKEN') else 'None'}...")
-                
-                # Always use pyannote diarization for high accuracy
-                from pyannote.audio import Pipeline
-                
-                logger.info(f"Loading pyannote diarization pipeline: {self.config.diarization_model}")
-                try:
-                    # Try to load the model with explicit cache path
-                    cache_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 
-                                            "pretrained_models")
-                    os.makedirs(cache_dir, exist_ok=True)
-                    
-                    logger.info(f"Using cache directory: {cache_dir}")
-                    
-                    # Pyannote 4.x uses 'token' parameter
-                    self._diarization_pipeline = Pipeline.from_pretrained(
-                        self.config.diarization_model,
-                        token=os.getenv('HUGGINGFACE_HUB_TOKEN'),
-                        cache_dir=cache_dir
-                    )
-                    
-                    if self._device == "cuda":
-                        self._diarization_pipeline = self._diarization_pipeline.to(torch.device("cuda"))
-                    
-                    # Configure clustering threshold for better multi-speaker detection
-                    # Community-1 uses different parameters than 3.x
-                    clustering_threshold = float(os.getenv('PYANNOTE_CLUSTERING_THRESHOLD', '0.7'))
-                    try:
-                        # Instantiate with clustering threshold
-                        # Lower threshold = more sensitive to voice differences
-                        self._diarization_pipeline.instantiate({
-                            "clustering": {
-                                "threshold": clustering_threshold
-                            }
-                        })
-                        logger.info(f"✅ Configured pyannote clustering threshold: {clustering_threshold}")
-                    except Exception as e:
-                        logger.warning(f"Could not configure clustering threshold: {e}")
-                        logger.warning("Using default clustering parameters")
-                        
-                    logger.info("Successfully loaded pyannote diarization pipeline")
-                except Exception as e:
-                    logger.error(f"CRITICAL: Failed to load pyannote pipeline: {e}")
-                    import traceback
-                    logger.error(f"Traceback: {traceback.format_exc()}")
-                    raise
-                
-            except ImportError:
-                raise ImportError("pyannote.audio not available. Install with: pip install pyannote.audio")
-            except Exception as e:
-                logger.error(f"Failed to load diarization pipeline: {e}")
-                # Create a fallback diarization function that just returns a single speaker
-                def fallback_diarization(audio_path):
-                    try:
-                        import librosa
-                        duration = librosa.get_duration(path=audio_path)
-                        logger.error("="*80)
-                        logger.error("CRITICAL: USING FALLBACK SINGLE-SPEAKER DIARIZATION!")
-                        logger.error("Pyannote failed to load - ALL SPEAKERS WILL BE MERGED!")
-                        logger.error("This will cause incorrect speaker attribution in interviews!")
-                        logger.error(f"Audio duration: {duration:.2f}s")
-                        logger.error("="*80)
-                        return [(0.0, duration, 0)]
-                    except Exception:
-                        logger.error("Failed to get audio duration, using 60s default")
-                        return [(0.0, 60.0, 0)]
-                
-                self._diarization_pipeline = fallback_diarization
-                logger.error("="*80)
-                logger.error("CRITICAL WARNING: Pyannote diarization FAILED to load!")
-                logger.error("Using fallback single-speaker mode - interviews will be mislabeled!")
-                logger.error("="*80)
-        
-        return self._diarization_pipeline
     
     def _get_voice_enrollment(self):
         """Lazy load voice enrollment system with optimized version"""
@@ -661,102 +559,58 @@ class EnhancedASR:
                 result_segments[idx]['merged_into'] = first_idx
     
     def _perform_diarization(self, audio_path: str) -> Optional[List[Tuple[float, float, int]]]:
-        """Perform speaker diarization using pyannote for high accuracy"""
+        """Perform speaker diarization using pyannote v4 via asr_diarize_v4"""
         try:
-            # Get the configured diarization pipeline
-            diarization_pipeline = self._get_diarization_pipeline()
+            from .asr_diarize_v4 import diarize_turns
             
-            logger.info("Performing speaker diarization with pyannote...")
+            logger.info("Performing speaker diarization with pyannote v4...")
             
-            # Convert audio to WAV format for pyannote compatibility
-            wav_path = audio_path.replace('.webm', '_diarization.wav').replace('.mp4', '_diarization.wav').replace('.m4a', '_diarization.wav')
+            # Get min/max speakers from config or environment
+            min_speakers = self.config.min_speakers
+            max_speakers = self.config.max_speakers
             
-            try:
-                import librosa
-                import soundfile as sf
-                # Load and convert to 16kHz mono WAV
-                audio_data, sr = librosa.load(audio_path, sr=16000, mono=True)
-                sf.write(wav_path, audio_data, sr)
-                logger.info(f"Converted audio to WAV format: {wav_path}")
-                diarization_audio_path = wav_path
-            except Exception as e:
-                logger.warning(f"Failed to convert audio format: {e}")
-                diarization_audio_path = audio_path
-            
-            # Set max/min speakers if specified in environment
-            min_speakers = os.getenv('MIN_SPEAKERS')
-            max_speakers = os.getenv('MAX_SPEAKERS')
-            diarization_params = {}
-            
-            if min_speakers and min_speakers.isdigit():
-                diarization_params['min_speakers'] = int(min_speakers)
+            if min_speakers:
                 logger.info(f"Setting minimum speakers to {min_speakers}")
-                
-            if max_speakers and max_speakers.isdigit():
-                diarization_params['max_speakers'] = int(max_speakers)
+            if max_speakers:
                 logger.info(f"Setting maximum speakers to {max_speakers}")
             
-            # Run diarization (either pyannote or fallback)
-            # exclusive=True ensures no overlapping speakers (ideal for Whisper timestamp alignment)
-            logger.info(f"Running diarization with params: {diarization_params}")
-            diarization = diarization_pipeline(diarization_audio_path, exclusive=True, **diarization_params)
+            # Use asr_diarize_v4 for diarization (handles audio loading properly)
+            turns = diarize_turns(
+                audio_path=audio_path,
+                hf_token=os.getenv('HUGGINGFACE_HUB_TOKEN'),
+                min_speakers=min_speakers,
+                max_speakers=max_speakers
+            )
             
-            # Check if this is fallback (returns list) or pyannote (returns Annotation object)
-            if isinstance(diarization, list):
-                # Fallback diarization already returns list of tuples
-                logger.error("="*80)
-                logger.error("CRITICAL: USING FALLBACK DIARIZATION (SINGLE SPEAKER)!")
-                logger.error("Pyannote is NOT running - all audio will be labeled as one speaker!")
-                logger.error("This WILL cause incorrect attribution in interviews!")
-                logger.error("="*80)
-                segments = diarization
-                num_speakers = len(set(s[2] for s in segments))
-            else:
-                # Pyannote diarization - convert format
-                # Get the number of speakers detected
+            # Convert Turn objects to tuple format (start, end, speaker_id)
+            segments = []
+            for turn in turns:
+                # Extract speaker ID from pyannote format (e.g., 'SPEAKER_0' -> 0)
                 try:
-                    num_speakers = len(set(s for _, _, s in diarization.itertracks(yield_label=True)))
-                    logger.info("="*80)
-                    logger.info(f"PYANNOTE DETECTED {num_speakers} SPEAKERS")
-                    logger.info("="*80)
-                    
-                    if num_speakers == 1:
-                        logger.warning("WARNING: Only 1 speaker detected - may be monologue or clustering too aggressive")
-                        logger.warning("Consider lowering PYANNOTE_CLUSTERING_THRESHOLD if this is an interview")
-                except Exception as e:
-                    logger.warning(f"Could not determine number of speakers: {e}")
-                    num_speakers = 'unknown'
-                
-                # Convert pyannote format to our format
-                segments = []
-                for turn, _, speaker in diarization.itertracks(yield_label=True):
-                    # Extract speaker ID from pyannote format (e.g., 'SPEAKER_0' -> 0)
-                    try:
-                        speaker_id = int(speaker.split('_')[1])
-                        segments.append((turn.start, turn.end, speaker_id))
-                    except (ValueError, IndexError):
-                        logger.warning(f"Couldn't parse speaker ID from {speaker}, using 0")
-                        segments.append((turn.start, turn.end, 0))
+                    speaker_id = int(turn.speaker.split('_')[1])
+                    segments.append((turn.start, turn.end, speaker_id))
+                except (ValueError, IndexError):
+                    logger.warning(f"Couldn't parse speaker ID from {turn.speaker}, using 0")
+                    segments.append((turn.start, turn.end, 0))
             
             # Sort by start time
             segments.sort(key=lambda x: x[0])
             
-            # Log segments
-            logger.info(f"Diarization found {len(segments)} segments with {len(set(s[2] for s in segments))} unique speakers")
+            # Log results
+            num_speakers = len(set(s[2] for s in segments))
+            logger.info("="*80)
+            logger.info(f"PYANNOTE DETECTED {num_speakers} SPEAKERS")
+            logger.info("="*80)
+            
+            if num_speakers == 1:
+                logger.warning("WARNING: Only 1 speaker detected - may be monologue or clustering too aggressive")
+            
+            logger.info(f"Diarization found {len(segments)} segments with {num_speakers} unique speakers")
             for i, (start, end, speaker_id) in enumerate(segments[:10]):
                 logger.info(f"Segment {i}: {start:.2f}-{end:.2f} -> Speaker {speaker_id}")
             if len(segments) > 10:
                 logger.info(f"... and {len(segments) - 10} more segments")
             
-            # Cleanup temporary WAV file
-            if 'wav_path' in locals() and wav_path != audio_path and os.path.exists(wav_path):
-                try:
-                    os.unlink(wav_path)
-                    logger.info(f"Cleaned up temporary WAV file: {wav_path}")
-                except Exception as e:
-                    logger.warning(f"Failed to cleanup temporary WAV file: {e}")
-            
-            logger.info(f"Diarization found {len(segments)} segments")
             return segments
             
         except Exception as e:
