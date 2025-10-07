@@ -558,6 +558,84 @@ class EnhancedASR:
                 result_segments[idx]['text'] = ''  # Mark as merged
                 result_segments[idx]['merged_into'] = first_idx
     
+    def _split_segments_at_speaker_boundaries(
+        self, 
+        transcription_result: TranscriptionResult,
+        diarization_segments: List[Tuple[float, float, int]]
+    ) -> TranscriptionResult:
+        """
+        Split Whisper segments at diarization speaker boundaries.
+        This prevents segments from spanning multiple speakers.
+        """
+        if not diarization_segments or not transcription_result.segments:
+            return transcription_result
+        
+        logger.info(f"Splitting {len(transcription_result.segments)} Whisper segments at speaker boundaries")
+        
+        # Create a list of speaker change points
+        speaker_boundaries = set()
+        for start, end, speaker_id in diarization_segments:
+            speaker_boundaries.add(start)
+            speaker_boundaries.add(end)
+        
+        # Sort boundaries
+        speaker_boundaries = sorted(speaker_boundaries)
+        
+        # Split segments that cross speaker boundaries
+        new_segments = []
+        split_count = 0
+        
+        for segment in transcription_result.segments:
+            seg_start = segment['start']
+            seg_end = segment['end']
+            seg_text = segment['text']
+            seg_words = segment.get('words', [])
+            
+            # Find boundaries within this segment
+            boundaries_in_segment = [b for b in speaker_boundaries if seg_start < b < seg_end]
+            
+            if not boundaries_in_segment:
+                # No split needed
+                new_segments.append(segment)
+                continue
+            
+            # Split segment at boundaries using word timestamps
+            split_points = [seg_start] + boundaries_in_segment + [seg_end]
+            
+            for i in range(len(split_points) - 1):
+                split_start = split_points[i]
+                split_end = split_points[i + 1]
+                
+                # Find words in this split
+                split_words = [w for w in seg_words if split_start <= w.get('start', 0) < split_end]
+                
+                if not split_words:
+                    # No words in this split, skip
+                    continue
+                
+                # Create new segment
+                split_text = ' '.join(w.get('word', '') for w in split_words).strip()
+                if not split_text:
+                    continue
+                
+                new_segment = {
+                    'start': split_start,
+                    'end': split_end,
+                    'text': split_text,
+                    'words': split_words,
+                    'avg_logprob': segment.get('avg_logprob', 0.0),
+                    'compression_ratio': segment.get('compression_ratio', 1.0),
+                    'no_speech_prob': segment.get('no_speech_prob', 0.0)
+                }
+                new_segments.append(new_segment)
+                split_count += 1
+        
+        if split_count > 0:
+            logger.info(f"Split {split_count} segments at speaker boundaries")
+            transcription_result.segments = new_segments
+        
+        return transcription_result
+    
     def _perform_diarization(self, audio_path: str) -> Optional[List[Tuple[float, float, int]]]:
         """Perform speaker diarization using pyannote v4 via asr_diarize_v4"""
         try:
@@ -1259,6 +1337,12 @@ class EnhancedASR:
                 
                 transcription_result.metadata['diarization_failed'] = True
                 return transcription_result
+            
+            # Step 2.5: Split Whisper segments at diarization boundaries
+            # This ensures segments don't span multiple speakers
+            transcription_result = self._split_segments_at_speaker_boundaries(
+                transcription_result, diarization_segments
+            )
             
             # Step 3: Speaker identification
             speaker_segments = self._identify_speakers(audio_path, diarization_segments)
