@@ -131,7 +131,6 @@ def diarize_turns(
         List of Turn with start/end/speaker (non-overlapping due to exclusive=True)
     """
     import torch
-    import soundfile as sf
     
     logger.info("Loading pyannote speaker-diarization-community-1 pipeline")
     pipeline = Pipeline.from_pretrained(
@@ -146,17 +145,19 @@ def diarize_turns(
     if max_speakers is not None:
         params['max_speakers'] = max_speakers
     
-    # WORKAROUND for AudioDecoder error: Preload audio with soundfile
+    # WORKAROUND for AudioDecoder error: Preload audio with librosa
     # pyannote v4 has issues with torchcodec on Windows
+    # soundfile can't read MP4, so use librosa which handles all formats
     logger.info(f"Preloading audio to avoid AudioDecoder error: {audio_path}")
     try:
-        waveform, sample_rate = sf.read(str(audio_path))
-        # Convert to torch tensor and ensure correct shape (channels, samples)
-        if waveform.ndim == 1:
-            waveform = waveform[None, :]  # Add channel dimension
-        else:
-            waveform = waveform.T  # Transpose to (channels, samples)
+        import librosa
+        import numpy as np
         
+        # Load audio with librosa (handles MP4, WAV, etc.)
+        waveform, sample_rate = librosa.load(str(audio_path), sr=16000, mono=True)
+        
+        # Convert to torch tensor and ensure correct shape (channels, samples)
+        waveform = waveform[None, :]  # Add channel dimension (1, samples)
         waveform_tensor = torch.from_numpy(waveform).float()
         
         # Pass preloaded audio as dict to avoid file loading
