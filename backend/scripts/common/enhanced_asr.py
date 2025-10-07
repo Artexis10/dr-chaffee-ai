@@ -1031,13 +1031,15 @@ class EnhancedASR:
                         
                         # If surrounded by same speaker and different from current
                         if prev_speaker == next_speaker and curr_speaker != prev_speaker:
-                            # Check if it's a short segment (< 10s)
+                            # Check if it's an isolated segment (< 60s)
+                            # Increased from 10s to 60s to handle longer misidentified segments
                             duration = speaker_segments[i].end - speaker_segments[i].start
-                            if duration < 10:
+                            if duration < 60:
                                 # Smooth to match surrounding
+                                old_speaker = speaker_segments[i].speaker
                                 speaker_segments[i].speaker = prev_speaker
                                 smoothed_count += 1
-                                logger.debug(f"  Smoothed segment {i} to {prev_speaker}")
+                                logger.info(f"  Smoothed segment {i} ({duration:.1f}s) from {old_speaker} to {prev_speaker}")
                     
                     if smoothed_count > 0:
                         logger.info(f"   Smoothed {smoothed_count} isolated misidentifications")
