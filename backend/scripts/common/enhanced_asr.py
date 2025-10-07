@@ -955,28 +955,33 @@ class EnhancedASR:
                                     seg_embedding = np.mean(seg_embeddings, axis=0)
                                     seg_sim = float(enrollment.compute_similarity(seg_embedding, profiles['chaffee']))
                                     
-                                    # IMPROVED: Multi-tier threshold for better accuracy
-                                    # High confidence: > 0.75 (definitely Chaffee)
-                                    # Medium confidence: 0.65-0.75 (likely Chaffee, use context)
-                                    # Low confidence: < 0.65 (likely Guest)
+                                    # Use thresholds from config (not hardcoded)
+                                    chaffee_threshold = self.config.chaffee_min_sim
+                                    high_conf_threshold = chaffee_threshold + 0.13  # High confidence = threshold + 0.13
                                     
-                                    if seg_sim > 0.75:
+                                    logger.debug(f"Segment similarity: {seg_sim:.3f} (Chaffee threshold: {chaffee_threshold:.3f})")
+                                    
+                                    if seg_sim >= high_conf_threshold:
                                         # High confidence Chaffee
                                         seg_speaker = 'Chaffee'
                                         seg_conf = seg_sim
-                                    elif seg_sim > 0.65:
+                                        logger.debug(f"  → High confidence Chaffee (sim={seg_sim:.3f} >= {high_conf_threshold:.3f})")
+                                    elif seg_sim >= chaffee_threshold:
                                         # Medium confidence - use temporal context
                                         # If previous segment was Chaffee, likely Chaffee
                                         if speaker_segments and speaker_segments[-1].speaker == 'Chaffee':
                                             seg_speaker = 'Chaffee'
                                             seg_conf = seg_sim
+                                            logger.debug(f"  → Medium confidence Chaffee with context (sim={seg_sim:.3f})")
                                         else:
                                             seg_speaker = 'GUEST'
                                             seg_conf = 1.0 - seg_sim
                                             guest_count += 1
+                                            logger.debug(f"  → Medium confidence Guest without context (sim={seg_sim:.3f})")
                                     else:
                                         # Low confidence - likely Guest
                                         seg_speaker = 'GUEST'
+                                        logger.debug(f"  → Low confidence Guest (sim={seg_sim:.3f} < {chaffee_threshold:.3f})")
                                         seg_conf = 1.0 - seg_sim
                                         guest_count += 1
                                     
