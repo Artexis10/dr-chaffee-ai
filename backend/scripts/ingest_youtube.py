@@ -1368,10 +1368,30 @@ class EnhancedYouTubeIngester:
                 
                 update_progress_func()
                 
+                # Clean up GPU memory after each video
+                try:
+                    import torch
+                    import gc
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                        gc.collect()
+                except:
+                    pass
+                
             except Exception as e:
                 logger.error(f"ASR worker error: {e}")
                 with stats_lock:
                     self.stats.errors += 1
+                
+                # Clean up GPU memory on error too
+                try:
+                    import torch
+                    import gc
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                        gc.collect()
+                except:
+                    pass
     
     def _db_worker(self, asr_queue: queue.Queue, stop_event: threading.Event,
                    stats_lock: threading.Lock, update_progress_func, progress_bar) -> None:
