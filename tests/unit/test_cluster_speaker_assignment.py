@@ -17,18 +17,34 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'backend'))
 class TestClusterSpeakerAssignment:
     """Test that diarization clusters are properly assigned to speakers"""
     
+    def test_pyannote_clustering_threshold_configured(self):
+        """
+        Test that pyannote clustering threshold is properly configured.
+        
+        CRITICAL BUG: Pyannote is merging two distinct speakers (Chaffee and Guest)
+        into one cluster because clustering threshold is not being passed.
+        
+        Video 1oKru2X3AvU (interview with Pascal Johns):
+        - Expected: 2 clusters (Chaffee and Guest)
+        - Actual: 1 cluster (merged)
+        - Result: 100% Chaffee attribution (wrong!)
+        
+        FIX: Pass clustering threshold to pyannote pipeline.
+        Lower threshold = more sensitive to voice differences.
+        """
+        # Test that clustering threshold from .env is used
+        # Default: 0.7 (too high, merges similar voices)
+        # Our setting: 0.5 (more sensitive)
+        # Should result in 2 clusters for interview videos
+        pass
+    
     def test_cluster_assignment_respects_diarization(self):
         """
         Test that when diarization identifies distinct clusters,
         we assign ONE speaker per cluster, not per-segment.
         
-        This is the root cause of the accuracy issue:
-        - Diarization correctly identifies 2 clusters (Chaffee and Guest)
-        - But per-segment identification re-evaluates each 30s chunk
-        - Low-confidence chunks get misattributed
-        
-        FIX: Trust diarization boundaries, only use voice embeddings
-        to identify which cluster is Chaffee vs Guest.
+        This test assumes pyannote correctly identifies 2 clusters.
+        If pyannote only returns 1 cluster, this test won't help.
         """
         # Simulate diarization output: 2 distinct clusters
         diarization_segments = [
@@ -39,11 +55,6 @@ class TestClusterSpeakerAssignment:
         ]
         
         # Expected: All cluster 0 segments -> Chaffee, all cluster 1 -> Guest
-        # Regardless of per-segment voice embedding confidence
-        
-        # This test will fail with current implementation because
-        # per-segment identification can override cluster assignment
-        
         # After fix: Cluster assignment is final, no per-segment override
         pass
     

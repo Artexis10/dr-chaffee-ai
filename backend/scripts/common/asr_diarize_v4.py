@@ -138,6 +138,20 @@ def diarize_turns(
         token=hf_token  # Changed from use_auth_token in pyannote v4
     )
     
+    # CRITICAL: Configure clustering threshold to detect distinct speakers
+    # Lower threshold = more sensitive to voice differences
+    # Default: 0.7 (too high, merges similar voices like Chaffee and guests)
+    # Our setting: 0.5 (more sensitive, better for interviews)
+    clustering_threshold = float(os.getenv('PYANNOTE_CLUSTERING_THRESHOLD', '0.5'))
+    if hasattr(pipeline, 'klustering') and hasattr(pipeline.klustering, 'clustering'):
+        pipeline.klustering.clustering.threshold = clustering_threshold
+        logger.info(f"Set clustering threshold to {clustering_threshold}")
+    elif hasattr(pipeline, 'clustering'):
+        pipeline.clustering.threshold = clustering_threshold
+        logger.info(f"Set clustering threshold to {clustering_threshold}")
+    else:
+        logger.warning(f"Could not set clustering threshold - pipeline structure unknown")
+    
     # Build diarization parameters
     params = {}
     if min_speakers is not None:
