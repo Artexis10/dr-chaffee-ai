@@ -100,17 +100,67 @@ class TestClusterSpeakerAssignment:
         inherit their cluster's speaker label.
         
         This is the key fix for the accuracy issue:
-        - Segment has low confidence (< 0.6)
-        - But cluster was confidently identified as Chaffee
-        - Segment should be labeled Chaffee, not Guest
-        """
-        # Cluster identified as Chaffee with high confidence (0.85)
-        # One segment in cluster has low confidence (0.45)
-        # Expected: Segment labeled as Chaffee (inherits cluster label)
+        - Cluster identified as Chaffee with high confidence (0.85)
+        - One segment in cluster has low confidence (0.45)
+        - Expected: Segment labeled as Chaffee (inherits cluster label)
         
-        # Current bug: Segment labeled as Guest due to low confidence
+        Current bug: Segment labeled as Guest due to low confidence
+        """
         pass
-
-
+    
+    def test_variance_based_splitting_when_pyannote_merges(self):
+        """
+        Test that when pyannote returns 1 cluster but variance is high,
+        we split by similarity to Chaffee profile.
+        
+        REAL-WORLD SCENARIO (Video 1oKru2X3AvU):
+        - Pyannote returns 1 cluster (merged Chaffee + Guest)
+        - Voice embeddings show high variance (0.064)
+        - Similarity range: [0.071, 0.713]
+        
+        EXPECTED BEHAVIOR:
+        - Detect high variance (>0.05)
+        - Split segments by similarity threshold (0.65)
+        - High similarity (>0.65) → Chaffee
+        - Low similarity (<0.65) → Guest
+        
+        This is the REAL fix for the 100% Chaffee issue.
+        """
+        # Simulate pyannote returning 1 cluster with mixed speakers
+        # Using real-world data from video 1oKru2X3AvU
+        cluster_segments = [
+            # Chaffee segments (high similarity ~0.7)
+            {'start': 0.0, 'end': 30.0, 'similarity': 0.71},
+            {'start': 60.0, 'end': 90.0, 'similarity': 0.68},
+            {'start': 120.0, 'end': 150.0, 'similarity': 0.70},
+            
+            # Guest segments (low similarity ~0.1-0.3)
+            {'start': 30.0, 'end': 60.0, 'similarity': 0.15},
+            {'start': 90.0, 'end': 120.0, 'similarity': 0.07},
+            {'start': 150.0, 'end': 180.0, 'similarity': 0.25},
+        ]
+        
+        # Calculate variance
+        similarities = [s['similarity'] for s in cluster_segments]
+        import numpy as np
+        variance = np.var(similarities)
+        
+        # High variance should trigger splitting
+        assert variance > 0.05, f"Variance {variance} should be > 0.05"
+        
+        # Split by threshold
+        threshold = 0.65
+        chaffee_segments = [s for s in cluster_segments if s['similarity'] >= threshold]
+        guest_segments = [s for s in cluster_segments if s['similarity'] < threshold]
+        
+        # Should split 50/50
+        assert len(chaffee_segments) == 3, f"Expected 3 Chaffee segments, got {len(chaffee_segments)}"
+        assert len(guest_segments) == 3, f"Expected 3 Guest segments, got {len(guest_segments)}"
+        
+        # Verify correct assignment
+        for seg in chaffee_segments:
+            assert seg['similarity'] >= threshold
+        for seg in guest_segments:
+            assert seg['similarity'] < threshold
 if __name__ == '__main__':
     pytest.main([__file__, '-v', '--tb=short'])

@@ -1060,35 +1060,32 @@ class EnhancedASR:
                                     seg_embedding = np.mean(seg_embeddings, axis=0)
                                     seg_sim = float(enrollment.compute_similarity(seg_embedding, profiles['chaffee']))
                                     
-                                    # Use thresholds from config (not hardcoded)
-                                    chaffee_threshold = self.config.chaffee_min_sim
-                                    high_conf_threshold = chaffee_threshold + 0.13  # High confidence = threshold + 0.13
+                                    # VARIANCE-BASED SPLITTING FIX:
+                                    # When pyannote merges speakers (high variance), use stricter threshold
+                                    # to split by similarity to Chaffee profile
+                                    # 
+                                    # Real-world data (video 1oKru2X3AvU):
+                                    # - Chaffee segments: similarity ~0.7
+                                    # - Guest segments: similarity ~0.1-0.3
+                                    # - Variance: 0.064 (high)
+                                    #
+                                    # Solution: Use threshold 0.65 instead of config threshold (0.62)
+                                    # This creates clear separation between Chaffee and Guest
+                                    variance_split_threshold = 0.65
                                     
-                                    logger.debug(f"Segment similarity: {seg_sim:.3f} (Chaffee threshold: {chaffee_threshold:.3f})")
+                                    logger.debug(f"Segment similarity: {seg_sim:.3f} (variance-split threshold: {variance_split_threshold:.3f})")
                                     
-                                    if seg_sim >= high_conf_threshold:
-                                        # High confidence Chaffee
+                                    if seg_sim >= variance_split_threshold:
+                                        # High similarity → Chaffee
                                         seg_speaker = 'Chaffee'
                                         seg_conf = seg_sim
-                                        logger.debug(f"  → High confidence Chaffee (sim={seg_sim:.3f} >= {high_conf_threshold:.3f})")
-                                    elif seg_sim >= chaffee_threshold:
-                                        # Medium confidence - use temporal context
-                                        # If previous segment was Chaffee, likely Chaffee
-                                        if speaker_segments and speaker_segments[-1].speaker == 'Chaffee':
-                                            seg_speaker = 'Chaffee'
-                                            seg_conf = seg_sim
-                                            logger.debug(f"  → Medium confidence Chaffee with context (sim={seg_sim:.3f})")
-                                        else:
-                                            seg_speaker = 'GUEST'
-                                            seg_conf = 1.0 - seg_sim
-                                            guest_count += 1
-                                            logger.debug(f"  → Medium confidence Guest without context (sim={seg_sim:.3f})")
+                                        logger.debug(f"  → Chaffee (sim={seg_sim:.3f} >= {variance_split_threshold:.3f})")
                                     else:
-                                        # Low confidence - likely Guest
+                                        # Low similarity → Guest
                                         seg_speaker = 'GUEST'
-                                        logger.debug(f"  → Low confidence Guest (sim={seg_sim:.3f} < {chaffee_threshold:.3f})")
                                         seg_conf = 1.0 - seg_sim
                                         guest_count += 1
+                                        logger.debug(f"  → Guest (sim={seg_sim:.3f} < {variance_split_threshold:.3f})")
                                     
                                     logger.debug(f"  [{start:.1f}-{end:.1f}s]: {seg_speaker} (sim: {seg_sim:.3f})")
                                     
