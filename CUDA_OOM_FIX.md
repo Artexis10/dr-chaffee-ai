@@ -25,10 +25,10 @@ Pipeline failing with 78% error rate (156/200 videos) due to CUDA OOM:
 - Applied in both success and error paths
 - Prevents memory accumulation across 200 videos
 
-### 3. ✅ Reduced ASR Workers (Committed)
-- Changed from 4 to 2 ASR workers
-- Prevents multiple Whisper models loading simultaneously
-- Keeps `distil-large-v3` (worked fine before)
+### 3. ✅ Kept ASR Workers at 4
+- Memory cleanup should handle multiple models
+- Keeping 4 workers for maximum throughput
+- If OOM persists, can reduce to 2 as fallback
 
 ## Expected Results
 
@@ -36,7 +36,7 @@ Pipeline failing with 78% error rate (156/200 videos) due to CUDA OOM:
 | Aspect | Before | After |
 |--------|--------|-------|
 | Memory Cleanup | None | After each video |
-| ASR Workers | 4 (multiple models) | 2 (controlled) |
+| ASR Workers | 4 (no cleanup) | 4 (with cleanup) |
 | Memory Leaks | Accumulating | Freed |
 | VRAM Usage | 99.3% → crash | Stable < 80% |
 
@@ -73,19 +73,23 @@ gc.collect()              # Python garbage collection
 
 **Config Changes:**
 ```bash
-ASR_WORKERS=2  # Was: 4
+ASR_WORKERS=4  # Kept at 4 (memory cleanup should handle it)
 ```
 
 **No model downgrades** - keeping `distil-large-v3` and `gte-Qwen2-1.5B`
+
+**Fallback if needed:**
+If OOM still occurs, reduce to `ASR_WORKERS=2` in `.env`
 
 ## Status
 
 - [x] Fixed preprocessing_config error
 - [x] Added GPU memory cleanup
-- [x] Reduced ASR workers to 2
+- [x] Kept ASR workers at 4 (with cleanup)
 - [ ] Test with full pipeline
 - [ ] Monitor VRAM usage stays < 80%
 - [ ] Verify success rate > 90%
+- [ ] If OOM persists, reduce ASR_WORKERS to 2
 
 ## Next Steps
 
