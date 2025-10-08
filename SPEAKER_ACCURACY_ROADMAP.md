@@ -94,37 +94,46 @@ PYANNOTE_CLUSTERING_THRESHOLD=0.3
 
 ## Current Blockers
 
-1. **Pyannote pipeline structure unknown**
-   - Don't know correct attribute path for clustering threshold
-   - Need to inspect pipeline object at runtime
+1. ✅ ~~Pyannote pipeline structure unknown~~ - SOLVED
+   - Found correct path: `pipeline.clustering.threshold`
 
-2. **Clustering threshold may not be enough**
-   - Voices might be too similar
-   - May need to force min_speakers=2
+2. ❌ **Clustering threshold not enough** - CONFIRMED
+   - Tried 0.6 → 0.4 → 0.3
+   - Pyannote still returns 1 cluster
+   - Voices too similar for VBx clustering algorithm
 
-3. **No way to verify threshold is set**
-   - Need logging to confirm threshold was applied
+3. ❌ **Fundamental Problem: No Guest Voice Profile**
+   - Per-segment identification compares only to Chaffee
+   - Without Guest profile, can't distinguish similar voices
+   - Voice embeddings show variance but can't label which is which
 
-## Next Steps (Immediate)
+## Real Solution Required
 
-1. **Add debug logging** to verify threshold is set:
-   ```python
-   logger.info(f"Pipeline structure: {dir(pipeline)}")
-   logger.info(f"Clustering config: {pipeline.klustering if hasattr(pipeline, 'klustering') else 'N/A'}")
-   ```
+The fundamental issue is that **we can't distinguish similar voices without a reference**:
 
-2. **Try forcing min_speakers=2** for interviews:
-   ```python
-   if is_interview:
-       params['min_speakers'] = 2
-       params['max_speakers'] = 2
-   ```
+### Option A: Use Variance-Based Splitting (Recommended)
+When variance is high (>0.05), split cluster into 2 groups:
+- Group 1: Segments with high similarity to Chaffee → Chaffee
+- Group 2: Segments with low similarity to Chaffee → Guest
 
-3. **Test with known interview video**:
-   ```bash
-   python backend/scripts/ingest_youtube.py --from-url https://www.youtube.com/watch?v=1oKru2X3AvU --source yt-dlp --force
-   python check_segments.py 1oKru2X3AvU
-   ```
+### Option B: Force min_speakers=2 for Interviews
+Detect interviews from title and force pyannote to find 2 speakers.
+**Problem**: Breaks for 3+ person panels, monologues
+
+### Option C: Create Guest Profiles
+Enroll guest voices from their segments.
+**Problem**: Requires manual enrollment, complex workflow
+
+### Recommended: Option A
+```python
+if variance > 0.05:  # High variance = mixed speakers
+    # Split by similarity to Chaffee
+    for segment in segments:
+        if similarity_to_chaffee > 0.65:
+            segment.speaker = "Chaffee"
+        else:
+            segment.speaker = "GUEST"
+```
 
 ## Success Criteria
 
