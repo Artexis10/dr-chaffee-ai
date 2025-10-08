@@ -1000,7 +1000,10 @@ class EnhancedASR:
                 is_single_massive_segment = len(segments) == 1 and (segments[0][1] - segments[0][0]) > 300
                 
                 if (has_split_info or is_single_massive_segment) and 'chaffee' in profiles:
-                    # PER-SEGMENT identification for split clusters or massive segments
+                    # PER-SEGMENT identification ONLY for truly merged clusters
+                    # Key insight: If diarization created distinct clusters, trust it!
+                    # Only re-identify when pyannote incorrectly merged speakers
+                    
                     if is_single_massive_segment:
                         logger.warning(f"🔄 Cluster {cluster_id}: Pyannote over-merged - forcing per-segment identification")
                         # Split the massive segment into 30-second chunks
@@ -1014,8 +1017,26 @@ class EnhancedASR:
                             current = chunk_end
                         logger.info(f"   Split {end - start:.1f}s segment into {len(segments_to_identify)} chunks")
                     else:
-                        logger.info(f"🔄 Cluster {cluster_id}: Using per-segment identification (mixed speakers detected)")
-                        segments_to_identify = segments
+                        # Cluster was already split by diarization - trust those boundaries!
+                        # Use cluster-level identification, not per-segment
+                        logger.info(f"✅ Cluster {cluster_id}: Diarization already split speakers - using cluster-level ID")
+                        logger.info(f"   Cluster speaker: {speaker_name} (confidence: {confidence:.3f})")
+                        
+                        # Assign ALL segments in this cluster to the cluster's speaker
+                        for start, end in segments:
+                            speaker_segments.append(SpeakerSegment(
+                                start=start,
+                                end=end,
+                                speaker=speaker_name,
+                                confidence=confidence,
+                                margin=margin,
+                                embedding=cluster_embedding.tolist(),
+                                cluster_id=cluster_id
+                            ))
+                        continue  # Skip per-segment identification
+                    
+                    # Only reach here for massive merged segments
+                    segments_to_identify = segments
                     
                     guest_count = 0
                     
