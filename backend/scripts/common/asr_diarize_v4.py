@@ -118,6 +118,7 @@ def diarize_turns(
     hf_token: Optional[str] = None,
     min_speakers: Optional[int] = None,
     max_speakers: Optional[int] = None,
+    num_speakers: Optional[int] = None,
 ) -> List[Turn]:
     """
     Perform speaker diarization using pyannote.audio v4.
@@ -127,6 +128,7 @@ def diarize_turns(
         hf_token: HuggingFace token for gated models
         min_speakers: Minimum number of speakers
         max_speakers: Maximum number of speakers
+        num_speakers: Exact number of speakers (when known)
     
     Returns:
         List of Turn with start/end/speaker (non-overlapping due to exclusive=True)
@@ -155,10 +157,16 @@ def diarize_turns(
     
     # Build diarization parameters
     params = {}
-    if min_speakers is not None:
-        params['min_speakers'] = min_speakers
-    if max_speakers is not None:
-        params['max_speakers'] = max_speakers
+    if num_speakers is not None:
+        # Use exact speaker count when known (more precise)
+        params['num_speakers'] = num_speakers
+        logger.info(f"Using exact speaker count: {num_speakers}")
+    else:
+        # Use bounds when exact count unknown
+        if min_speakers is not None:
+            params['min_speakers'] = min_speakers
+        if max_speakers is not None:
+            params['max_speakers'] = max_speakers
     
     # Configure for detecting short utterances (like brief guest questions)
     # min_duration_on: minimum duration of speech segments (default: 0.0s, but pipeline may have internal min)
@@ -214,14 +222,36 @@ def diarize_turns(
             pass
     
     turns: List[Turn] = []
-    for segment, _, speaker in diarization.itertracks(yield_label=True):
+    
+    # Use exclusive_speaker_diarization if available (community-1 feature)
+    # This simplifies reconciliation with transcription timestamps
+    if hasattr(diarization, 'exclusive_speaker_diarization'):
+        logger.info("Using exclusive speaker diarization for better timestamp alignment")
+        diarization_to_use = diarization.exclusive_speaker_diarization
+    else:
+        diarization_to_use = diarization
+    
+    for segment, _, speaker in diarization_to_use.itertracks(yield_label=True):
         turns.append(Turn(
             start=float(segment.start),
             end=float(segment.end),
             speaker=str(speaker)
         ))
     
-    logger.info(f"Detected {len(set(t.speaker for t in turns))} speakers in {len(turns)} turns")
+    num_speakers = len(set(t.speaker for t in turns))
+    logger.info(f"Detected {num_speakers} speakers in {len(turns)} turns")
+    
+    # Log speaker distribution
+    from collections import Counter
+    speaker_times = Counter()
+    for turn in turns:
+        speaker_times[turn.speaker] += turn.end - turn.start
+    
+    logger.info("Speaker time distribution:")
+    for speaker, duration in speaker_times.most_common():
+        pct = (duration / sum(speaker_times.values())) * 100
+        logger.info(f"  {speaker}: {duration:.1f}s ({pct:.1f}%)")
+    
     return turns
 
 

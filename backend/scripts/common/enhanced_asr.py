@@ -674,9 +674,12 @@ class EnhancedASR:
                 ])
                 
                 if is_interview:
-                    min_speakers = 2
-                    max_speakers = 2
-                    logger.info(f"🎤 Detected interview pattern - forcing min_speakers=2")
+                    # Use num_speakers=2 for interviews (exact count known)
+                    # This is more precise than min/max bounds per pyannote docs
+                    num_speakers = 2
+                    logger.info(f"🎤 Detected interview pattern - forcing num_speakers=2")
+                else:
+                    num_speakers = None
 
             
             if min_speakers:
@@ -689,7 +692,8 @@ class EnhancedASR:
                 audio_path=audio_path,
                 hf_token=os.getenv('HUGGINGFACE_HUB_TOKEN'),
                 min_speakers=min_speakers,
-                max_speakers=max_speakers
+                max_speakers=max_speakers,
+                num_speakers=num_speakers
             )
             
             # Convert Turn objects to tuple format (start, end, speaker_id)
