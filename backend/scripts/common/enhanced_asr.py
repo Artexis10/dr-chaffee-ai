@@ -1036,7 +1036,7 @@ class EnhancedASR:
                         continue  # Skip per-segment identification
                     
                     # Only reach here for massive merged segments
-                    segments_to_identify = segments
+                    # segments_to_identify is already set above (line 1012-1018)
                     
                     guest_count = 0
                     
@@ -1073,21 +1073,22 @@ class EnhancedASR:
                                     # This creates clear separation between Chaffee and Guest
                                     variance_split_threshold = 0.65
                                     
-                                    logger.debug(f"Segment similarity: {seg_sim:.3f} (variance-split threshold: {variance_split_threshold:.3f})")
+                                    if seg_idx < 10:  # Log first 10 segments
+                                        logger.info(f"Segment {seg_idx}: similarity={seg_sim:.3f} (threshold={variance_split_threshold:.3f})")
                                     
                                     if seg_sim >= variance_split_threshold:
                                         # High similarity → Chaffee
                                         seg_speaker = 'Chaffee'
                                         seg_conf = seg_sim
-                                        logger.debug(f"  → Chaffee (sim={seg_sim:.3f} >= {variance_split_threshold:.3f})")
+                                        if seg_idx < 10:
+                                            logger.info(f"  → Chaffee (sim={seg_sim:.3f} >= {variance_split_threshold:.3f})")
                                     else:
                                         # Low similarity → Guest
                                         seg_speaker = 'GUEST'
                                         seg_conf = 1.0 - seg_sim
                                         guest_count += 1
-                                        logger.debug(f"  → Guest (sim={seg_sim:.3f} < {variance_split_threshold:.3f})")
-                                    
-                                    logger.debug(f"  [{start:.1f}-{end:.1f}s]: {seg_speaker} (sim: {seg_sim:.3f})")
+                                        if seg_idx < 10:
+                                            logger.info(f"  → Guest (sim={seg_sim:.3f} < {variance_split_threshold:.3f})")
                                     
                                     speaker_segments.append(SpeakerSegment(
                                         start=start,
