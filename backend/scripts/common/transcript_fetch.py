@@ -79,11 +79,18 @@ class TranscriptFetcher:
             logger.info("Production mode: Audio storage disabled")
         
         # Initialize AudioDownloader with current settings
-        from .downloader import AudioDownloader
+        from .downloader import AudioDownloader, AudioPreprocessingConfig
         # Use system temp dir by default - caller can override via temp_dir parameter
         import tempfile
         self.temp_dir = tempfile.gettempdir()
         self.audio_downloader = AudioDownloader(ffmpeg_path=ffmpeg_path, temp_dir=self.temp_dir)
+        
+        # Initialize default preprocessing config
+        self.preprocessing_config = AudioPreprocessingConfig(
+            normalize_audio=enable_preprocessing,
+            remove_silence=False,  # Default off, can be enabled per-call
+            pipe_mode=False
+        )
         
         logger.info(f"TranscriptFetcher initialized with model: {self.whisper_model}")
         if self.proxies:
