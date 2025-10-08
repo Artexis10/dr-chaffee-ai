@@ -141,17 +141,17 @@ def diarize_turns(
     
     # CRITICAL: Configure clustering threshold to detect distinct speakers
     # Lower threshold = more sensitive to voice differences
-    # Default: 0.7 (too high, merges similar voices like Chaffee and guests)
-    # Our setting: 0.5 (more sensitive, better for interviews)
-    clustering_threshold = float(os.getenv('PYANNOTE_CLUSTERING_THRESHOLD', '0.5'))
-    if hasattr(pipeline, 'klustering') and hasattr(pipeline.klustering, 'clustering'):
-        pipeline.klustering.clustering.threshold = clustering_threshold
-        logger.info(f"Set clustering threshold to {clustering_threshold}")
-    elif hasattr(pipeline, 'clustering'):
+    # Default: 0.6 (pyannote default, merges similar voices)
+    # Our setting: 0.4 (more sensitive, better for interviews)
+    # Range: 0.0-1.0 (lower = more clusters, higher = fewer clusters)
+    clustering_threshold = float(os.getenv('PYANNOTE_CLUSTERING_THRESHOLD', '0.4'))
+    
+    if hasattr(pipeline, 'clustering') and hasattr(pipeline.clustering, 'threshold'):
+        old_threshold = pipeline.clustering.threshold
         pipeline.clustering.threshold = clustering_threshold
-        logger.info(f"Set clustering threshold to {clustering_threshold}")
+        logger.info(f"✓ Set clustering threshold: {old_threshold} → {clustering_threshold}")
     else:
-        logger.warning(f"Could not set clustering threshold - pipeline structure unknown")
+        logger.warning(f"✗ Could not set clustering threshold - no clustering.threshold attribute")
     
     # Build diarization parameters
     params = {}
