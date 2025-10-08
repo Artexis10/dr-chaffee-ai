@@ -655,11 +655,12 @@ class EnhancedASR:
             
             min_speakers = int(min_speakers_env) if min_speakers_env and min_speakers_env.isdigit() else None
             max_speakers = int(max_speakers_env) if max_speakers_env and max_speakers_env.isdigit() else None
+            num_speakers = None  # Initialize
             
-            # CRITICAL FIX: For interview videos, force min_speakers=2
+            # CRITICAL FIX: For interview videos, force num_speakers=2
             # This prevents pyannote from merging similar voices into 1 cluster
             # Detection: Check if transcription contains conversation patterns
-            if not min_speakers and hasattr(self, '_transcription_result'):
+            if not min_speakers and not num_speakers and hasattr(self, '_transcription_result'):
                 # Check for conversation markers in first minute of transcript
                 first_minute_text = ' '.join([
                     seg.get('text', '') for seg in self._transcription_result.segments
