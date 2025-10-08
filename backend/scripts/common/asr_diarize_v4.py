@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 import logging
+import os
 
 from faster_whisper import WhisperModel
 from pyannote.audio import Pipeline
