@@ -208,7 +208,6 @@ def diarize_turns(
     finally:
         # Clean up temp WAV file
         try:
-            import os
             if os.path.exists(wav_path):
                 os.unlink(wav_path)
         except:
