@@ -185,21 +185,64 @@ class SegmentsDatabase:
                         embedding,
                         voice_embedding
                     ))
-                
                 # Execute batch insert
                 psycopg2.extras.execute_values(cur, insert_query, values)
                 inserted_count = cur.rowcount
                 
                 conn.commit()
-                logger.info(f"Batch inserted {inserted_count} segments for video {video_id}")
+                logger.info(f"Successfully inserted {inserted_count} segments for video {video_id}")
                 
-                return inserted_count
+                # Classify video type based on speaker distribution
+                self._classify_video_type(video_id, segments, conn)
                 
+            return inserted_count
+            
         except Exception as e:
-            logger.error(f"Failed to batch insert segments for {video_id}: {e}")
+            logger.error(f"Failed to insert segments for {video_id}: {e}")
             if conn:
                 conn.rollback()
             raise
+    
+    def _classify_video_type(self, video_id: str, segments: List[Dict[str, Any]], conn) -> None:
+        """Classify video type based on speaker distribution and update all segments."""
+        try:
+            # Extract speaker labels
+            speaker_labels = [
+                self._get_segment_value(seg, 'speaker_label') 
+                for seg in segments 
+                if self._get_segment_value(seg, 'speaker_label')
+            ]
+            
+            if not speaker_labels:
+                video_type = 'monologue'  # Default
+            else:
+                # Calculate speaker statistics
+                num_speakers = len(set(speaker_labels))
+                guest_count = sum(1 for s in speaker_labels if s == 'GUEST')
+                guest_pct = guest_count / len(speaker_labels) if speaker_labels else 0
+                
+                # Classify based on speaker distribution
+                if num_speakers == 1:
+                    video_type = 'monologue'
+                elif guest_pct > 0.15:
+                    video_type = 'interview'
+                else:
+                    video_type = 'monologue_with_clips'
+            
+            # Update all segments for this video
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE segments 
+                    SET video_type = %s 
+                    WHERE video_id = %s
+                """, (video_type, video_id))
+                conn.commit()
+                
+            logger.info(f"Classified video {video_id} as '{video_type}' ({num_speakers} speaker(s), {guest_pct*100:.1f}% guest)")
+            
+        except Exception as e:
+            logger.warning(f"Failed to classify video type for {video_id}: {e}")
+            # Don't raise - classification is non-critical
     
     def check_video_exists(self, video_id: str) -> Tuple[Optional[int], int]:
         """Check if video exists and return source_id and segment count"""
