@@ -1,0 +1,7 @@
+# Use parent project's environment - all dependencies already installed
+# Just ensure these are available:
+# - yt-dlp
+# - pyannote.audio
+# - torch (with CUDA)
+# - pandas
+# - matplotlib
