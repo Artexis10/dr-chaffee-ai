@@ -190,3 +190,10 @@ standardize_*.py
 speaker_test_results_*.json
 test_working_profile.json
 voice_enrollment_fixed.py
+
+# Temporary and backup files
+*.backup
+*_temp.py
+diagnose_*.py
+rebuild_*.py
+add_*.py
