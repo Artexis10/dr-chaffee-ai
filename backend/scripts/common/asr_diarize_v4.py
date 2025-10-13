@@ -135,11 +135,36 @@ def diarize_turns(
     """
     import torch
     
-    logger.info("Loading pyannote speaker-diarization-community-1 pipeline")
-    pipeline = Pipeline.from_pretrained(
-        "pyannote/speaker-diarization-community-1",
-        token=hf_token  # Changed from use_auth_token in pyannote v4
-    )
+    # PERFORMANCE FIX: Use pyannote v3.1 (MUCH faster than v4)
+    # v3.1 is 5-10x faster and doesn't have the AudioDecoder bugs
+    from pathlib import Path as PathLib
+    local_model_path = PathLib(__file__).parent.parent.parent / "pretrained_models" / "pyannote-speaker-diarization-3.1"
+    
+    if local_model_path.exists():
+        logger.info(f"Loading pyannote v3.1 from local cache (FAST): {local_model_path}")
+        # v3.1 doesn't need auth token for local models
+        pipeline = Pipeline.from_pretrained(str(local_model_path))
+    else:
+        logger.info("Loading pyannote speaker-diarization-3.1 from HuggingFace")
+        # Try 'token' first (v4+), fall back to 'use_auth_token' (v3.1)
+        try:
+            pipeline = Pipeline.from_pretrained(
+                "pyannote/speaker-diarization-3.1",
+                token=hf_token
+            )
+        except TypeError:
+            pipeline = Pipeline.from_pretrained(
+                "pyannote/speaker-diarization-3.1",
+                use_auth_token=hf_token
+            )
+    
+    # CRITICAL: Move pipeline to GPU for 5-10x speedup
+    import torch
+    if torch.cuda.is_available():
+        pipeline = pipeline.to(torch.device("cuda"))
+        logger.info("✅ Pyannote pipeline moved to GPU")
+    else:
+        logger.warning("⚠️ CUDA not available, pyannote will run on CPU (slow)")
     
     # CRITICAL: Configure clustering threshold to detect distinct speakers
     # Lower threshold = more sensitive to voice differences
@@ -169,57 +194,101 @@ def diarize_turns(
             params['max_speakers'] = max_speakers
     
     # Configure for detecting short utterances (like brief guest questions)
-    # min_duration_on: minimum duration of speech segments (default: 0.0s, but pipeline may have internal min)
-    # min_duration_off: minimum duration of silence between speech segments (default: 0.0s)
-    # Lowering these helps detect brief guest questions at the start
-    params['min_duration_on'] = 0.0  # Detect even very short speech
-    params['min_duration_off'] = 0.0  # Don't require long silences between speakers
+    # NOTE: min_duration_on/off are only supported in some pyannote versions
+    # Try to set them, but don't fail if not supported
+    try:
+        params['min_duration_on'] = 0.0  # Detect even very short speech
+        params['min_duration_off'] = 0.0  # Don't require long silences between speakers
+    except:
+        logger.debug("min_duration_on/off not supported in this pyannote version")
     
-    # WORKAROUND for AudioDecoder error: Convert MP4 to WAV first
-    # pyannote v4 has issues with torchcodec on Windows
-    # Preloading audio dict causes hangs, so convert to WAV instead
-    logger.info(f"Converting audio to WAV to avoid AudioDecoder error: {audio_path}")
+    # PERFORMANCE: Try direct audio file first, fall back to preloaded audio if AudioDecoder fails
+    logger.info(f"Running diarization on {audio_path} with params: {params}")
     
-    import tempfile
-    import subprocess
     import time
+    import torchaudio
     
-    # Create temporary WAV file
-    with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_wav:
-        wav_path = tmp_wav.name
+    start_time = time.time()
+    diarization = None
+    
+    # Helper function to preload audio (handles MP4/video files)
+    def preload_audio(path):
+        import subprocess
+        import tempfile
+        from pathlib import Path
+        
+        # Check if file is MP4/video - convert to WAV first
+        path_obj = Path(path)
+        if path_obj.suffix.lower() in ['.mp4', '.mkv', '.avi', '.mov', '.webm']:
+            # Convert to WAV using ffmpeg
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_wav:
+                tmp_wav_path = tmp_wav.name
+            
+            try:
+                logger.info(f"Converting MP4 to WAV: {path} → {tmp_wav_path}")
+                result = subprocess.run([
+                    'ffmpeg', '-i', str(path),
+                    '-ar', '16000',  # 16kHz sample rate
+                    '-ac', '1',      # Mono
+                    '-y',            # Overwrite
+                    '-loglevel', 'error',  # Only show errors
+                    tmp_wav_path
+                ], check=True, capture_output=True, text=True)
+                
+                logger.info(f"✅ Conversion complete, loading WAV with torchaudio")
+                waveform, sample_rate = torchaudio.load(tmp_wav_path)
+                
+                # Clean up temp file
+                try:
+                    Path(tmp_wav_path).unlink()
+                except:
+                    pass
+            except subprocess.CalledProcessError as e:
+                logger.error(f"ffmpeg conversion failed: {e.stderr}")
+                raise
+            except Exception as e:
+                logger.error(f"Failed to convert {path} to WAV: {e}")
+                raise
+        else:
+            # Direct load for WAV/FLAC/etc
+            waveform, sample_rate = torchaudio.load(str(path))
+        
+        # Convert to mono if needed
+        if waveform.shape[0] > 1:
+            waveform = waveform.mean(dim=0, keepdim=True)
+        
+        return {"waveform": waveform, "sample_rate": sample_rate}
     
     try:
-        # Convert to WAV using ffmpeg (fast and reliable)
-        cmd = [
-            'ffmpeg', '-i', str(audio_path),
-            '-ar', '16000',  # 16kHz sample rate
-            '-ac', '1',       # Mono
-            '-y',             # Overwrite
-            wav_path
-        ]
-        
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-        if result.returncode != 0:
-            raise Exception(f"ffmpeg failed: {result.stderr}")
-        
-        logger.info(f"Audio converted to WAV: {wav_path}")
-        logger.info(f"Running diarization with params: {params}")
-        
-        start_time = time.time()
-        diarization = pipeline(wav_path, **params)
-        elapsed = time.time() - start_time
-        logger.info(f"Diarization completed in {elapsed:.1f}s")
-        
-    except Exception as e:
-        logger.error(f"WAV conversion or diarization failed: {e}")
-        raise
-    finally:
-        # Clean up temp WAV file
-        try:
-            if os.path.exists(wav_path):
-                os.unlink(wav_path)
-        except:
-            pass
+        # Try direct file path first (works if AudioDecoder is available)
+        diarization = pipeline(str(audio_path), **params)
+    except (NameError, Exception) as e:
+        if 'AudioDecoder' in str(e):
+            # AudioDecoder not available - preload audio manually
+            logger.warning(f"AudioDecoder issue: {e}, preloading audio with torchaudio")
+            audio_dict = preload_audio(audio_path)
+            logger.info(f"Retrying with preloaded audio (shape: {audio_dict['waveform'].shape}, sr: {audio_dict['sample_rate']})")
+            
+            try:
+                diarization = pipeline(audio_dict, **params)
+            except (TypeError, Exception) as e2:
+                if 'min_duration' in str(e2):
+                    # Remove unsupported params and retry
+                    logger.warning("min_duration params not supported, retrying without them")
+                    params_clean = {k: v for k, v in params.items() if k not in ['min_duration_on', 'min_duration_off']}
+                    diarization = pipeline(audio_dict, **params_clean)
+                else:
+                    raise
+        elif 'min_duration' in str(e):
+            # min_duration params not supported
+            logger.warning("min_duration params not supported, retrying without them")
+            params_clean = {k: v for k, v in params.items() if k not in ['min_duration_on', 'min_duration_off']}
+            diarization = pipeline(str(audio_path), **params_clean)
+        else:
+            raise
+    
+    elapsed = time.time() - start_time
+    logger.info(f"Diarization completed in {elapsed:.1f}s")
     
     turns: List[Turn] = []
     

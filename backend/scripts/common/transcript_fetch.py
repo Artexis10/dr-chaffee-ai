@@ -459,7 +459,8 @@ class TranscriptFetcher:
                 transcribe_kwargs["vad_filter"] = False
                 logger.debug("VAD disabled for maximum speed")
             
-            segments, info = self.whisper_model.transcribe(
+            # BUGFIX: Use 'model' variable, not 'self.whisper_model' (which is a string)
+            segments, info = model.transcribe(
                 str(audio_path),
                 **transcribe_kwargs
             )

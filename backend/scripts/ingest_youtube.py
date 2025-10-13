@@ -212,7 +212,7 @@ def compute_content_hash(video_id: str, upload_date: Optional[datetime] = None,
 @dataclass
 class IngestionConfig:
     """Configuration for ingestion pipeline"""
-    source: str = 'api'  # 'api', 'yt-dlp', or 'local' (API is now default)
+    source: str = 'yt-dlp'  # 'api', 'yt-dlp', or 'local' (yt-dlp is default - no API key needed)
     channel_url: Optional[str] = None
     from_url: Optional[List[str]] = None  # Direct YouTube URL(s)
     from_json: Optional[Path] = None
@@ -278,7 +278,7 @@ class IngestionConfig:
     voices_dir: str = 'voices'
     chaffee_min_sim: float = 0.62
     chaffee_only_storage: bool = False  # Store all speakers
-    embed_chaffee_only: bool = True     # But only embed Chaffee content for search
+    embed_chaffee_only: bool = True     # But only embed Chaffee content for search (set to False to embed all)
     
     # RTX 5080 Optimizations (Performance Defaults)
     assume_monologue: bool = True       # SMART fast-path for solo content (DEFAULT)
@@ -845,6 +845,8 @@ class EnhancedYouTubeIngester:
                     video_id,
                     max_duration_s=self.config.max_duration,
                     force_enhanced_asr=self.config.force_whisper,
+                    segments_db=self.segments_db,
+                    video_id=video_id,
                     cleanup_audio=self.config.cleanup_audio,
                     enable_silence_removal=False,  # Conservative default
                     is_local_file=is_local_file,
@@ -913,15 +915,22 @@ class EnhancedYouTubeIngester:
             # Step 2: Process segments with embeddings
             logger.debug(f"Processing {len(segments)} segments for {video_id}")
             
-            # Step 3: Generate embeddings
-            texts = [segment.text for segment in segments]
-            embeddings = self.embedder.generate_embeddings(texts)
+            # Step 3: Generate embeddings (skip if disabled for speed testing)
+            skip_embeddings = os.getenv('SKIP_TEXT_EMBEDDINGS', 'false').lower() == 'true'
             
-            # Attach embeddings to segments
-            for segment, embedding in zip(segments, embeddings):
-                segment.embedding = embedding
-            
-            logger.debug(f"Generated {len(embeddings)} embeddings for {video_id}")
+            if skip_embeddings:
+                logger.info(f"⚡ Skipping text embeddings for speed testing")
+                for segment in segments:
+                    segment.embedding = None
+            else:
+                texts = [segment.text for segment in segments]
+                embeddings = self.embedder.generate_embeddings(texts)
+                
+                # Attach embeddings to segments
+                for segment, embedding in zip(segments, embeddings):
+                    segment.embedding = embedding
+                
+                logger.debug(f"Generated {len(embeddings)} embeddings for {video_id}")
             
             # Step 4: Upsert source and segments to database with proper speaker attribution
             # Determine source type based on actual source
@@ -968,7 +977,7 @@ class EnhancedYouTubeIngester:
                         'start': safe_float_convert(segment.start),
                         'end': safe_float_convert(segment.end),
                         'text': str(segment.text),
-                        'speaker_label': str(segment.speaker_label or 'GUEST'),
+                        'speaker_label': str(segment.speaker_label or 'Guest'),  # Default to Guest
                         'speaker_confidence': safe_float_convert(segment.speaker_confidence, None),
                         'avg_logprob': safe_float_convert(segment.avg_logprob, None),
                         'compression_ratio': safe_float_convert(segment.compression_ratio, None),
@@ -1005,22 +1014,9 @@ class EnhancedYouTubeIngester:
             self.stats.processed += 1
             self.stats.segments_created += segment_count
             
-            # Update speaker-specific stats - ONLY count segments that were actually inserted
-            # If chaffee_only_storage is enabled, only Chaffee segments are inserted
-            for segment in segment_dicts:
-                speaker = segment.get('speaker_label', 'GUEST')
-                
-                # Skip counting if chaffee_only_storage is enabled and this isn't a Chaffee segment
-                if self.config.chaffee_only_storage and speaker not in ['CH', 'CHAFFEE', 'Chaffee']:
-                    continue
-                
-                # Enhanced ASR uses multiple formats: 'CH', 'Chaffee', 'CHAFFEE'
-                if speaker in ['CH', 'CHAFFEE', 'Chaffee']:  # Support all formats
-                    self.stats.chaffee_segments += 1
-                elif speaker == 'GUEST':
-                    self.stats.guest_segments += 1
-                else:
-                    self.stats.unknown_segments += 1
+            # NOTE: Speaker counting happens in _process_embedding_batch for pipelined mode
+            # This old code path is only for non-pipelined processing (< 5 videos)
+            # Keeping speaker counting here for backwards compatibility with non-pipelined mode
             
             # Log completion with additional info
             extra_info = ""
@@ -1324,14 +1320,30 @@ class EnhancedYouTubeIngester:
                 # Enhanced monologue fast-path for 3x speedup (mandatory per spec)
                 if (self.config.assume_monologue and not is_interview):
                     try:
+                        # CRITICAL: Track ASR time for RTF calculation
+                        asr_start_time = time.time()
+                        
                         # Fast-path: Skip full diarization for confirmed monologue content
                         fast_path_result = self._process_monologue_fast_path(
                             video, audio_path, whisper_preset
                         )
+                        
+                        asr_end_time = time.time()
+                        
                         if fast_path_result:
                             logger.info(f"🚀 Monologue fast-path: {video.video_id} - 3x speedup achieved")
+                            
+                            # CRITICAL: Track audio duration AND ASR time for performance metrics
+                            asr_processing_time = asr_end_time - asr_start_time
+                            audio_duration = video.duration_s or duration_s
+                            
                             with stats_lock:
                                 self.stats.monologue_fast_path_used += 1
+                                self.stats.asr_processing_time_s += asr_processing_time
+                                self.stats.add_audio_duration(audio_duration)
+                            
+                            logger.debug(f"Fast-path timing: {asr_processing_time:.1f}s for {audio_duration:.1f}s audio (RTF: {asr_processing_time/audio_duration:.3f})")
+                            
                             asr_queue.put((video, fast_path_result, audio_path))
                             update_progress_func()
                             continue
@@ -1412,21 +1424,17 @@ class EnhancedYouTubeIngester:
                 video, asr_result, audio_path = item
                 segments, method, metadata = asr_result
                 
-                # Process embeddings in batches
+                # Process embeddings immediately (per-video for real-time insertion)
                 if self.config.embed_later:
                     # Queue for later processing
                     self._enqueue_for_embedding(video.video_id, segments)
                 else:
-                    # Generate embeddings in batches - FIXED: batch by text count!
-                    embedding_batch.append((video, segments, method, metadata))
-                    total_texts += len(segments)  # Count actual text segments!
-                    
-                    if total_texts >= self.config.embedding_batch_size:
-                        self._process_embedding_batch(embedding_batch, stats_lock)
-                        embedding_batch.clear()
-                        total_texts = 0  # Reset counter
-                        with stats_lock:
-                            self.stats.embedding_batches += 1
+                    # Process each video immediately to avoid DB insertion delays
+                    # Batching happens inside _process_embedding_batch for GPU efficiency
+                    embedding_batch = [(video, segments, method, metadata)]
+                    self._process_embedding_batch(embedding_batch, stats_lock)
+                    with stats_lock:
+                        self.stats.embedding_batches += 1
                 
                 # Cleanup audio if needed
                 if self.config.cleanup_audio and audio_path and os.path.exists(audio_path):
@@ -1434,6 +1442,14 @@ class EnhancedYouTubeIngester:
                         os.unlink(audio_path)
                     except Exception as e:
                         logger.debug(f"Failed to cleanup audio {audio_path}: {e}")
+                
+                # CRITICAL: Clear GPU cache after each video to prevent CUDA OOM
+                try:
+                    import torch
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                except:
+                    pass
                 
                 with stats_lock:
                     self.stats.processed += 1
@@ -1445,11 +1461,7 @@ class EnhancedYouTubeIngester:
                 with stats_lock:
                     self.stats.errors += 1
         
-        # Process remaining embedding batch
-        if embedding_batch:
-            self._process_embedding_batch(embedding_batch, stats_lock)
-            with stats_lock:
-                self.stats.embedding_batches += 1
+        # No remaining batch to process - we process each video immediately
     
     def _download_and_prepare_audio(self, video: VideoInfo) -> Optional[str]:
         """Download audio-only and convert to 16kHz mono WAV"""
@@ -1525,9 +1537,10 @@ class EnhancedYouTubeIngester:
             zcr_mean = np.mean(zcr)
             zcr_ratio = zcr_variance / (zcr_mean + 1e-8)
             
-            # Combined heuristic - relaxed thresholds to favor fast-path (speaker ID filters later)
-            # Allow fast-path even with brief guest appearances - full diarization only for true interviews
-            is_interview = (variance_ratio > 0.8 or centroid_ratio > 0.5 or zcr_ratio > 0.6)
+            # Combined heuristic - VERY AGGRESSIVE thresholds to favor fast-path (speaker ID filters later)
+            # Allow fast-path for almost everything - full diarization only for obvious multi-speaker content
+            # This is safe because speaker ID will filter out guests later
+            is_interview = (variance_ratio > 1.5 and centroid_ratio > 1.0 and zcr_ratio > 1.2)
             
             if is_interview:
                 logger.info(f"🎙️ Multi-speaker content detected: {video.video_id} "
@@ -1549,36 +1562,20 @@ class EnhancedYouTubeIngester:
         try:
             logger.info(f"🚀 Fast-path: Processing monologue {video.video_id} - skipping diarization")
             
-            # Use distil-large-v3 with int8_float16 for maximum speed
-            if hasattr(self.transcript_fetcher, 'process_with_fast_whisper'):
-                segments, method, metadata = self.transcript_fetcher.process_with_fast_whisper(
-                    audio_path=audio_path,
-                    model=whisper_preset['model'],
-                    compute_type=whisper_preset['compute_type'],
-                    chunk_length=whisper_preset.get('chunk_length', 240),
-                    skip_diarization=True,  # Key optimization: skip diarization
-                    default_speaker='CHAFFEE'  # Assume Chaffee for monologue
-                )
-            else:
-                # Fallback to enhanced transcript fetcher
-                segments, method, metadata = self.transcript_fetcher.fetch_transcript_with_routing(
-                    video.video_id,
-                    audio_path=audio_path,
-                    whisper_preset=whisper_preset,
-                    force_enhanced_asr=True,
-                    skip_diarization=True,
-                    cleanup_audio=False
-                )
+            # Use enhanced transcript fetcher with speaker ID (fast-path will be triggered inside)
+            segments, method, metadata = self.transcript_fetcher.fetch_transcript_with_speaker_id(
+                video_id_or_path=video.video_id,
+                force_enhanced_asr=True,
+                cleanup_audio=False,
+                segments_db=self.segments_db,
+                video_id=video.video_id
+            )
             
             if segments:
-                # Mark all segments as Chaffee for monologue content
-                for segment in segments:
-                    if hasattr(segment, 'speaker_label'):
-                        segment.speaker_label = 'CHAFFEE'
-                        segment.speaker_confidence = 0.95  # High confidence for monologue
-                    elif isinstance(segment, dict):
-                        segment['speaker_label'] = 'CHAFFEE'
-                        segment['speaker_confidence'] = 0.95
+                # Segments already have speaker labels from enhanced ASR
+                # The fast-path in enhanced_asr.py already labeled everything as 'Chaffee'
+                # So we don't need to override anything here - just return the segments as-is
+                pass
                 
                 # Add fast-path metadata
                 metadata.update({
@@ -1679,6 +1676,8 @@ class EnhancedYouTubeIngester:
                     video.video_id,
                     max_duration_s=self.config.max_duration,
                     force_enhanced_asr=True,  # Always use enhanced ASR in pipeline
+                    segments_db=self.segments_db,
+                    video_id=video.video_id,
                     cleanup_audio=False,  # Don't cleanup yet, handled by DB worker
                     allow_youtube_captions=False  # Never use YT captions in pipeline
                 )
@@ -1769,6 +1768,34 @@ class EnhancedYouTubeIngester:
                     
                     # Insert to database using batch operations
                     self._batch_insert_video_segments(video, segments, method, metadata, stats_lock)
+                    
+                    # Count speakers from OPTIMIZED segments only
+                    # Note: segments here are AFTER optimization (e.g., 77 not 669)
+                    chaffee_count = 0
+                    guest_count = 0
+                    unknown_count = 0
+                    
+                    for segment in segments:
+                        speaker = segment.get('speaker_label', 'Guest') if isinstance(segment, dict) else getattr(segment, 'speaker_label', 'Guest')
+                        
+                        # Skip counting if chaffee_only_storage filtered this segment out
+                        if self.config.chaffee_only_storage and speaker != 'Chaffee':
+                            continue
+                        
+                        if speaker == 'Chaffee':
+                            chaffee_count += 1
+                        elif speaker == 'Guest':
+                            guest_count += 1
+                        else:
+                            unknown_count += 1
+                    
+                    # Update stats atomically
+                    with stats_lock:
+                        self.stats.chaffee_segments += chaffee_count
+                        self.stats.guest_segments += guest_count
+                        self.stats.unknown_segments += unknown_count
+                    
+                    logger.info(f"📊 Speaker counts for {video.video_id}: {len(segments)} segments → Chaffee={chaffee_count}, Guest={guest_count}, Unknown={unknown_count}")
             
         except Exception as e:
             logger.error(f"Batch embedding processing failed: {e}")
@@ -1805,23 +1832,9 @@ class EnhancedYouTubeIngester:
             )
             
             with stats_lock:
+                # ONLY track segment_count - speaker counting happens elsewhere
+                # This prevents double-counting bug (645 segments > 245 total)
                 self.stats.segments_created += segment_count
-                
-                # Update speaker stats - ONLY count segments that were actually inserted
-                # If chaffee_only_storage is enabled, only Chaffee segments are inserted
-                for segment in segments:
-                    speaker = segment.get('speaker_label', 'GUEST') if isinstance(segment, dict) else getattr(segment, 'speaker_label', 'GUEST')
-                    
-                    # Skip counting if chaffee_only_storage is enabled and this isn't a Chaffee segment
-                    if self.config.chaffee_only_storage and speaker not in ['CH', 'CHAFFEE', 'Chaffee']:
-                        continue
-                    
-                    if speaker in ['CH', 'CHAFFEE', 'Chaffee']:
-                        self.stats.chaffee_segments += 1
-                    elif speaker == 'GUEST':
-                        self.stats.guest_segments += 1
-                    else:
-                        self.stats.unknown_segments += 1
                 
                 # Track transcript method
                 if method == 'youtube':
@@ -2202,10 +2215,15 @@ Examples:
     parser.add_argument('--chaffee-min-sim', type=float, 
                        default=float(os.getenv('CHAFFEE_MIN_SIM', '0.62')),
                        help='Minimum similarity threshold for Chaffee')
-    parser.add_argument('--chaffee-only-storage', action='store_true',
+    parser.add_argument('--chaffee-only-storage', 
+                       action='store_true',
+                       default=os.getenv('CHAFFEE_ONLY_STORAGE', 'false').lower() == 'true',
                        help='Store only Chaffee segments in database (saves space)')
-    parser.add_argument('--embed-all-speakers', dest='embed_chaffee_only', action='store_false',
-                       help='Generate embeddings for all speakers (default: Chaffee only)')
+    parser.add_argument('--embed-all-speakers', 
+                       dest='embed_chaffee_only', 
+                       action='store_false',
+                       default=os.getenv('EMBED_CHAFFEE_ONLY', 'true').lower() == 'true',
+                       help='Generate embeddings for all speakers (default: Chaffee only from env)')
     parser.add_argument('--setup-chaffee', nargs='+', metavar='AUDIO_SOURCE',
                        help='Setup Chaffee profile from audio files or YouTube URLs')
     parser.add_argument('--overwrite-profile', action='store_true',
@@ -2388,7 +2406,6 @@ def main():
         
         # Check critical dependencies first (includes yt-dlp version check)
         logger.info("Checking dependencies...")
-        import sys
         from pathlib import Path
         # Add parent directory to path for imports
         script_dir = Path(__file__).parent

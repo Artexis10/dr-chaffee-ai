@@ -140,9 +140,12 @@ class EnhancedTranscriptFetcher(BaseTranscriptFetcher):
                 text = segment_data['text'].strip()
                 
                 # Create TranscriptSegment with speaker information
-                speaker_label = segment_data.get('speaker', 'GUEST')
+                speaker_label = segment_data.get('speaker', 'Guest')
                 if speaker_label == enhanced_result.metadata.get('unknown_label', 'Unknown'):
-                    speaker_label = 'GUEST'
+                    speaker_label = 'Guest'
+                
+                # Extract voice embedding
+                voice_emb = segment_data.get('voice_embedding', None)
                 
                 segment = TranscriptSegment(
                     start=segment_data['start'],
@@ -156,10 +159,15 @@ class EnhancedTranscriptFetcher(BaseTranscriptFetcher):
                     temperature_used=segment_data.get('temperature_used', 0.0),
                     re_asr=segment_data.get('re_asr', False),
                     is_overlap=segment_data.get('is_overlap', False),
-                    needs_refinement=segment_data.get('needs_refinement', False)
+                    needs_refinement=segment_data.get('needs_refinement', False),
+                    voice_embedding=voice_emb
                     )
                 
                 segments.append(segment)
+            
+            # DIAGNOSTIC: Check voice embedding coverage
+            voice_emb_count = sum(1 for s in segments if s.voice_embedding is not None)
+            logger.info(f"📊 Voice embedding coverage: {voice_emb_count}/{len(segments)} segments ({voice_emb_count/len(segments)*100:.1f}%)")
             
             # Add enhanced ASR metadata
             metadata.update({
@@ -196,7 +204,8 @@ class EnhancedTranscriptFetcher(BaseTranscriptFetcher):
                     temperature_used=opt_seg.temperature_used,
                     re_asr=opt_seg.re_asr,
                     is_overlap=opt_seg.is_overlap,
-                    needs_refinement=opt_seg.needs_refinement
+                    needs_refinement=opt_seg.needs_refinement,
+                    voice_embedding=opt_seg.voice_embedding
                 )
                 final_segments.append(transcript_seg)
             
@@ -220,7 +229,7 @@ class EnhancedTranscriptFetcher(BaseTranscriptFetcher):
                     start=segment_data['start'],
                     end=segment_data['end'],
                     text=segment_data['text'].strip(),
-                    speaker_label='Chaffee'  # Default to Chaffee (not GUEST)
+                    speaker_label='Chaffee'  # Default to Chaffee (capitalized)
                 )
                 segments.append(segment)
             
@@ -235,7 +244,9 @@ class EnhancedTranscriptFetcher(BaseTranscriptFetcher):
         cleanup_audio: bool = True,
         enable_silence_removal: bool = False,
         is_local_file: bool = False,
-        allow_youtube_captions: bool = False
+        allow_youtube_captions: bool = False,
+        segments_db=None,
+        video_id: Optional[str] = None
     ) -> Tuple[Optional[List[TranscriptSegment]], str, Dict[str, Any]]:
         """
         Fetch transcript with MANDATORY speaker identification
@@ -326,6 +337,14 @@ class EnhancedTranscriptFetcher(BaseTranscriptFetcher):
                 
                 # Process with Enhanced ASR
                 enhanced_asr = self._get_enhanced_asr()
+                
+                # CRITICAL: Pass segments_db and video_id for voice embedding caching
+                if segments_db is not None:
+                    enhanced_asr.segments_db = segments_db
+                if video_id is not None:
+                    enhanced_asr.video_id = video_id
+                    logger.info(f"🔑 Voice embedding cache enabled for video: {video_id}")
+                
                 result = enhanced_asr.transcribe_with_speaker_id(audio_path)
                 
                 if result:
@@ -394,23 +413,23 @@ class EnhancedTranscriptFetcher(BaseTranscriptFetcher):
             temp_dir = tempfile.mkdtemp()
             output_template = os.path.join(temp_dir, f'{video_id}.%(ext)s')
             
-            # Use yt-dlp with latest nightly anti-blocking fixes + browser cookie fallbacks
+            # Use yt-dlp with android client to avoid SABR streaming issues
             cmd = [
                 self.yt_dlp_path,
                 '--format', 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best',  # Prioritize best quality, prefer lossless formats
                 '--no-playlist', 
                 '--ignore-errors',
-                # Latest nightly fixes (2025.09.26):
-                '--extractor-args', 'youtube:player_client=web_safari',  # Use web_safari client (latest fix)
+                # Use android client to avoid SABR streaming (web_safari causes errors)
+                '--extractor-args', 'youtube:player_client=android',
                 '-4',  # Force IPv4 (fixes many 403s)
-                '--retry-sleep', '3',  # Pause between retries  
+                '--retry-sleep', '2',  # Pause between retries  
                 '--retries', '10',  # More retries
                 '--fragment-retries', '10',
-                '--sleep-requests', '5',  # Longer sleep between requests
-                '--min-sleep-interval', '2',  # Min sleep time (required)
-                '--max-sleep-interval', '15',  # Max sleep time
-                '--socket-timeout', '60',  # Longer timeout
-                '--user-agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                '--sleep-requests', '1',  # Reduced sleep for faster downloads
+                '--min-sleep-interval', '1',  # Min sleep time
+                '--max-sleep-interval', '3',  # Max sleep time (reduced for speed)
+                '--socket-timeout', '30',  # Reduced timeout
+                '--user-agent', 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
                 '--referer', 'https://www.youtube.com/',
                 '-o', output_template,
                 f'https://www.youtube.com/watch?v={video_id}'

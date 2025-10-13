@@ -113,21 +113,21 @@ class AudioDownloader:
             'writesubtitles': False,
             'writeautomaticsub': False,
             'ignoreerrors': False,  # Don't ignore errors - we need to see them to fix them properly
-            # Anti-blocking recommendations (reduced for better throughput with semaphore limiting)
+            # Use android client to avoid SABR streaming issues
+            'extractor_args': {'youtube': {'player_client': ['android']}},
+            # Anti-blocking recommendations (optimized for speed)
             'source_address': '0.0.0.0',  # Force IPv4 
-            'sleep_requests': 1,  # Reduced from 5 - semaphore already limits concurrency
-            'min_sleep_interval': 0.5,  # Reduced from 2
-            'max_sleep_interval': 3,  # Reduced from 15
-            # REMOVED: cookiesfrombrowser causes UTF-8 encoding errors on Windows
-            # 'cookiesfrombrowser': ('firefox', None, None, None),
+            'sleep_requests': 0.5,  # Minimal sleep for maximum throughput
+            'min_sleep_interval': 0.5,
+            'max_sleep_interval': 2,  # Reduced for faster downloads
             'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ApyleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'User-Agent': 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
                 'Referer': 'https://www.youtube.com/',
             },
             'retries': 10,
-            'retry_sleep': 3,
+            'retry_sleep': 2,  # Faster retries
             'fragment_retries': 10,
-            'socket_timeout': 60,
+            'socket_timeout': 30,  # Reduced timeout
             # CRITICAL FIX: Use custom logger to avoid Windows encoding errors
             'logger': YtDlpLogger(),
             'noprogress': True,  # Disable progress bar to avoid encoding issues

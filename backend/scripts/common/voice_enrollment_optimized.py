@@ -146,8 +146,14 @@ class VoiceEnrollment:
         logger.error(f"Profile not found: {profile_path}")
         return None
     
-    def _extract_embeddings_from_audio(self, audio_path: str) -> List[np.ndarray]:
-        """Extract speaker embeddings from audio file using sliding window with robust error handling"""
+    def _extract_embeddings_from_audio(self, audio_path: str, max_duration: float = None) -> List[np.ndarray]:
+        """Extract speaker embeddings from audio file using sliding window with robust error handling
+        
+        Args:
+            audio_path: Path to audio file
+            max_duration: Maximum audio duration to process (seconds). If None, process entire file.
+                         Use this to limit memory usage for very long audio files.
+        """
         try:
             # Use soundfile for faster loading when possible
             import soundfile as sf
@@ -240,6 +246,13 @@ class VoiceEnrollment:
             if len(audio) == 0:
                 logger.error(f"Empty audio file: {audio_path}")
                 return []
+            
+            # Limit audio duration if specified (for memory safety)
+            if max_duration is not None:
+                max_samples = int(max_duration * sr)
+                if len(audio) > max_samples:
+                    logger.warning(f"⚠️  Audio duration {len(audio)/sr:.1f}s exceeds max_duration {max_duration}s, truncating")
+                    audio = audio[:max_samples]
                 
             # Normalize audio to prevent numerical issues
             max_abs = np.max(np.abs(audio))
@@ -281,15 +294,27 @@ class VoiceEnrollment:
                 logger.warning("No valid segments found in audio")
                 return []
             
+            # SAFETY: Limit maximum segments to prevent OOM (especially for long audio)
+            MAX_SEGMENTS = 500  # ~750 seconds = 12.5 minutes of coverage
+            if len(segments) > MAX_SEGMENTS:
+                logger.warning(f"⚠️  Audio has {len(segments)} segments, limiting to {MAX_SEGMENTS} for memory safety")
+                # Sample evenly across the audio to maintain coverage
+                step = len(segments) // MAX_SEGMENTS
+                segments = segments[::step][:MAX_SEGMENTS]
+                logger.info(f"Sampled {len(segments)} segments evenly across audio duration")
+            
             # Batch process all segments at once (much faster!)
             embeddings = []
-            batch_size = 32  # Process 32 segments at a time
+            # CRITICAL: Smaller batch size to prevent OOM (was 32, now 8)
+            batch_size = int(os.getenv('VOICE_ENROLLMENT_BATCH_SIZE', '8'))
+            total_batches = (len(segments) + batch_size - 1) // batch_size
             
-            logger.info(f"Processing {len(segments)} segments in batches of {batch_size}")
+            logger.info(f"Processing {len(segments)} segments in {total_batches} batches of {batch_size}")
             
             for batch_start in range(0, len(segments), batch_size):
                 batch_end = min(batch_start + batch_size, len(segments))
                 batch_segments = segments[batch_start:batch_end]
+                batch_num = batch_start // batch_size + 1
                 
                 try:
                     # Stack segments into batch tensor
@@ -314,12 +339,19 @@ class VoiceEnrollment:
                             emb = batch_embeddings_np[i] if batch_embeddings_np.ndim > 1 else batch_embeddings_np
                             embeddings.append(emb.astype(np.float64))
                     
-                    logger.debug(f"✅ Batch {batch_start//batch_size + 1}: Processed {len(batch_segments)} segments")
+                    # Free GPU memory (del is enough, empty_cache is slow!)
+                    del batch_tensor
+                    del batch_embeddings
+                    
+                    # Progress logging every 10 batches or at key milestones
+                    if batch_num % 10 == 0 or batch_num == total_batches:
+                        logger.info(f"✅ Progress: {batch_num}/{total_batches} batches ({len(embeddings)} embeddings extracted)")
+                    else:
+                        logger.debug(f"✅ Batch {batch_num}/{total_batches}: Processed {len(batch_segments)} segments")
                             
                 except Exception as batch_error:
                     logger.error(f"❌ Batch processing failed, falling back to sequential: {batch_error}")
-                    import traceback
-                    traceback.print_exc()
+                    
                     # Fallback to sequential processing for this batch
                     for segment in batch_segments:
                         try:
@@ -332,6 +364,9 @@ class VoiceEnrollment:
                                 embedding_np = embedding.squeeze().cpu().numpy() if hasattr(embedding, 'squeeze') else np.array(embedding)
                                 if embedding_np.size > 0:
                                     embeddings.append(embedding_np.astype(np.float64))
+                            
+                            # Clean up after each segment in fallback
+                            del segment_tensor
                         except Exception as e:
                             continue
                     
@@ -682,3 +717,329 @@ class VoiceEnrollment:
             return best_match, best_score
         else:
             return None, best_score
+    
+    def extract_embeddings_batch(self, audio_path: str, time_segments: List[Tuple[float, float]], 
+                                 max_duration_per_segment: float = 60.0) -> List[Optional[np.ndarray]]:
+        """Extract embeddings for multiple time segments from the same audio file in one batch
+        
+        This is 10-20x faster than calling _extract_embeddings_from_audio() for each segment individually.
+        Uses chunked audio loading to prevent OOM on long videos.
+        
+        Args:
+            audio_path: Path to audio file
+            time_segments: List of (start_time, end_time) tuples in seconds
+            max_duration_per_segment: Maximum duration per segment (seconds)
+            
+        Returns:
+            List of embeddings (one per segment), or None if extraction failed for that segment
+        """
+        import librosa
+        import soundfile as sf
+        import numpy as np
+        import torch
+        
+        try:
+            # Get audio duration without loading full file
+            # Try soundfile first (faster), fall back to librosa for MP4
+            sr = 16000
+            try:
+                info = sf.info(audio_path)
+                audio_duration = info.duration
+            except Exception as sf_error:
+                # soundfile can't read MP4, use librosa to get duration
+                logger.debug(f"soundfile failed on {audio_path}, using librosa: {sf_error}")
+                audio_duration = librosa.get_duration(path=audio_path)
+            
+            # For very long audio (>30 min), use chunked loading to prevent OOM
+            if audio_duration > 1800:  # 30 minutes
+                logger.info(f"Long audio detected ({audio_duration/60:.1f} min), using chunked loading")
+                return self._extract_embeddings_chunked(audio_path, time_segments, max_duration_per_segment)
+            
+            # Load full audio for shorter files (faster)
+            # librosa handles MP4, WAV, and other formats
+            audio, sr = librosa.load(audio_path, sr=16000)
+            
+            if len(audio) == 0:
+                logger.error(f"Empty audio file: {audio_path}")
+                return [None] * len(time_segments)
+            
+            # Normalize audio
+            max_abs = np.max(np.abs(audio))
+            if max_abs > 0:
+                audio = audio / max_abs
+            
+            # Get embedding model
+            model = self._get_embedding_model()
+            if model is None:
+                logger.error("Failed to get embedding model")
+                return [None] * len(time_segments)
+            
+            # Extract audio segments
+            audio_segments = []
+            valid_indices = []
+            
+            for idx, (start_time, end_time) in enumerate(time_segments):
+                start_sample = int(start_time * sr)
+                end_sample = int(end_time * sr)
+                duration = end_time - start_time
+                
+                # Skip segments that are too short
+                if duration < 0.5:
+                    continue
+                
+                # Limit duration
+                if duration > max_duration_per_segment:
+                    end_sample = start_sample + int(max_duration_per_segment * sr)
+                
+                # Extract segment
+                segment = audio[start_sample:end_sample]
+                
+                # Skip if too short or silent
+                if len(segment) < sr * 0.5 or np.mean(np.abs(segment)) < 0.0001:
+                    continue
+                
+                # Pad to 3 seconds if needed (model expects at least 3s)
+                min_length = 3 * sr
+                if len(segment) < min_length:
+                    padding = np.zeros(min_length - len(segment))
+                    segment = np.concatenate([segment, padding])
+                
+                audio_segments.append(segment)
+                valid_indices.append(idx)
+            
+            if not audio_segments:
+                logger.warning("No valid segments to extract")
+                return [None] * len(time_segments)
+            
+            # Batch process all segments
+            embeddings_result = [None] * len(time_segments)
+            # CRITICAL: Smaller batch size to prevent OOM (was 32, now 8)
+            batch_size = int(os.getenv('VOICE_ENROLLMENT_BATCH_SIZE', '8'))
+            
+            for batch_start in range(0, len(audio_segments), batch_size):
+                batch_end = min(batch_start + batch_size, len(audio_segments))
+                batch_segments = audio_segments[batch_start:batch_end]
+                
+                try:
+                    # Stack into batch tensor (all same length after padding)
+                    max_len = max(len(seg) for seg in batch_segments)
+                    padded_segments = []
+                    for seg in batch_segments:
+                        if len(seg) < max_len:
+                            padding = np.zeros(max_len - len(seg))
+                            seg = np.concatenate([seg, padding])
+                        padded_segments.append(seg)
+                    
+                    batch_tensor = torch.tensor(np.stack(padded_segments), dtype=torch.float32)
+                    
+                    if self._device:
+                        batch_tensor = batch_tensor.to(self._device)
+                    
+                    # Extract embeddings
+                    with torch.no_grad():
+                        batch_embeddings = model.encode_batch(batch_tensor)
+                        
+                        if hasattr(batch_embeddings, 'cpu'):
+                            batch_embeddings_np = batch_embeddings.cpu().numpy()
+                        else:
+                            batch_embeddings_np = np.array(batch_embeddings)
+                        
+                        # Store embeddings in result array
+                        for i in range(len(batch_segments)):
+                            original_idx = valid_indices[batch_start + i]
+                            emb = batch_embeddings_np[i] if batch_embeddings_np.ndim > 1 else batch_embeddings_np
+                            embeddings_result[original_idx] = emb.astype(np.float64)
+                    
+                    # Free GPU memory (del is enough, empty_cache is slow!)
+                    del batch_tensor
+                    del batch_embeddings
+                
+                except Exception as e:
+                    logger.error(f"Batch embedding extraction failed: {e}")
+                    continue
+            
+            logger.info(f"Extracted {sum(1 for e in embeddings_result if e is not None)}/{len(time_segments)} embeddings from batch")
+            return embeddings_result
+            
+        except Exception as e:
+            logger.error(f"Batch extraction failed: {e}")
+            return [None] * len(time_segments)
+
+    def _extract_embeddings_chunked(self, audio_path: str, time_segments: List[Tuple[float, float]],
+                                    max_duration_per_segment: float = 60.0) -> List[Optional[np.ndarray]]:
+        """Extract embeddings using chunked audio loading for very long files
+        
+        This prevents OOM by loading only the audio chunks needed for each batch of segments.
+        """
+        import librosa
+        import soundfile as sf
+        import numpy as np
+        import torch
+        
+        sr = 16000
+        embeddings_result = [None] * len(time_segments)
+        
+        # Get embedding model
+        model = self._get_embedding_model()
+        if model is None:
+            logger.error("Failed to get embedding model")
+            return embeddings_result
+        
+        # Sort segments by start time for efficient chunked loading
+        sorted_indices = sorted(range(len(time_segments)), key=lambda i: time_segments[i][0])
+        
+        # Process in batches
+        batch_size = int(os.getenv('VOICE_ENROLLMENT_BATCH_SIZE', '8'))
+        
+        for batch_start in range(0, len(sorted_indices), batch_size):
+            batch_end = min(batch_start + batch_size, len(sorted_indices))
+            batch_indices = sorted_indices[batch_start:batch_end]
+            
+            # Find time range for this batch
+            batch_segments = [time_segments[i] for i in batch_indices]
+            min_time = min(seg[0] for seg in batch_segments)
+            max_time = max(seg[1] for seg in batch_segments)
+            
+            # Add 1 second buffer on each side
+            chunk_start = max(0, min_time - 1.0)
+            chunk_end = max_time + 1.0
+            
+            try:
+                # Load only the audio chunk needed for this batch
+                start_sample = int(chunk_start * sr)
+                duration = chunk_end - chunk_start
+                
+                # librosa.load handles MP4, WAV, and other formats via ffmpeg
+                audio_chunk, _ = librosa.load(audio_path, sr=sr, offset=chunk_start, duration=duration)
+                
+                if len(audio_chunk) == 0:
+                    logger.warning(f"Empty audio chunk at {chunk_start:.1f}s")
+                    continue
+                
+                # Normalize
+                max_abs = np.max(np.abs(audio_chunk))
+                if max_abs > 0:
+                    audio_chunk = audio_chunk / max_abs
+                
+                # Extract segments from this chunk
+                audio_segments = []
+                valid_batch_indices = []
+                
+                for batch_idx, original_idx in enumerate(batch_indices):
+                    start_time, end_time = time_segments[original_idx]
+                    
+                    # Convert to chunk-relative times
+                    rel_start = start_time - chunk_start
+                    rel_end = end_time - chunk_start
+                    
+                    start_sample_rel = int(rel_start * sr)
+                    end_sample_rel = int(rel_end * sr)
+                    duration = end_time - start_time
+                    
+                    # Skip segments that are too short
+                    if duration < 0.5:
+                        continue
+                    
+                    # Limit duration
+                    if duration > max_duration_per_segment:
+                        end_sample_rel = start_sample_rel + int(max_duration_per_segment * sr)
+                    
+                    # Extract segment
+                    segment = audio_chunk[start_sample_rel:end_sample_rel]
+                    
+                    # Skip if too short or silent
+                    if len(segment) < sr * 0.5 or np.mean(np.abs(segment)) < 0.0001:
+                        continue
+                    
+                    # Pad to 3 seconds if needed
+                    min_length = 3 * sr
+                    if len(segment) < min_length:
+                        padding = np.zeros(min_length - len(segment))
+                        segment = np.concatenate([segment, padding])
+                    
+                    audio_segments.append(segment)
+                    valid_batch_indices.append(original_idx)
+                
+                if not audio_segments:
+                    continue
+                
+                # Process this batch
+                try:
+                    # Stack into batch tensor
+                    max_len = max(len(seg) for seg in audio_segments)
+                    padded_segments = []
+                    for seg in audio_segments:
+                        if len(seg) < max_len:
+                            padding = np.zeros(max_len - len(seg))
+                            seg = np.concatenate([seg, padding])
+                        padded_segments.append(seg)
+                    
+                    batch_tensor = torch.tensor(np.stack(padded_segments), dtype=torch.float32)
+                    
+                    if self._device:
+                        batch_tensor = batch_tensor.to(self._device)
+                    
+                    # Extract embeddings
+                    with torch.no_grad():
+                        batch_embeddings = model.encode_batch(batch_tensor)
+                        
+                        if hasattr(batch_embeddings, 'cpu'):
+                            batch_embeddings_np = batch_embeddings.cpu().numpy()
+                        else:
+                            batch_embeddings_np = np.array(batch_embeddings)
+                        
+                        # Store embeddings
+                        for i, original_idx in enumerate(valid_batch_indices):
+                            emb = batch_embeddings_np[i] if batch_embeddings_np.ndim > 1 else batch_embeddings_np
+                            embeddings_result[original_idx] = emb.astype(np.float64)
+                    
+                    # Free GPU memory immediately
+                    del batch_tensor
+                    del batch_embeddings
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                
+                except RuntimeError as e:
+                    if 'out of memory' in str(e).lower():
+                        logger.error(f"❌ Batch processing failed, falling back to sequential: {e}")
+                        # Try sequential processing for this batch
+                        for i, original_idx in enumerate(valid_batch_indices):
+                            try:
+                                seg_tensor = torch.tensor(audio_segments[i:i+1], dtype=torch.float32)
+                                if self._device:
+                                    seg_tensor = seg_tensor.to(self._device)
+                                
+                                with torch.no_grad():
+                                    emb = model.encode_batch(seg_tensor)
+                                    if hasattr(emb, 'cpu'):
+                                        emb_np = emb.cpu().numpy()
+                                    else:
+                                        emb_np = np.array(emb)
+                                    embeddings_result[original_idx] = emb_np[0].astype(np.float64)
+                                
+                                del seg_tensor
+                                del emb
+                            except Exception as seq_e:
+                                logger.error(f"Sequential extraction failed for segment {original_idx}: {seq_e}")
+                                continue
+                        
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
+                    else:
+                        raise
+                
+                # Free chunk memory
+                del audio_chunk
+                
+                # Progress logging
+                if (batch_start + batch_size) % (batch_size * 10) == 0:
+                    extracted = sum(1 for e in embeddings_result if e is not None)
+                    logger.info(f"✅ Progress: {batch_end}/{len(time_segments)} segments ({extracted} embeddings extracted)")
+            
+            except Exception as e:
+                logger.error(f"Chunk processing failed at {chunk_start:.1f}s: {e}")
+                continue
+        
+        extracted_count = sum(1 for e in embeddings_result if e is not None)
+        logger.info(f"Extracted {extracted_count} embeddings from {audio_path}")
+        return embeddings_result

@@ -9,6 +9,7 @@ import uuid
 import logging
 import psycopg2
 import psycopg2.extras
+import numpy as np
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
 
@@ -33,7 +34,87 @@ class SegmentsDatabase:
         """Get database connection"""
         if not self.connection or self.connection.closed:
             self.connection = psycopg2.connect(self.db_url)
+        else:
+            # Check if connection is in a failed transaction state
+            try:
+                # Try to get transaction status
+                status = self.connection.get_transaction_status()
+                # TRANSACTION_STATUS_INERROR = 3 means transaction aborted
+                if status == 3:  # psycopg2.extensions.TRANSACTION_STATUS_INERROR
+                    logger.warning("Connection in failed transaction state, rolling back and resetting")
+                    self.connection.rollback()
+            except Exception as e:
+                logger.warning(f"Error checking transaction status: {e}, reconnecting")
+                try:
+                    self.connection.close()
+                except:
+                    pass
+                self.connection = psycopg2.connect(self.db_url)
         return self.connection
+    
+    def get_cached_voice_embeddings(self, video_id: str, max_age_days: int = 30) -> Dict[Tuple[float, float], Any]:
+        """Retrieve cached voice embeddings from database for a video
+        
+        Args:
+            video_id: Video ID to get cached embeddings for
+            max_age_days: Maximum age of cache in days (default: 30)
+                         Set to None to disable age check
+            
+        Returns:
+            Dict mapping (start_sec, end_sec) -> voice_embedding
+            Empty dict if no cached embeddings found or cache too old
+            
+        Cache Invalidation Strategy:
+        - Only returns cache for videos processed within max_age_days
+        - This prevents stale embeddings if speaker voice changes
+        - For reprocessing with --force, cache is still used (efficiency)
+        - New videos always get fresh embeddings (no cache exists)
+        """
+        try:
+            conn = self.get_connection()
+            # Ensure connection is in good state before proceeding
+            if conn.get_transaction_status() == 3:  # TRANSACTION_STATUS_INERROR
+                conn.rollback()
+            with conn.cursor() as cur:
+                # Check if video exists and when it was last processed
+                # Note: Skip age check if sources table doesn't exist or has different schema
+                if max_age_days is not None:
+                    try:
+                        age_check = """
+                            SELECT created_at 
+                            FROM sources 
+                            WHERE video_id = %s 
+                            AND created_at > NOW() - INTERVAL '%s days'
+                        """
+                        cur.execute(age_check, (video_id, max_age_days))
+                        if not cur.fetchone():
+                            logger.debug(f"Voice embedding cache expired or video not found: {video_id}")
+                            return {}
+                    except Exception as e:
+                        # Sources table might not exist or have different schema - skip age check
+                        logger.debug(f"Skipping age check (sources table issue): {e}")
+                
+                # Retrieve cached embeddings
+                query = """
+                    SELECT start_sec, end_sec, voice_embedding
+                    FROM segments
+                    WHERE video_id = %s AND voice_embedding IS NOT NULL
+                    ORDER BY start_sec
+                """
+                cur.execute(query, (video_id,))
+                rows = cur.fetchall()
+                
+                if rows:
+                    cache = {(row[0], row[1]): row[2] for row in rows}
+                    logger.info(f"✅ Voice embedding cache hit: {len(cache)} embeddings for {video_id}")
+                    return cache
+                else:
+                    logger.debug(f"Voice embedding cache miss: no embeddings for {video_id}")
+                    return {}
+                    
+        except Exception as e:
+            logger.warning(f"Failed to retrieve cached voice embeddings: {e}")
+            return {}
     
     def upsert_source(self, video_id: str, title: str, 
                      source_type: str = 'youtube', 
@@ -94,8 +175,19 @@ class SegmentsDatabase:
                 
         except Exception as e:
             logger.error(f"Failed to upsert source {video_id}: {e}")
+            logger.error(f"Error type: {type(e).__name__}")
             if conn:
-                conn.rollback()
+                try:
+                    conn.rollback()
+                    logger.info("Transaction rolled back successfully")
+                except Exception as rollback_error:
+                    logger.error(f"Failed to rollback transaction: {rollback_error}")
+                    # Force reconnect on next call
+                    try:
+                        conn.close()
+                    except:
+                        pass
+                    self.connection = None
             raise
     
     def batch_insert_segments(self, segments: List[Dict[str, Any]], 
@@ -121,7 +213,7 @@ class SegmentsDatabase:
             inserted_count = 0
             
             with conn.cursor() as cur:
-                # Prepare batch insert
+                # Prepare batch insert with ON CONFLICT UPDATE to handle reprocessing
                 insert_query = """
                     INSERT INTO segments (
                         video_id, start_sec, end_sec, speaker_label, speaker_conf,
@@ -129,6 +221,19 @@ class SegmentsDatabase:
                         temperature_used, re_asr, is_overlap, needs_refinement,
                         embedding, voice_embedding
                     ) VALUES %s
+                    ON CONFLICT (video_id, start_sec, end_sec, text)
+                    DO UPDATE SET
+                        speaker_label = EXCLUDED.speaker_label,
+                        speaker_conf = EXCLUDED.speaker_conf,
+                        avg_logprob = EXCLUDED.avg_logprob,
+                        compression_ratio = EXCLUDED.compression_ratio,
+                        no_speech_prob = EXCLUDED.no_speech_prob,
+                        temperature_used = EXCLUDED.temperature_used,
+                        re_asr = EXCLUDED.re_asr,
+                        is_overlap = EXCLUDED.is_overlap,
+                        needs_refinement = EXCLUDED.needs_refinement,
+                        embedding = EXCLUDED.embedding,
+                        voice_embedding = COALESCE(EXCLUDED.voice_embedding, segments.voice_embedding)
                 """
                 
                 # Prepare values for batch insert
@@ -137,13 +242,23 @@ class SegmentsDatabase:
                     # Determine if this segment should get text embedding
                     embedding = None
                     if self._get_segment_value(segment, 'embedding'):
-                        speaker_label = self._get_segment_value(segment, 'speaker_label', 'GUEST')
+                        speaker_label = self._get_segment_value(segment, 'speaker_label', 'Guest')
                         # Only embed Chaffee segments if embed_chaffee_only is enabled
                         if not embed_chaffee_only or speaker_label == 'Chaffee':
                             embedding = self._get_segment_value(segment, 'embedding')
                     
                     # Get voice embedding (always store for speaker identification)
                     voice_embedding = self._get_segment_value(segment, 'voice_embedding')
+                    
+                    # Convert voice embedding (numpy array) to JSON string for jsonb column
+                    if voice_embedding is not None:
+                        import json
+                        if isinstance(voice_embedding, np.ndarray):
+                            voice_embedding = json.dumps(voice_embedding.tolist())
+                        elif hasattr(voice_embedding, 'tolist'):
+                            voice_embedding = json.dumps(voice_embedding.tolist())
+                        elif isinstance(voice_embedding, list):
+                            voice_embedding = json.dumps(voice_embedding)
                     
                     # Convert numpy types to Python native types to avoid "schema np does not exist" error
                     def to_native(val):
@@ -172,7 +287,7 @@ class SegmentsDatabase:
                         video_id,
                         safe_float(self._get_segment_value(segment, 'start', 0.0)),
                         safe_float(self._get_segment_value(segment, 'end', 0.0)),
-                        self._get_segment_value(segment, 'speaker_label', 'GUEST'),
+                        self._get_segment_value(segment, 'speaker_label', 'Guest'),
                         speaker_conf,
                         self._get_segment_value(segment, 'text', ''),
                         to_native(self._get_segment_value(segment, 'avg_logprob', None)),
@@ -185,22 +300,37 @@ class SegmentsDatabase:
                         embedding,
                         voice_embedding
                     ))
-                # Execute batch insert
+                # Execute batch insert/update
                 psycopg2.extras.execute_values(cur, insert_query, values)
-                inserted_count = cur.rowcount
+                affected_count = cur.rowcount  # Rows inserted or updated
+                total_segments = len(values)
                 
                 conn.commit()
-                logger.info(f"Successfully inserted {inserted_count} segments for video {video_id}")
+                if affected_count == total_segments:
+                    logger.info(f"Successfully inserted/updated {affected_count} segments for video {video_id}")
+                else:
+                    logger.info(f"Successfully processed {total_segments} segments for video {video_id} ({affected_count} new/changed)")
                 
                 # Classify video type based on speaker distribution
                 self._classify_video_type(video_id, segments, conn)
                 
-            return inserted_count
+            return total_segments  # Return total segments processed, not just new/changed
             
         except Exception as e:
             logger.error(f"Failed to insert segments for {video_id}: {e}")
+            logger.error(f"Error type: {type(e).__name__}")
             if conn:
-                conn.rollback()
+                try:
+                    conn.rollback()
+                    logger.info("Transaction rolled back successfully")
+                except Exception as rollback_error:
+                    logger.error(f"Failed to rollback transaction: {rollback_error}")
+                    # Force reconnect on next call
+                    try:
+                        conn.close()
+                    except:
+                        pass
+                    self.connection = None
             raise
     
     def _classify_video_type(self, video_id: str, segments: List[Dict[str, Any]], conn) -> None:
@@ -218,7 +348,7 @@ class SegmentsDatabase:
             else:
                 # Calculate speaker statistics
                 num_speakers = len(set(speaker_labels))
-                guest_count = sum(1 for s in speaker_labels if s == 'GUEST')
+                guest_count = sum(1 for s in speaker_labels if s == 'Guest')
                 guest_pct = guest_count / len(speaker_labels) if speaker_labels else 0
                 
                 # Classify based on speaker distribution

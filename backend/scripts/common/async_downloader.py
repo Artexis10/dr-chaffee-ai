@@ -193,17 +193,16 @@ class AsyncAudioDownloader:
             '--format', 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best',
             '--no-playlist',
             '--ignore-errors',
-            # Latest nightly anti-blocking fixes
-            '--extractor-args', 'youtube:player_client=web_safari',
+            # Use android client to avoid SABR streaming issues
+            '--extractor-args', 'youtube:player_client=android',
             '-4',  # Force IPv4
-            '--retry-sleep', '2',  # Faster retries for bulk downloads
+            '--retry-sleep', '1',  # Faster retries for bulk downloads
             '--retries', '8',
             '--fragment-retries', '8', 
-            '--sleep-requests', '1',  # Reduced sleep for bulk downloads
-            '--socket-timeout', '45',
-            '--user-agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            '--sleep-requests', '0.5',  # Minimal sleep for maximum throughput
+            '--socket-timeout', '30',
+            '--user-agent', 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
             '--referer', 'https://www.youtube.com/',
-            '--cookies-from-browser', 'firefox',
             '-o', str(output_path),
             f'https://www.youtube.com/watch?v={video_id}'
         ]

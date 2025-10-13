@@ -145,10 +145,13 @@ class EnhancedYouTubeIngestion:
                 logger.info(f"Available voice profiles: {asr_status['voice_profiles']}")
             
             # Fetch transcript with speaker identification
+            # CRITICAL: Pass segments_db and video_id for voice embedding caching
             segments, method, metadata = self.transcript_fetcher.fetch_transcript_with_speaker_id(
                 video_id,
                 force_enhanced_asr=force_enhanced_asr,
-                cleanup_audio=True
+                cleanup_audio=True,
+                segments_db=self.segments_db,
+                video_id=video_id
             )
             
             if not segments:
@@ -387,6 +390,15 @@ class EnhancedYouTubeIngestion:
         
         finally:
             results['processing_time'] = time.time() - start_time
+            
+            # CRITICAL: Free GPU memory after each video to prevent OOM
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                    torch.cuda.synchronize()  # Wait for all operations to complete
+            except Exception as cleanup_error:
+                logger.debug(f"GPU cleanup warning: {cleanup_error}")
     
     def process_video_batch(self, video_ids: list, force_enhanced_asr: bool = False, skip_existing: bool = True) -> Dict[str, Any]:
         """Process multiple videos in parallel with enhanced caching and resume support"""

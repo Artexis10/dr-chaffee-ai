@@ -26,6 +26,7 @@ class OptimizedSegment:
     is_overlap: bool
     needs_refinement: bool
     embedding: Any = None
+    voice_embedding: Any = None  # Voice embedding for speaker identification
     
     # Optimization metadata
     original_count: int = 1  # How many original segments were merged
@@ -94,7 +95,8 @@ class SegmentOptimizer:
                 re_asr=segment.re_asr or False,
                 is_overlap=segment.is_overlap or False,
                 needs_refinement=segment.needs_refinement or False,
-                embedding=getattr(segment, 'embedding', None)
+                embedding=getattr(segment, 'embedding', None),
+                voice_embedding=getattr(segment, 'voice_embedding', None)
             )
             optimized.append(opt_segment)
         
@@ -282,6 +284,7 @@ class SegmentOptimizer:
             is_overlap=seg1.is_overlap or seg2.is_overlap,
             needs_refinement=seg1.needs_refinement or seg2.needs_refinement,
             embedding=None,  # Will be regenerated
+            voice_embedding=seg1.voice_embedding if seg1.voice_embedding is not None else seg2.voice_embedding,  # Preserve voice embedding
             original_count=seg1.original_count + seg2.original_count,
             merge_quality="merged"
         )
@@ -338,6 +341,7 @@ class SegmentOptimizer:
                     is_overlap=segment.is_overlap,
                     needs_refinement=segment.needs_refinement,
                     embedding=None,
+                    voice_embedding=segment.voice_embedding,
                     original_count=segment.original_count,
                     merge_quality="split"
                 )
@@ -362,6 +366,7 @@ class SegmentOptimizer:
                 is_overlap=segment.is_overlap,
                 needs_refinement=segment.needs_refinement,
                 embedding=None,
+                voice_embedding=segment.voice_embedding,
                 original_count=segment.original_count,
                 merge_quality="split"
             )

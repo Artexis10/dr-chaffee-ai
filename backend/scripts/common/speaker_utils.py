@@ -105,31 +105,31 @@ class SpeakerProfiler:
             speaker_conf = segment.get('speaker_confidence', 0.0)
             
             # Apply hysteresis logic
-            if self.current_state == "UNKNOWN" or self.current_state == "GUEST":
+            if self.current_state == "UNKNOWN" or self.current_state == "Guest":
                 if speaker_conf >= self.ch_hi:
                     self.consecutive_count += 1
                     if self.consecutive_count >= self.min_runs:
                         self.current_state = "Chaffee"
                         speaker_label = "Chaffee"
                     else:
-                        speaker_label = "GUEST"  # Still transitioning
+                        speaker_label = "Guest"  # Still transitioning
                 else:
                     self.consecutive_count = 0
-                    speaker_label = "GUEST"
+                    speaker_label = "Guest"
             
             elif self.current_state == "Chaffee":
                 if speaker_conf <= self.ch_lo:
                     self.consecutive_count += 1
                     if self.consecutive_count >= self.min_runs:
-                        self.current_state = "GUEST"
-                        speaker_label = "GUEST"
+                        self.current_state = "Guest"
+                        speaker_label = "Guest"
                     else:
                         speaker_label = "Chaffee"  # Still transitioning
                 else:
                     self.consecutive_count = 0
                     speaker_label = "Chaffee"
             else:
-                speaker_label = "GUEST"
+                speaker_label = "Guest"
             
             # Check for overlap
             is_overlap = self._detect_overlap(segment, segments, i)
