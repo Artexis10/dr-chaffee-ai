@@ -6,28 +6,71 @@ import threading
 logger = logging.getLogger(__name__)
 
 class EmbeddingGenerator:
-    """Enhanced embedding generator supporting OpenAI and local models"""
+    """
+    Enhanced embedding generator supporting OpenAI and local models
+    
+    NOTE: This class is being deprecated in favor of EmbeddingsService.
+    For new code, use:
+        from services.embeddings_service import EmbeddingsService
+        EmbeddingsService.init_from_env()
+        embeddings = EmbeddingsService.encode_texts(texts)
+    
+    This class now acts as a compatibility wrapper that can delegate to
+    EmbeddingsService when using BGE-Small model.
+    """
     # Class-level lock for thread safety
     _lock = threading.Lock()
     # Class-level model cache (shared across all instances)
     _shared_model = None
     _shared_model_name = None
     _shared_model_device = None  # Track device to force reload if changed
+    _use_new_service = None  # Cache decision to use new service
     
     def __init__(self, model_name: str = None, embedding_provider: str = None):
-        # Determine embedding provider (openai or local)
-        self.provider = embedding_provider or os.getenv('EMBEDDING_PROVIDER', 'openai')
+        # Load profile-based configuration
+        profile = os.getenv('EMBEDDING_PROFILE', 'quality').lower()
+        
+        # Define profiles
+        profiles = {
+            'quality': {
+                'provider': 'local',
+                'model': 'Alibaba-NLP/gte-Qwen2-1.5B-instruct',
+                'dimensions': 1536,
+                'batch_size': 256,
+                'description': 'Best quality, 20-30 texts/sec'
+            },
+            'speed': {
+                'provider': 'local',
+                'model': 'BAAI/bge-small-en-v1.5',
+                'dimensions': 384,
+                'batch_size': 256,
+                'description': '60-80x faster, 1500-2000 texts/sec'
+            }
+        }
+        
+        # Get profile config (default to quality if invalid)
+        profile_config = profiles.get(profile, profiles['quality'])
+        
+        # Allow environment variable overrides
+        self.provider = embedding_provider or os.getenv('EMBEDDING_PROVIDER', profile_config['provider'])
         
         if self.provider == 'openai':
             self.model_name = model_name or os.getenv('OPENAI_EMBEDDING_MODEL', 'text-embedding-3-large')
-            self.embedding_dimensions = int(os.getenv('EMBEDDING_DIMENSIONS', '384'))  # Reduced for pgvector compatibility
+            self.embedding_dimensions = int(os.getenv('EMBEDDING_DIMENSIONS', '384'))
             self.openai_client = None
         else:
-            # Local sentence-transformers - read dimensions from environment
-            self.model_name = model_name or os.getenv('EMBEDDING_MODEL', 'sentence-transformers/all-MiniLM-L6-v2')
-            self.embedding_dimensions = int(os.getenv('EMBEDDING_DIMENSIONS', '384'))  # Read from .env
+            # Local sentence-transformers - use profile or env override
+            self.model_name = model_name or os.getenv('EMBEDDING_MODEL', profile_config['model'])
+            self.embedding_dimensions = int(os.getenv('EMBEDDING_DIMENSIONS', profile_config['dimensions']))
+            self.profile_batch_size = profile_config['batch_size']
+        
+        # Check if we should use new EmbeddingsService (for BGE-Small)
+        if EmbeddingGenerator._use_new_service is None:
+            EmbeddingGenerator._use_new_service = self._should_use_new_service()
         
         logger.info(f"Embedding provider: {self.provider}, model: {self.model_name}, dimensions: {self.embedding_dimensions}")
+        if EmbeddingGenerator._use_new_service:
+            logger.info("Using new EmbeddingsService for BGE-Small model")
         
     def _load_openai_client(self):
         """Load OpenAI client for embeddings"""
@@ -90,17 +133,42 @@ class EmbeddingGenerator:
                         EmbeddingGenerator._shared_model_name = self.model_name
                         EmbeddingGenerator._shared_model_device = embedding_device  # Track device
                         
-                        # DIAGNOSTIC: Verify actual device
-                        actual_device = str(EmbeddingGenerator._shared_model.device)
+                        # DIAGNOSTIC: Verify actual device placement
+                        # Check first module's device (more reliable than model.device)
+                        first_param = next(EmbeddingGenerator._shared_model.parameters())
+                        actual_device = str(first_param.device)
+                        
                         logger.info(f"✅ Local embedding model loaded successfully")
                         logger.info(f"🔍 Requested device: {embedding_device}")
                         logger.info(f"🔍 Actual device: {actual_device}")
                         
+                        # CRITICAL: If model ended up on CPU despite CUDA request, force reload
                         if embedding_device == 'cuda' and 'cpu' in actual_device.lower():
-                            logger.error(f"⚠️  WARNING: Requested CUDA but model is on CPU!")
-                            logger.error(f"⚠️  This will cause 5-10x slower embedding generation!")
+                            logger.error(f"⚠️  CRITICAL: Model loaded on CPU despite CUDA request!")
+                            logger.error(f"⚠️  Attempting force reload to CUDA...")
+                            
+                            # Force reload with explicit device placement
+                            del EmbeddingGenerator._shared_model
+                            if torch.cuda.is_available():
+                                torch.cuda.empty_cache()
+                            
+                            # Reload with explicit CUDA placement
+                            EmbeddingGenerator._shared_model = SentenceTransformer(self.model_name)
+                            EmbeddingGenerator._shared_model = EmbeddingGenerator._shared_model.to('cuda')
+                            EmbeddingGenerator._shared_model.eval()
+                            
+                            # Verify again
+                            first_param = next(EmbeddingGenerator._shared_model.parameters())
+                            actual_device = str(first_param.device)
+                            logger.info(f"🔍 After force reload, device: {actual_device}")
+                            
+                            if 'cpu' in actual_device.lower():
+                                logger.error(f"❌ FAILED to load model on CUDA - falling back to CPU")
+                                logger.error(f"❌ This will cause 30-50x slower embedding generation!")
+                            else:
+                                logger.info(f"✅ Force reload successful - model now on CUDA")
                         elif embedding_device == 'cuda' and 'cuda' in actual_device.lower():
-                            logger.info(f"🚀 GPU acceleration enabled for embeddings (5-10x faster)")
+                            logger.info(f"🚀 GPU acceleration enabled for embeddings (30-50x faster)")
                     except ImportError:
                         raise ImportError("sentence-transformers package not available. Install with: pip install sentence-transformers")
                     except Exception as e:
@@ -108,14 +176,64 @@ class EmbeddingGenerator:
         
         return EmbeddingGenerator._shared_model
     
+    def _should_use_new_service(self) -> bool:
+        """Check if we should use new EmbeddingsService"""
+        # Use new service for BGE-Small model (384-dim)
+        if self.provider == 'local' and 'bge-small' in self.model_name.lower():
+            try:
+                # Check if EmbeddingsService is available
+                import sys
+                from pathlib import Path
+                backend_dir = Path(__file__).parent.parent.parent
+                if str(backend_dir) not in sys.path:
+                    sys.path.insert(0, str(backend_dir))
+                from services.embeddings_service import EmbeddingsService
+                return True
+            except ImportError:
+                logger.warning("EmbeddingsService not available, using legacy implementation")
+                return False
+        return False
+    
     def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
         """Generate embeddings for a list of texts"""
         if not texts:
             return []
         
+        # Use new service if available and appropriate
+        if EmbeddingGenerator._use_new_service:
+            return self._generate_with_new_service(texts)
+        
         if self.provider == 'openai':
             return self._generate_openai_embeddings(texts)
         else:
+            return self._generate_local_embeddings(texts)
+    
+    def _generate_with_new_service(self, texts: List[str]) -> List[List[float]]:
+        """Generate embeddings using new EmbeddingsService"""
+        try:
+            import sys
+            from pathlib import Path
+            backend_dir = Path(__file__).parent.parent.parent
+            if str(backend_dir) not in sys.path:
+                sys.path.insert(0, str(backend_dir))
+            from services.embeddings_service import EmbeddingsService
+            import numpy as np
+            
+            # Initialize service if needed
+            if not EmbeddingsService.is_initialized():
+                EmbeddingsService.init_from_env()
+            
+            # Generate embeddings
+            batch_size = int(os.getenv('EMBEDDING_BATCH_SIZE', '256'))
+            embeddings = EmbeddingsService.encode_texts(texts, batch_size=batch_size)
+            
+            # Convert to list of lists for compatibility
+            return [emb.tolist() if isinstance(emb, np.ndarray) else list(emb) for emb in embeddings]
+            
+        except Exception as e:
+            logger.error(f"Failed to use new EmbeddingsService, falling back to legacy: {e}")
+            # Fallback to legacy implementation
+            EmbeddingGenerator._use_new_service = False
             return self._generate_local_embeddings(texts)
     
     def _generate_openai_embeddings(self, texts: List[str]) -> List[List[float]]:
@@ -154,35 +272,34 @@ class EmbeddingGenerator:
         model = self._load_local_model()
         
         try:
-            # CRITICAL: Lock during embedding generation to prevent GPU contention
-            # Multiple threads calling model.encode() simultaneously causes massive slowdown
+            # NOTE: Lock removed for single-threaded ingestion (was causing serialization)
+            # If you have multiple workers calling this simultaneously, re-enable the lock
             import time
+            import torch
             start_time = time.time()
             
-            with EmbeddingGenerator._lock:
-                # Generate embeddings in batches (larger batch size for GPU efficiency)
-                # Read batch size from environment, default to 64 to prevent OOM (was 256)
-                # Reduced from 256 to 64 to prevent CUDA OOM on large models
-                batch_size = int(os.getenv('EMBEDDING_BATCH_SIZE', '64'))
-                
-                # DIAGNOSTIC: Log device before encoding
-                logger.debug(f"🔍 Encoding {len(texts)} texts on device: {model.device}")
-                
-                # CRITICAL: Force GPU usage by converting to tensors on GPU
-                # Some sentence-transformers versions ignore the device parameter
-                import torch
-                embedding_device = os.getenv('EMBEDDING_DEVICE', 'cpu')
-                
-                # Use convert_to_tensor=True to keep tensors on GPU during encoding
-                embeddings = model.encode(
-                    texts, 
-                    batch_size=batch_size,
-                    show_progress_bar=len(texts) > 10,
-                    convert_to_numpy=True,
-                    normalize_embeddings=True,  # Normalize for better similarity search
-                    convert_to_tensor=False,  # We want numpy output, but process on GPU
-                    device=embedding_device  # Explicitly specify device
-                )
+            # Generate embeddings in batches (larger batch size for GPU efficiency)
+            # Use profile-specific batch size or env override
+            default_batch = getattr(self, 'profile_batch_size', 256)
+            batch_size = int(os.getenv('EMBEDDING_BATCH_SIZE', str(default_batch)))
+            
+            # DIAGNOSTIC: Log device before encoding
+            logger.debug(f"🔍 Encoding {len(texts)} texts on device: {model.device}")
+            
+            # CRITICAL: Force GPU usage by converting to tensors on GPU
+            # Some sentence-transformers versions ignore the device parameter
+            embedding_device = os.getenv('EMBEDDING_DEVICE', 'cuda')
+            
+            # Use convert_to_tensor=True to keep tensors on GPU during encoding
+            embeddings = model.encode(
+                texts, 
+                batch_size=batch_size,
+                show_progress_bar=len(texts) > 10,
+                convert_to_numpy=True,
+                normalize_embeddings=True,  # Normalize for better similarity search
+                convert_to_tensor=False,  # We want numpy output, but process on GPU
+                device=embedding_device  # Explicitly specify device
+            )
             
             # Calculate performance metrics
             elapsed = time.time() - start_time
