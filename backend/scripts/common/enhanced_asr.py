@@ -1422,12 +1422,43 @@ class EnhancedASR:
                                         closest_seg = spk_seg
                                         min_distance = distance
                             
-                            if closest_seg and min_distance < 2.0:  # Within 2 seconds
+                            # CRITICAL: Increase fallback distance to 10 seconds (was 2s, too strict)
+                            # Many segments were missing voice embeddings due to strict 2s limit
+                            if closest_seg and min_distance < 10.0:  # Within 10 seconds
                                 segment['voice_embedding'] = closest_seg.embedding
                                 logger.debug(f"Used fallback voice embedding for {majority_speaker} segment at {segment['start']:.1f}s (distance: {min_distance:.2f}s)")
+                            elif closest_seg:
+                                # FINAL FALLBACK: Use closest segment even if >10s away
+                                # Better to have a voice embedding than none
+                                segment['voice_embedding'] = closest_seg.embedding
+                                logger.debug(f"Used distant fallback voice embedding for {majority_speaker} segment at {segment['start']:.1f}s (distance: {min_distance:.2f}s)")
                     else:
                         segment['speaker'] = self.config.unknown_label
                         segment['speaker_confidence'] = 0.0
+                        
+                        # CRITICAL: Even Unknown segments should get voice embeddings
+                        # Find closest speaker segment (any speaker) for voice embedding
+                        closest_seg = None
+                        min_distance = float('inf')
+                        
+                        for spk_seg in speaker_segments:
+                            if spk_seg.embedding:
+                                # Calculate temporal distance
+                                if segment['end'] <= spk_seg.start:
+                                    distance = spk_seg.start - segment['end']
+                                elif segment['start'] >= spk_seg.end:
+                                    distance = segment['start'] - spk_seg.end
+                                else:
+                                    distance = 0.0  # Overlapping
+                                
+                                if distance < min_distance:
+                                    closest_seg = spk_seg
+                                    min_distance = distance
+                        
+                        # Assign voice embedding from closest segment (any speaker)
+                        if closest_seg:
+                            segment['voice_embedding'] = closest_seg.embedding
+                            logger.debug(f"Assigned voice embedding to Unknown segment at {segment['start']:.1f}s from {closest_seg.speaker} (distance: {min_distance:.2f}s)")
             
             return transcription_result
             
