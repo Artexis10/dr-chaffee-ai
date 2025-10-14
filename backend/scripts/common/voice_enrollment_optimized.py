@@ -29,6 +29,10 @@ class VoiceEnrollment:
         self._embedding_model = None
         self._device = None
         
+        # Audio cache to avoid reloading for batch extractions
+        self._audio_cache = {}  # {audio_path: (audio_data, sr, timestamp)}
+        self._audio_cache_lock = threading.Lock()
+        
         logger.info(f"Voice enrollment initialized with profiles directory: {self.voices_dir}")
     
     def _get_embedding_model(self):
