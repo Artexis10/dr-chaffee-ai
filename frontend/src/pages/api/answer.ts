@@ -26,9 +26,9 @@ const pool = new Pool({
 
 // Configuration
 const ANSWER_ENABLED = process.env.ANSWER_ENABLED !== 'false'; // Default to enabled
-const ANSWER_TOPK = parseInt(process.env.ANSWER_TOPK || '40');
+const ANSWER_TOPK = parseInt(process.env.ANSWER_TOPK || '50'); // Increased from 40 for better quality
 const ANSWER_TTL_HOURS = parseInt(process.env.ANSWER_TTL_HOURS || '336'); // 14 days
-const SUMMARIZER_MODEL = process.env.SUMMARIZER_MODEL || 'gpt-3.5-turbo';
+const SUMMARIZER_MODEL = process.env.SUMMARIZER_MODEL || 'gpt-4o'; // Upgraded from gpt-3.5-turbo for better quality
 const ANSWER_STYLE_DEFAULT = process.env.ANSWER_STYLE_DEFAULT || 'concise';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const USE_MOCK_MODE = !OPENAI_API_KEY || OPENAI_API_KEY.includes('your_') || process.env.USE_MOCK_MODE === 'true';
@@ -38,6 +38,10 @@ console.log('USE_MOCK_MODE:', USE_MOCK_MODE);
 
 // RAG Service Integration
 const RAG_SERVICE_URL = process.env.RAG_SERVICE_URL || 'http://localhost:5001';
+
+// Cache configuration
+const CACHE_SIMILARITY_THRESHOLD = 0.92; // 92% similarity to consider a cache hit
+const CACHE_TTL_HOURS = parseInt(process.env.ANSWER_CACHE_TTL_HOURS || '336'); // 14 days
 
 async function callRAGService(question: string): Promise<RAGResponse | null> {
   try {
@@ -106,6 +110,7 @@ interface ChunkResult {
 
 interface Citation {
   video_id: string;
+  title: string;
   t_start_s: number;
   published_at: string;
 }
@@ -205,12 +210,47 @@ function clusterChunks(chunks: ChunkResult[]): ChunkResult[] {
   return clustered;
 }
 
+// Extract keywords from query for better text search
+function extractKeywords(query: string): string[] {
+  // Remove common question words and extract meaningful terms
+  const stopWords = ['how', 'does', 'what', 'why', 'when', 'where', 'who', 'is', 'are', 'can', 'should', 'do', 'the', 'a', 'an', 'to', 'for', 'on', 'in', 'with', 'about', 'recommend', 'recommends'];
+  const words = query.toLowerCase()
+    .replace(/[?!.,]/g, '')
+    .split(/\s+/)
+    .filter(word => word.length > 2 && !stopWords.includes(word));
+  
+  return words;
+}
+
 // Generate embeddings for the query
 async function generateQueryEmbedding(query: string): Promise<number[]> {
-  // Since we don't have a JavaScript embedding service integrated yet,
-  // we'll return an empty array to force fallback to text search
-  console.log('Using text search fallback for answer generation');
-  return [];
+  const EMBEDDING_SERVICE_URL = process.env.EMBEDDING_SERVICE_URL || 'http://localhost:8001';
+  
+  try {
+    console.log('Calling embedding service for query:', query);
+    
+    const response = await fetch(`${EMBEDDING_SERVICE_URL}/embed`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ text: query }),
+      signal: AbortSignal.timeout(10000), // 10 second timeout
+    });
+
+    if (!response.ok) {
+      console.error('Embedding service error:', response.status);
+      return [];
+    }
+
+    const data = await response.json();
+    console.log(`Generated embedding with ${data.dimensions} dimensions`);
+    return data.embedding;
+  } catch (error) {
+    console.error('Failed to generate query embedding:', error);
+    console.log('Falling back to text search');
+    return [];
+  }
 }
 
 // Call LLM to generate answer
@@ -226,54 +266,65 @@ async function callSummarizer(query: string, excerpts: ChunkResult[], style: str
   ).join('\n\n');
 
   // Enhanced word limits for long-form synthesis
-  const targetWords = style === 'detailed' ? '600–1200' : '300–600';
-  const maxTokens = style === 'detailed' ? 2500 : 1500;
+  const targetWords = style === 'detailed' ? '800-1200' : '250-400';
+  const minWords = style === 'detailed' ? 800 : 250;
+  const maxTokens = style === 'detailed' ? 3000 : 1000;
   
-  const systemPrompt = `You are compiling a comprehensive synthesis of Dr. Anthony Chaffee's views. Your task is to create a clear, coherent, and accurate representation of his perspective on the queried topic.
+  // System Prompt: Emulated Dr. Chaffee (AI) persona
+  const systemPrompt = `# Emulated Dr. Anthony Chaffee (AI) - System Prompt
 
-CORE PRINCIPLES:
-1. Ground EVERYTHING strictly in the provided transcript excerpts - do NOT use outside knowledge or speculation
-2. Create a cohesive narrative that shows the evolution of Dr. Chaffee's thinking over time
-3. Distinguish clearly between his personal experiences and his general recommendations
-4. Connect specific views to his broader health and nutrition philosophy
-5. Present nuanced perspectives rather than oversimplified statements
-6. Maintain a neutral, informative tone throughout - summarize Chaffee's position without speaking as him
+You are "Emulated Dr. Anthony Chaffee (AI)", a style- and viewpoint-aligned assistant trained from publicly available talks, interviews, and writings by Dr. Anthony Chaffee.
 
-STRUCTURAL REQUIREMENTS:
-1. Organize content with clear ## section headers that create a logical flow
-2. Use precise inline citations [video_id@mm:ss] at the END of sentences they support
-3. When views have evolved, explicitly state this progression with appropriate citations
-4. Include relevant historical, cultural, or scientific context that Dr. Chaffee mentions
-5. Address both benefits and potential concerns/limitations he discusses about the topic
-6. Emphasize individual variation and personalization when he acknowledges these factors`;
+You DO NOT claim to be Dr. Chaffee. You clearly communicate you are an AI emulation.
+
+## Voice & Priorities
+
+- **Tone**: calm, direct, plain-spoken; confident but not absolutist.
+- **Prioritise controlled experimental evidence** over epidemiology or mechanistic speculation.
+- **Treat RCTs, metabolic ward studies, and tightly controlled N=1 measurements as strongest.**
+- **Acknowledge uncertainty quickly**; do not manufacture certainty.
+- **Prefer animal-based nutrition**, eliminate seed oils and refined carbohydrates, highlight protein/fat sufficiency.
+- **Avoid personalised medical advice or diagnosis.**
+
+## Content Rules
+
+- **Always ground claims in retrieved source snippets from Dr. Chaffee's own content FIRST.** Quote briefly and timestamp.
+- **If none are relevant**, draw on high-quality primary experimental literature; summarise methods and results succinctly.
+- **If still thin**, say so and note what data would resolve it.
+
+## Output Format
+
+Respond in markdown format with:
+- Direct answer in Dr. Chaffee's voice (first person)
+- Cite multiple quotes with timestamps [video_id@mm:ss]
+- **IMPORTANT: Generate comprehensive, thorough answers. Do NOT be overly concise.**
+- Expand on key points with examples, nuances, and practical guidance`;
   
-  const userPrompt = `You are compiling a long-form synthesis of Dr. Anthony Chaffee's views.
+  // User Prompt: Task and context
+  const userPrompt = `You are Emulated Dr. Anthony Chaffee (AI). Answer this question in first person, as if YOU are Dr. Chaffee speaking directly to the person asking.
 
-Query: "${query}"
+## User Question
+${query}
 
-Context Excerpts (use only these):
+## Retrieved Context (from your videos and talks)
+
 ${excerptText}
 
-Instructions:
-- Ground EVERYTHING strictly in the provided transcript excerpts. Do NOT use outside knowledge or speculation.
-- Write a cohesive, well-structured markdown answer (use ## section headers) that synthesizes across clips.
-- Length target: ${targetWords} words (ok to be shorter if context is thin).
-- Use inline timestamp citations like [video_id@mm:ss] at the END of the sentences/clauses they support.
-- Cite whenever a claim depends on a specific excerpt; don't over-cite trivial transitions.
-- Prefer newer material when consolidating conflicting statements; if views evolved, state the nuance and cite both.
-- If a point is unclear or missing in the excerpts, say so briefly (e.g., "not addressed in provided excerpts").
-- Tone: neutral narrator summarizing Chaffee's position; do not speak as him.
-- Create a cohesive narrative that shows the evolution of Dr. Chaffee's thinking over time.
-- Distinguish clearly between his personal experiences and his general recommendations.
-- Connect specific views to his broader health and nutrition philosophy.
-- Present nuanced perspectives rather than oversimplified statements.
-- Include relevant historical, cultural, or scientific context that Dr. Chaffee mentions.
-- Address both benefits and potential concerns/limitations he discusses about the topic.
-- Emphasize individual variation and personalization when he acknowledges these factors.
+## Instructions
+
+- Answer in FIRST PERSON ("I recommend...", "In my experience...", "I've found that...")
+- Use your calm, direct, plain-spoken tone
+- Cite specific moments from your content with timestamps [video_id@mm:ss]
+- **CRITICAL LENGTH REQUIREMENT: Your answer MUST be ${targetWords} words (minimum ${minWords} words). This is NON-NEGOTIABLE.**
+- ${style === 'detailed' ? 'DETAILED MODE: Provide comprehensive, thorough explanations. Cover multiple angles, examples, practical tips, potential pitfalls, and nuances. Elaborate on each point. Use all available context.' : 'CONCISE MODE: Be direct and to-the-point, but still thorough.'}
+- Ground EVERYTHING in the provided excerpts from your own content
+- Expand on key concepts - don't just list them
+- If you haven't addressed something in the excerpts, say "I haven't specifically covered that in these clips"
+- Remember: You are the Emulated Dr. Chaffee (AI), speaking directly to the questioner
 
 Output MUST be valid JSON with this schema:
 {
-  "answer": "Markdown with sections and inline citations like [abc123@12:34]. ${targetWords} words if context supports it.",
+  "answer": "Markdown with sections and inline citations like [abc123@12:34]. MUST be ${targetWords} words (minimum ${minWords} words).",
   "citations": [
     { "video_id": "abc123", "timestamp": "12:34", "date": "2024-06-18" }
   ],
@@ -301,8 +352,9 @@ Validation requirements:
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
-        temperature: 0.1,
+        temperature: 0.3, // Increased for more creative, longer responses
         max_tokens: maxTokens,
+        response_format: { type: "json_object" }, // Ensure JSON output
       }),
     });
 
@@ -330,7 +382,18 @@ Validation requirements:
       
       console.log('Attempting to parse JSON content');
       const parsed = JSON.parse(jsonContent);
-      console.log('Successfully generated long-form synthesis using OpenAI API');
+      
+      // Validate word count
+      const wordCount = parsed.answer ? parsed.answer.split(/\s+/).length : 0;
+      console.log(`Generated answer: ${wordCount} words (target: ${targetWords}, min: ${minWords})`);
+      
+      if (wordCount < minWords) {
+        console.warn(`⚠️ Answer is too short! Got ${wordCount} words, expected minimum ${minWords}`);
+        // Add a note about the shortness
+        parsed.notes = (parsed.notes || '') + ` [Warning: Answer only ${wordCount} words, below ${minWords} minimum]`;
+      }
+      
+      console.log('Successfully generated synthesis using OpenAI API');
       return parsed;
     } catch (parseError) {
       console.error('Failed to parse OpenAI response as JSON:', content);
@@ -362,6 +425,7 @@ function validateAndProcessResponse(llmResponse: LLMResponse, chunks: ChunkResul
     if (chunk) {
       validCitations.push({
         video_id: citation.video_id,
+        title: chunk.title,
         t_start_s: chunk.start_time_seconds,
         published_at: citation.date,
       });
@@ -411,11 +475,116 @@ function validateAndProcessResponse(llmResponse: LLMResponse, chunks: ChunkResul
   };
 }
 
+// Check answer cache for semantically similar queries
+async function checkAnswerCache(query: string, style: string): Promise<any | null> {
+  try {
+    // Generate embedding for the query
+    const embeddingResponse = await fetch(`${RAG_SERVICE_URL}/embed`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: query })
+    });
+    
+    if (!embeddingResponse.ok) {
+      console.warn('Failed to generate embedding for cache lookup');
+      return null;
+    }
+    
+    const { embedding } = await embeddingResponse.json();
+    
+    // Search for similar cached answers
+    const result = await pool.query(`
+      SELECT 
+        id,
+        query_text,
+        answer_md,
+        citations,
+        confidence,
+        notes,
+        used_chunk_ids,
+        source_clips,
+        created_at,
+        access_count,
+        1 - (query_embedding <=> $1::vector) as similarity
+      FROM answer_cache
+      WHERE style = $2
+        AND created_at + (ttl_hours || ' hours')::INTERVAL > NOW()
+        AND 1 - (query_embedding <=> $1::vector) >= $3
+      ORDER BY similarity DESC
+      LIMIT 1
+    `, [JSON.stringify(embedding), style, CACHE_SIMILARITY_THRESHOLD]);
+    
+    if (result.rows.length > 0) {
+      const cached = result.rows[0];
+      console.log(`Cache hit: "${cached.query_text}" (similarity: ${(cached.similarity * 100).toFixed(1)}%)`);
+      
+      // Update access count and timestamp
+      await pool.query(`
+        UPDATE answer_cache 
+        SET accessed_at = NOW(), access_count = access_count + 1
+        WHERE id = $1
+      `, [cached.id]);
+      
+      return cached;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Cache lookup error:', error);
+    return null; // Fail gracefully
+  }
+}
+
+// Save answer to cache
+async function saveAnswerCache(query: string, style: string, answer: any): Promise<void> {
+  try {
+    // Generate embedding for the query
+    const embeddingResponse = await fetch(`${RAG_SERVICE_URL}/embed`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: query })
+    });
+    
+    if (!embeddingResponse.ok) {
+      console.warn('Failed to generate embedding for cache save');
+      return;
+    }
+    
+    const { embedding } = await embeddingResponse.json();
+    
+    // Insert into cache
+    await pool.query(`
+      INSERT INTO answer_cache (
+        query_text, query_embedding, style, answer_md, citations, 
+        confidence, notes, used_chunk_ids, source_clips, ttl_hours
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `, [
+      query,
+      JSON.stringify(embedding),
+      style,
+      answer.answer_md,
+      JSON.stringify(answer.citations),
+      answer.confidence,
+      answer.notes,
+      answer.used_chunk_ids,
+      JSON.stringify(answer.source_clips || []),
+      CACHE_TTL_HOURS
+    ]);
+    
+    console.log(`✅ Cached answer for: "${query}" (style: ${style})`);
+  } catch (error) {
+    console.error('Cache save error:', error);
+    // Don't fail the request if caching fails
+  }
+}
+
+// Main API handler
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
   if (req.method !== 'POST' && req.method !== 'GET') {
+    // ...
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
@@ -449,7 +618,21 @@ export default async function handler(
   }
 
   try {
-    console.log('Processing query:', query);
+    console.log('Processing query:', query, 'style:', style);
+
+    // Check cache first (unless refresh is requested)
+    if (!refresh) {
+      const cachedAnswer = await checkAnswerCache(query, style);
+      if (cachedAnswer) {
+        console.log('✅ Cache hit! Returning cached answer');
+        return res.status(200).json({
+          ...cachedAnswer,
+          cached: true,
+          cache_date: cachedAnswer.created_at
+        });
+      }
+      console.log('Cache miss, generating new answer');
+    }
 
     // Try RAG service first (preferred method)
     const ragResult = await callRAGService(query);
@@ -496,20 +679,20 @@ export default async function handler(
       // Semantic search with pgvector
       searchQuery = `
         SELECT 
-          c.id,
-          c.source_id,
+          seg.id,
+          s.id as source_id,
           s.source_id as video_id,
           s.title,
-          c.text,
-          c.start_time_seconds,
-          c.end_time_seconds,
+          seg.text,
+          seg.start_sec as start_time_seconds,
+          seg.end_sec as end_time_seconds,
           s.published_at,
           s.source_type,
-          (c.embedding <=> $1::vector) as similarity
-        FROM chunks c
-        JOIN sources s ON c.source_id = s.id
-        WHERE c.embedding IS NOT NULL
-        ORDER BY c.embedding <=> $1::vector
+          (seg.embedding <=> $1::vector) as similarity
+        FROM segments seg
+        JOIN sources s ON seg.video_id = s.source_id
+        WHERE seg.embedding IS NOT NULL AND seg.speaker_label = 'Chaffee'
+        ORDER BY seg.embedding <=> $1::vector
         LIMIT $2
       `;
       queryParams = [JSON.stringify(queryEmbedding), maxContext];
@@ -517,24 +700,24 @@ export default async function handler(
       // Fallback to simple text search for reliability
       searchQuery = `
         SELECT 
-          c.id,
-          c.source_id,
+          seg.id,
+          s.id as source_id,
           s.source_id as video_id,
           s.title,
-          c.text,
-          c.start_time_seconds,
-          c.end_time_seconds,
+          seg.text,
+          seg.start_sec as start_time_seconds,
+          seg.end_sec as end_time_seconds,
           s.published_at,
           s.source_type,
           0.5 as similarity
-        FROM chunks c
-        JOIN sources s ON c.source_id = s.id
-        WHERE c.text ILIKE $1
+        FROM segments seg
+        JOIN sources s ON seg.video_id = s.source_id
+        WHERE seg.text ILIKE $1 AND seg.speaker_label = 'Chaffee'
         ORDER BY 
-          CASE WHEN c.text ILIKE $1 THEN 1 ELSE 2 END,
-          COALESCE(s.provenance, 'yt_caption') = 'owner' DESC,
+          CASE WHEN seg.text ILIKE $1 THEN 1 ELSE 2 END,
+          COALESCE(s.metadata->>'provenance', 'yt_caption') = 'owner' DESC,
           s.published_at DESC,
-          c.start_time_seconds ASC
+          seg.start_sec ASC
         LIMIT $2
       `;
       queryParams = [`%${query}%`, maxContext];
@@ -588,16 +771,20 @@ export default async function handler(
     const llmResponse = await callSummarizer(query, clusteredChunks, style);
     const validatedResponse = validateAndProcessResponse(llmResponse, clusteredChunks, query);
 
-    // Cache the result (implement caching logic here when ready)
-    
-    // Return response with source clips
-    res.status(200).json({
+    // Prepare response
+    const responseData = {
       ...validatedResponse,
       source_clips: clusteredChunks,
       cached: false,
       total_chunks_considered: chunks.length,
       chunks_after_clustering: clusteredChunks.length,
-    });
+    };
+
+    // Cache the result for future queries
+    await saveAnswerCache(query, style, responseData);
+    
+    // Return response with source clips
+    res.status(200).json(responseData);
 
   } catch (error) {
     console.error('Answer generation error:', error);
