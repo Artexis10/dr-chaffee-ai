@@ -36,8 +36,16 @@
 }
 
 .clip-card {
-  padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
+  padding: var(--space-4, 1rem);
   border-bottom: 1px solid var(--color-border-light, #f1f5f9);
+  border-left: 3px solid transparent;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.clip-card:hover {
+  background-color: rgba(59, 130, 246, 0.03);
+  border-left-color: #3b82f6;
 }
 
 .clip-card:last-child {
@@ -45,36 +53,65 @@
 }
 
 .clip-content {
-  margin-bottom: var(--space-2, 0.5rem);
+  margin-bottom: var(--space-3, 0.75rem);
 }
 
 .transcript-text {
   margin: 0;
-  font-size: 0.9rem;
-  line-height: 1.5;
+  font-size: 0.95rem;
+  line-height: 1.65;
   color: var(--color-text, #1e293b);
 }
 
 .transcript-text mark {
-  background-color: rgba(59, 130, 246, 0.2);
+  background-color: rgba(59, 130, 246, 0.25);
   color: inherit;
-  padding: 0 2px;
-  border-radius: 2px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-weight: 500;
 }
 
 .clip-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.8rem;
+  gap: var(--space-3, 0.75rem);
+  padding-top: var(--space-2, 0.5rem);
+  border-top: 1px solid var(--color-border-light, #f1f5f9);
 }
 
 .timestamp {
-  color: var(--color-text-light, #64748b);
-  font-weight: 500;
-  background: var(--color-border-light, #f1f5f9);
-  padding: 2px 6px;
-  border-radius: 4px;
+  color: #1e40af;
+  font-weight: 600;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+  background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(59, 130, 246, 0.1);
+}
+
+.timestamp:hover {
+  background: linear-gradient(135deg, #bfdbfe, #93c5fd);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.2);
+}
+
+.timestamp:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 3px rgba(59, 130, 246, 0.15);
+}
+
+.timestamp::before {
+  content: '▶';
+  font-size: 0.75rem;
+  opacity: 0.8;
 }
 
 .clip-actions {

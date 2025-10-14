@@ -38,20 +38,28 @@ export const VideoCard: React.FC<VideoCardProps> = ({
               ></p>
             </div>
             <div className={styles['clip-footer']}>
-              <span className={styles.timestamp}>
+              <button 
+                className={styles.timestamp}
+                onClick={() => {
+                  console.log('Timestamp clicked:', group.videoId, 'at', clip.start_time_seconds);
+                  seekToTimestamp(group.videoId, Math.floor(clip.start_time_seconds));
+                }}
+                title="Play this clip"
+              >
                 {formatTime(clip.start_time_seconds)}
-              </span>
+              </button>
               <div className={styles['clip-actions']}>
                 {group.source_type === 'youtube' && (
                   <a 
-                    href={clip.url} 
+                    href={`https://www.youtube.com/watch?v=${group.videoId}&t=${Math.floor(clip.start_time_seconds)}s`}
                     target="_blank" 
                     rel="noopener noreferrer" 
                     className={styles['watch-link']}
-                    onClick={() => {
+                    onClick={(e) => {
+                      console.log('Watch on YouTube clicked:', group.videoId, 'at', clip.start_time_seconds);
                       if (typeof window !== 'undefined') {
                         window.dispatchEvent(new CustomEvent('analytics', {
-                          detail: { event: 'result_clicked_youtube', url: clip.url }
+                          detail: { event: 'result_clicked_youtube', url: `https://www.youtube.com/watch?v=${group.videoId}&t=${Math.floor(clip.start_time_seconds)}s` }
                         }));
                       }
                     }}
