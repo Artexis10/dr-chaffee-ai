@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 
 interface Citation {
   video_id: string;
+  title: string;
   t_start_s: number;
   published_at: string;
 }
@@ -24,11 +25,28 @@ interface AnswerCardProps {
   onPlayClip?: (videoId: string, timestamp: number) => void;
   onCopyLink?: (url: string) => void;
   onCancel?: () => void;
+  answerStyle?: 'concise' | 'detailed';
+  onStyleChange?: (style: 'concise' | 'detailed') => void;
 }
 
-export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onCancel }: AnswerCardProps) {
+export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onCancel, answerStyle = 'concise', onStyleChange }: AnswerCardProps) {
   const [showSources, setShowSources] = useState(false);
   const [loadingTime, setLoadingTime] = useState(0);
+  const [stats, setStats] = useState({ segments: 1695, videos: 26 }); // Default fallback values
+  
+  // Fetch stats on mount
+  useEffect(() => {
+    fetch('/api/stats')
+      .then(res => res.json())
+      .then(data => {
+        if (data.segments && data.videos) {
+          setStats({ segments: data.segments, videos: data.videos });
+        }
+      })
+      .catch(err => {
+        console.warn('Failed to fetch stats, using fallback values:', err);
+      });
+  }, []);
   
   // Track loading time
   useEffect(() => {
@@ -52,16 +70,16 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
   }, [loading]);
 
   if (loading) {
-    // Loading messages that change based on elapsed time
+    // Loading messages that change based on elapsed time (using dynamic stats)
     const loadingMessages = [
-      { threshold: 0, message: "Searching through Dr. Chaffee's knowledge base..." },
-      { threshold: 5, message: "Finding relevant clips from videos..." },
-      { threshold: 10, message: "Analyzing transcript content..." },
-      { threshold: 15, message: "Synthesizing information from multiple sources..." },
-      { threshold: 20, message: "Generating comprehensive answer..." },
-      { threshold: 25, message: "This is taking longer than usual. Still working..." },
-      { threshold: 35, message: "Complex question! Finalizing your detailed answer..." },
-      { threshold: 45, message: "Almost there! Putting finishing touches on your answer..." }
+      { threshold: 0, message: "Generating query embedding for semantic search..." },
+      { threshold: 3, message: `Searching ${stats.segments.toLocaleString()} segments across ${stats.videos} videos...` },
+      { threshold: 7, message: "Ranking segments by semantic similarity..." },
+      { threshold: 12, message: "Analyzing Dr. Chaffee's transcript excerpts..." },
+      { threshold: 18, message: "Synthesizing answer in Dr. Chaffee's voice..." },
+      { threshold: 25, message: "Generating citations with timestamps..." },
+      { threshold: 35, message: "Complex synthesis in progress..." },
+      { threshold: 45, message: "Finalizing AI-emulated response..." }
     ];
     
     // Get appropriate message based on loading time
@@ -79,7 +97,7 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
             <div className="spinner"></div>
           </div>
           <div className="loading-text">
-            <h3>Dr. Chaffee's AI Assistant</h3>
+            <h3>Emulated Dr. Chaffee (AI)</h3>
             <p>{currentMessage}</p>
             <div className="loading-timer">{loadingTime}s</div>
           </div>
@@ -90,9 +108,9 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
         <div className="loading-tips">
           <p>While you wait:</p>
           <ul>
-            <li>Complex medical questions may take longer to process</li>
-            <li>Answers are generated from Dr. Chaffee's video content</li>
-            <li>Citations will link directly to the relevant video timestamps</li>
+            <li>Generating embeddings for semantic search across {stats.segments.toLocaleString()} segments</li>
+            <li>AI is analyzing Dr. Chaffee's transcript content from {stats.videos} videos</li>
+            <li>Synthesizing answer in Dr. Chaffee's voice with citations</li>
           </ul>
         </div>
         
@@ -420,6 +438,7 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
     const parts = [];
     let lastIndex = 0;
     let match;
+    const seenCitations = new Set<string>(); // Track seen citations to avoid duplicates
 
     while ((match = citationRegex.exec(text)) !== null) {
       // Add text before citation
@@ -430,6 +449,16 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
       // Find corresponding citation data
       const videoId = match[1];
       const timestamp = match[2];
+      const citationKey = `${videoId}@${timestamp}`;
+      
+      // Skip if we've already seen this exact citation
+      if (seenCitations.has(citationKey)) {
+        lastIndex = match.index + match[0].length;
+        continue;
+      }
+      
+      seenCitations.add(citationKey);
+      
       const citation = answer.citations.find(c => 
         c.video_id === videoId && formatTimestamp(c.t_start_s) === timestamp
       );
@@ -438,31 +467,53 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
         parts.push(
           <button
             key={match.index}
-            className="citation-chip"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              console.log('Playing clip:', videoId, 'at', citation.t_start_s, 'seconds');
-              
-              // Visual feedback
-              const button = e.currentTarget;
-              button.style.transform = 'scale(0.95)';
-              setTimeout(() => {
-                button.style.transform = '';
-              }, 150);
+              console.log('Citation clicked:', videoId, 'at', citation.t_start_s, 'seconds');
+              console.log('onPlayClip function:', onPlayClip);
               
               if (onPlayClip) {
+                console.log(`🎥 Calling onPlayClip with videoId=${videoId}, timestamp=${citation.t_start_s}`);
                 onPlayClip(videoId, citation.t_start_s);
-                // Show user feedback that clip is loading
-                console.log(`🎥 Loading clip from ${videoId} at ${timestamp}`);
               } else {
-                console.warn('Video player not available');
-                // Fallback: open YouTube video directly
-                window.open(`https://www.youtube.com/watch?v=${videoId}&t=${citation.t_start_s}s`, '_blank');
+                console.warn('⚠️ onPlayClip not available, opening YouTube');
+                window.open(`https://www.youtube.com/watch?v=${videoId}&t=${Math.floor(citation.t_start_s)}s`, '_blank');
               }
             }}
             title={`Click to play at ${timestamp}`}
             type="button"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '3px',
+              padding: '2px 8px',
+              background: 'linear-gradient(135deg, #dbeafe, #bfdbfe)',
+              color: '#1e40af',
+              borderRadius: '10px',
+              fontSize: '0.75em',
+              fontWeight: 600,
+              fontFamily: "'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace",
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              textDecoration: 'none',
+              userSelect: 'none',
+              border: 'none',
+              whiteSpace: 'nowrap',
+              margin: '0 2px',
+              position: 'relative',
+              top: '-1px'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'linear-gradient(135deg, #bfdbfe, #93c5fd)';
+              e.currentTarget.style.transform = 'translateY(-1px)';
+              e.currentTarget.style.boxShadow = '0 2px 6px rgba(59, 130, 246, 0.2)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'linear-gradient(135deg, #dbeafe, #bfdbfe)';
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = 'none';
+            }}
           >
             {timestamp}
           </button>
@@ -489,7 +540,13 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
   };
 
   const formatDate = (dateString: string): string => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    if (!dateString || dateString === '1970-01-01') return 'Date unavailable';
+    const date = new Date(dateString);
+    // Check if date is valid and not Unix epoch
+    if (isNaN(date.getTime()) || date.getFullYear() === 1970) {
+      return 'Date unavailable';
+    }
+    return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric'
@@ -518,8 +575,36 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
         </div>
         <div className="header-content">
           <div className="title-row">
-            <h3>Dr. Chaffee's Answer</h3>
+            <div className="title-with-badge">
+              <h3>Dr. Chaffee's Answer</h3>
+              <span className="ai-badge" title="AI-generated response based on Dr. Chaffee's video content">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                AI Emulated
+              </span>
+            </div>
             <div className="badges">
+              {onStyleChange && (
+                <div className="answer-style-toggle">
+                  <button
+                    className={`style-button ${answerStyle === 'concise' ? 'active' : ''}`}
+                    onClick={() => onStyleChange('concise')}
+                    title="Short, concise answer"
+                  >
+                    Short
+                  </button>
+                  <button
+                    className={`style-button ${answerStyle === 'detailed' ? 'active' : ''}`}
+                    onClick={() => onStyleChange('detailed')}
+                    title="Detailed, comprehensive answer"
+                  >
+                    Long
+                  </button>
+                </div>
+              )}
               <span 
                 className="confidence-badge"
                 style={{ backgroundColor: confidenceColor }}
@@ -603,12 +688,17 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
                     </svg>
                   </button>
                   <div className="source-details">
-                    <span className="source-timestamp">
-                      {formatTimestamp(citation.t_start_s)}
-                    </span>
-                    <span className="source-date">
-                      {formatDate(citation.published_at)}
-                    </span>
+                    <div className="source-title">
+                      {citation.title}
+                    </div>
+                    <div className="source-meta">
+                      <span className="source-timestamp">
+                        {formatTimestamp(citation.t_start_s)}
+                      </span>
+                      <span className="source-date">
+                        {formatDate(citation.published_at)}
+                      </span>
+                    </div>
                   </div>
                 </div>
                 <button
@@ -677,12 +767,43 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
           margin-bottom: 4px;
         }
 
+        .title-with-badge {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
         .title-row h3 {
           margin: 0;
           font-size: 20px;
           font-weight: 700;
           color: #111827;
           line-height: 1.3;
+        }
+
+        .ai-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 4px 10px;
+          background: linear-gradient(135deg, #f3e8ff, #e9d5ff);
+          color: #7c3aed;
+          border-radius: 12px;
+          font-size: 11px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          cursor: help;
+          transition: all 0.2s ease;
+        }
+
+        .ai-badge:hover {
+          background: linear-gradient(135deg, #e9d5ff, #ddd6fe);
+          transform: scale(1.05);
+        }
+
+        .ai-badge svg {
+          flex-shrink: 0;
         }
 
         .subtitle {
@@ -697,6 +818,37 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
           gap: 8px;
           align-items: center;
           flex-shrink: 0;
+        }
+
+        .answer-style-toggle {
+          display: flex;
+          background: #f3f4f6;
+          border-radius: 8px;
+          padding: 2px;
+          gap: 2px;
+        }
+
+        .style-button {
+          padding: 6px 14px;
+          border: none;
+          background: transparent;
+          color: #6b7280;
+          font-size: 13px;
+          font-weight: 600;
+          border-radius: 6px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .style-button:hover {
+          background: #e5e7eb;
+          color: #374151;
+        }
+
+        .style-button.active {
+          background: #ffffff;
+          color: #3b82f6;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
 
         .confidence-badge {
@@ -735,45 +887,75 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
           margin: 0;
         }
 
+        .show-more-button {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          margin-top: 12px;
+          padding: 8px 16px;
+          background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+          color: #0369a1;
+          border: 1px solid #7dd3fc;
+          border-radius: 8px;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .show-more-button:hover {
+          background: linear-gradient(135deg, #e0f2fe, #bae6fd);
+          border-color: #0284c7;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 8px rgba(59, 130, 246, 0.15);
+        }
+
+        .show-more-button:active {
+          transform: translateY(0);
+        }
+
+        .show-more-button svg {
+          flex-shrink: 0;
+        }
+
         .citation-chip {
-          background: linear-gradient(135deg, #f0f9ff, #e0f2fe) !important;
-          color: #0369a1 !important;
-          border: 1px solid #7dd3fc !important;
-          padding: 2px 8px !important;
-          border-radius: 12px !important;
-          font-size: 0.7rem !important;
-          font-weight: 500 !important;
-          font-family: inherit !important;
-          cursor: pointer !important;
-          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
           display: inline-flex !important;
           align-items: center !important;
-          margin: 0 3px !important;
+          gap: 3px !important;
+          padding: 2px 8px !important;
+          background: linear-gradient(135deg, #dbeafe, #bfdbfe) !important;
+          color: #1e40af !important;
+          border-radius: 10px !important;
+          font-size: 0.75em !important;
+          font-weight: 600 !important;
+          font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace !important;
+          cursor: pointer !important;
+          transition: all 0.2s ease !important;
           text-decoration: none !important;
           user-select: none !important;
+          pointer-events: auto !important;
+          outline: none !important;
+          white-space: nowrap !important;
+          margin: 0 2px !important;
           position: relative !important;
           top: -1px !important;
-          pointer-events: auto !important;
-          z-index: 10 !important;
-          outline: none !important;
-          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
         }
 
         .citation-chip:hover {
-          background: linear-gradient(135deg, #bae6fd, #93c5fd) !important;
-          border-color: #0284c7 !important;
-          transform: translateY(-2px) !important;
-          box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25) !important;
+          background: linear-gradient(135deg, #bfdbfe, #93c5fd) !important;
+          color: #1e3a8a !important;
+          transform: translateY(-1px) !important;
+          box-shadow: 0 2px 6px rgba(59, 130, 246, 0.2) !important;
         }
         
         .citation-chip:active {
           transform: translateY(0) !important;
-          box-shadow: 0 1px 4px rgba(59, 130, 246, 0.2) !important;
+          box-shadow: 0 1px 3px rgba(59, 130, 246, 0.15) !important;
         }
         
         .citation-chip:focus {
-          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3) !important;
-          outline: none !important;
+          outline: 2px solid #93c5fd !important;
+          outline-offset: 2px !important;
         }
 
         .answer-notes {
@@ -912,14 +1094,28 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
         .source-details {
           display: flex;
           flex-direction: column;
-          gap: 2px;
+          gap: 6px;
+          flex: 1;
+        }
+
+        .source-title {
+          font-weight: 600;
+          font-size: 14px;
+          color: #111827;
+          line-height: 1.4;
+        }
+
+        .source-meta {
+          display: flex;
+          gap: 12px;
+          align-items: center;
         }
 
         .source-timestamp {
           font-weight: 600;
           font-family: monospace;
-          font-size: 14px;
-          color: #111827;
+          font-size: 13px;
+          color: #3b82f6;
         }
 
         .source-date {
