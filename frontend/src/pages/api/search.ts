@@ -131,7 +131,7 @@ export default async function handler(
 
   try {
     // Build dynamic WHERE clause for filters
-    let whereConditions = ['(c.text ILIKE $1 OR s.title ILIKE $1)'];
+    let whereConditions = ['(seg.text ILIKE $1 OR s.title ILIKE $1)'];
     let queryParams: any[] = [`%${query}%`];
     let paramCount = 1;
 
@@ -151,28 +151,28 @@ export default async function handler(
 
     const searchQuery = `
       SELECT 
-        c.id,
+        seg.id,
         s.title,
-        c.text,
+        seg.text,
         s.url,
-        c.start_time_seconds,
-        c.end_time_seconds,
+        seg.start_sec as start_time_seconds,
+        seg.end_sec as end_time_seconds,
         s.source_type,
         s.published_at,
-        COALESCE(s.provenance, 'yt_caption') as provenance,
+        COALESCE(s.metadata->>'provenance', 'yt_caption') as provenance,
         0.5 as similarity -- Initial similarity score
-      FROM chunks c
-      JOIN sources s ON c.source_id = s.id
-      WHERE ${whereConditions.join(' AND ')}
+      FROM segments seg
+      JOIN sources s ON seg.video_id = s.source_id
+      WHERE seg.speaker_label = 'Chaffee' AND ${whereConditions.join(' AND ')}
       ORDER BY 
         -- Primary: Text relevance
         CASE 
-          WHEN c.text ILIKE $1 THEN 1
+          WHEN seg.text ILIKE $1 THEN 1
           WHEN s.title ILIKE $1 THEN 2
           ELSE 3
         END,
         -- Secondary: Provenance preference (owner > yt_caption > yt_dlp > whisper)
-        CASE COALESCE(s.provenance, 'yt_caption') 
+        CASE COALESCE(s.metadata->>'provenance', 'yt_caption') 
           WHEN 'owner' THEN 1
           WHEN 'yt_caption' THEN 2
           WHEN 'yt_dlp' THEN 3
@@ -182,7 +182,7 @@ export default async function handler(
         -- Tertiary: Recency boost for recent content
         s.published_at DESC NULLS LAST,
         -- Final: Temporal order within content
-        c.start_time_seconds ASC
+        seg.start_sec ASC
       LIMIT $${paramCount + 1}
     `;
 
@@ -268,9 +268,10 @@ export default async function handler(
 // TODO: Implement semantic search with embeddings
 // This would replace the text search above with:
 // SELECT 
-//   s.title, s.url, c.text, c.start_time_seconds, c.end_time_seconds,
-//   (c.embedding <=> $1::vector) as similarity
-// FROM chunks c
-// JOIN sources s ON c.source_id = s.id
-// ORDER BY c.embedding <=> $1::vector
+//   s.title, s.url, seg.text, seg.start_sec, seg.end_sec,
+//   (seg.embedding <=> $1::vector) as similarity
+// FROM segments seg
+// JOIN sources s ON seg.source_id = s.id
+// WHERE seg.speaker_label = 'Chaffee'
+// ORDER BY seg.embedding <=> $1::vector
 // LIMIT 20
