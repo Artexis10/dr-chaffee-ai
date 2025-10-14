@@ -33,6 +33,7 @@ export default function Home() {
   const [answerLoading, setAnswerLoading] = useState(false);
   const [answerError, setAnswerError] = useState('');
   const [answerCancelled, setAnswerCancelled] = useState(false);
+  const [answerStyle, setAnswerStyle] = useState<'concise' | 'detailed'>('concise');
   const searchInputRef = useRef<HTMLInputElement>(null);
   const copyNotificationTimeout = useRef<NodeJS.Timeout | null>(null);
 
@@ -113,11 +114,15 @@ export default function Home() {
     const groups: { [key: string]: VideoGroup } = {};
     
     results.forEach((result) => {
-      // Extract videoId from YouTube URL or use the result ID for non-YouTube sources
+      // Extract videoId - prefer video_id field if available (from source_clips)
       let videoId = '';
       let videoTitle = result.title || 'Unknown Video';
       
-      if (result.source_type === 'youtube' && result.url) {
+      // Check if result has video_id field (from answer API source_clips)
+      if ((result as any).video_id) {
+        videoId = (result as any).video_id;
+      } else if (result.source_type === 'youtube' && result.url) {
+        // Extract from URL for regular search results
         const match = result.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/);
         if (match && match[1]) {
           videoId = match[1];
@@ -149,7 +154,7 @@ export default function Home() {
   }, []);
 
   // Function to handle answer API call with retry logic and rate limiting
-  const performAnswerWithRetry = useCallback(async (query: string, maxRetries: number = 5) => {
+  const performAnswerWithRetry = useCallback(async (query: string, maxRetries: number = 5, styleOverride?: 'concise' | 'detailed') => {
     if (!query.trim()) return;
     
     // Check if enough time has passed since last request
@@ -173,9 +178,13 @@ export default function Home() {
       try {
         console.log(`Answer API attempt ${attempt + 1}/${maxRetries}...`);
         
+        const currentStyle = styleOverride || answerStyle;
         const params = new URLSearchParams({
-          query: query.trim()
+          query: query.trim(),
+          style: currentStyle
         });
+        
+        console.log(`📊 Using answer style: ${currentStyle}`);
         
         console.log('Answer API call URL:', `/api/answer?${params}`);
         
@@ -241,6 +250,18 @@ export default function Home() {
         if (responseData && (responseData.answer || responseData.citations)) {
           setAnswerData(responseData);
           setAnswerError(''); // Clear any previous error messages
+          
+          // Set the source clips as search results so they show in "Supporting Video Clips"
+          if (responseData.source_clips && Array.isArray(responseData.source_clips)) {
+            console.log(`Setting ${responseData.source_clips.length} source clips as search results`);
+            setResults(responseData.source_clips);
+            setTotalResults(responseData.source_clips.length);
+            
+            // Group by video
+            const grouped = groupResultsByVideo(responseData.source_clips);
+            setGroupedResults(grouped);
+          }
+          
           break; // Success, exit retry loop
         } else {
           // Don't throw, just set the error state
@@ -540,14 +561,25 @@ export default function Home() {
 
   // Function to seek to a specific timestamp in YouTube video
   const seekToTimestamp = (videoId: string, seconds: number) => {
+    console.log(`🎬 seekToTimestamp called: videoId=${videoId}, seconds=${seconds}`);
+    
     if (typeof window !== 'undefined') {
       const iframe = document.querySelector(`iframe[src*="${videoId}"]`) as HTMLIFrameElement;
+      
       if (iframe && iframe.contentWindow) {
+        console.log('✅ Found iframe, sending seekTo command');
         iframe.contentWindow.postMessage(JSON.stringify({
           event: 'command',
           func: 'seekTo',
           args: [seconds, true]
         }), '*');
+        
+        // Scroll to the video player
+        iframe.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        console.log('⚠️ No iframe found, opening YouTube in new tab');
+        // No embedded player found, open YouTube directly
+        window.open(`https://www.youtube.com/watch?v=${videoId}&t=${Math.floor(seconds)}s`, '_blank');
       }
     }
   };
@@ -701,6 +733,18 @@ export default function Home() {
               onPlayClip={(videoId, timestamp) => seekToTimestamp(videoId, timestamp)}
               onCopyLink={copyTimestampLink}
               onCancel={handleCancelAnswer}
+              answerStyle={answerStyle}
+              onStyleChange={async (newStyle) => {
+                console.log(`🔄 Switching answer style from ${answerStyle} to ${newStyle}`);
+                setAnswerStyle(newStyle);
+                // Clear current answer to show loading
+                setAnswerData(null);
+                // Re-fetch answer with new style (pass as parameter to avoid stale closure)
+                if (query && !answerLoading) {
+                  console.log(`📡 Re-fetching answer with style: ${newStyle}`);
+                  performAnswerWithRetry(query, 5, newStyle);
+                }
+              }}
             />
           </Suspense>
         </ErrorBoundary>
