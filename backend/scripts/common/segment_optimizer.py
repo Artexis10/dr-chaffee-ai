@@ -284,7 +284,9 @@ class SegmentOptimizer:
             is_overlap=seg1.is_overlap or seg2.is_overlap,
             needs_refinement=seg1.needs_refinement or seg2.needs_refinement,
             embedding=None,  # Will be regenerated
-            voice_embedding=seg1.voice_embedding if seg1.voice_embedding is not None else seg2.voice_embedding,  # Preserve voice embedding
+            # CRITICAL: Preserve voice embedding from either segment (same speaker)
+            # Prefer seg1, fallback to seg2, both should be similar for same speaker
+            voice_embedding=seg1.voice_embedding if seg1.voice_embedding is not None else seg2.voice_embedding,
             original_count=seg1.original_count + seg2.original_count,
             merge_quality="merged"
         )

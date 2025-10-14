@@ -114,6 +114,13 @@ class SegmentsDatabase:
                     
         except Exception as e:
             logger.warning(f"Failed to retrieve cached voice embeddings: {e}")
+            # Ensure rollback on error
+            try:
+                conn = self.get_connection()
+                if conn and not conn.closed:
+                    conn.rollback()
+            except:
+                pass
             return {}
     
     def upsert_source(self, video_id: str, title: str, 
@@ -402,6 +409,13 @@ class SegmentsDatabase:
                 
         except Exception as e:
             logger.error(f"Failed to check video existence for {video_id}: {e}")
+            # Ensure rollback on error
+            try:
+                conn = self.get_connection()
+                if conn and not conn.closed:
+                    conn.rollback()
+            except:
+                pass
             return None, 0
     
     def get_video_stats(self, video_id: str) -> Dict[str, Any]:
