@@ -16,9 +16,9 @@ from datetime import datetime, timedelta
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from scripts.common.transcript_common import TranscriptSegment
-from scripts.common.database_upsert import DatabaseUpserter
+from scripts.common.database_upsert import DatabaseUpserter, ChunkData
 from scripts.common.embedding_generator import EmbeddingGenerator
-from scripts.common.transcript_processor import TranscriptProcessor, ChunkData
+from scripts.common.transcript_processor import TranscriptProcessor
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(name)s - %(message)s')
