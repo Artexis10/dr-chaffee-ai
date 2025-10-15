@@ -27,9 +27,6 @@ google-auth-oauthlib==1.1.0
 sentence-transformers>=2.7.0
 transformers>=4.41.0
 
-# Cross-encoder reranking
-sentence-transformers[cross-encoder]==2.2.2
-
 # Enhanced Audio transcription with latest Whisper models
 # Removed WhisperX - using faster-whisper + asr_diarize_v4 directly
 faster-whisper>=1.0.2  # Supports large-v3, distil-large-v3, large-v3-turbo
