@@ -1,0 +1,36 @@
+[Unit]
+Description=Dr. Chaffee Daily Video Ingestion
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+WorkingDirectory=/path/to/ask-dr-chaffee/backend
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+
+# Load environment variables
+EnvironmentFile=/path/to/ask-dr-chaffee/backend/.env
+
+# Run ingestion
+ExecStart=/usr/bin/python3 /path/to/ask-dr-chaffee/backend/scripts/ingest_youtube_enhanced_asr.py \
+    --channel-url "https://www.youtube.com/@anthonychaffeemd" \
+    --days-back 2 \
+    --skip-existing
+
+# Logging
+StandardOutput=append:/path/to/ask-dr-chaffee/backend/logs/ingest.log
+StandardError=append:/path/to/ask-dr-chaffee/backend/logs/ingest-error.log
+
+# Resource limits (prevent runaway process)
+MemoryMax=8G
+CPUQuota=400%
+
+# Restart on failure
+Restart=on-failure
+RestartSec=300
+
+[Install]
+WantedBy=multi-user.target

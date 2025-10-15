@@ -1,0 +1,16 @@
+[Unit]
+Description=Dr. Chaffee Daily Ingestion Timer
+Requires=drchaffee-ingest.service
+
+[Timer]
+# Run daily at 2 AM
+OnCalendar=*-*-* 02:00:00
+
+# If system was off, run on next boot
+Persistent=true
+
+# Random delay to avoid exact 2 AM (0-30 min)
+RandomizedDelaySec=1800
+
+[Install]
+WantedBy=timers.target
