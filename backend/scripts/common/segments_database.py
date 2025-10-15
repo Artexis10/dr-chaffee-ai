@@ -114,13 +114,17 @@ class SegmentsDatabase:
                     
         except Exception as e:
             logger.warning(f"Failed to retrieve cached voice embeddings: {e}")
-            # Ensure rollback on error
+            # CRITICAL: Ensure rollback and connection reset on error
             try:
                 conn = self.get_connection()
                 if conn and not conn.closed:
-                    conn.rollback()
-            except:
-                pass
+                    if conn.get_transaction_status() == 3:  # TRANSACTION_STATUS_INERROR
+                        logger.warning("Connection in failed transaction state, rolling back and resetting")
+                        conn.rollback()
+                        # Force connection reset to clear error state
+                        conn.reset()
+            except Exception as reset_error:
+                logger.debug(f"Error during connection reset: {reset_error}")
             return {}
     
     def upsert_source(self, video_id: str, title: str, 
