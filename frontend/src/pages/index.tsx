@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import Head from 'next/head';
+import Image from 'next/image';
 import { SearchBar } from '../components/SearchBar';
 import { FilterPills } from '../components/FilterPills';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
@@ -671,7 +672,16 @@ export default function Home() {
         <div className="header">
           <div className="header-content">
             <div className="logo-container">
-              <div className="logo">AC</div>
+              <div className="logo">
+                <Image 
+                  src="/dr-chaffee.jpg" 
+                  alt="Dr. Anthony Chaffee" 
+                  width={80} 
+                  height={80}
+                  style={{ borderRadius: '50%', objectFit: 'cover' }}
+                  priority
+                />
+              </div>
             </div>
             <h1>Ask Dr. Chaffee</h1>
             <p>Search through Dr. Anthony Chaffee's medical knowledge base</p>
