@@ -42,7 +42,7 @@ psutil>=5.9.0
 pyannote.audio>=4.0.0  # v4 with new community pipeline and exclusive mode
 speechbrain>=0.5.16  # For voice embeddings (speaker identification)
 soundfile>=0.12.1  # Audio I/O
-webvtt>=0.4.6  # VTT subtitle parsing
+webvtt-py>=0.5.1  # VTT subtitle parsing (maintained fork)
 
 # Date/time parsing
 isodate==0.6.1
