@@ -191,7 +191,9 @@ export default function Home() {
         
         // Add timeout to the fetch request
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout (answer generation can take 10-15s)
+        // Detailed answers need more time (can take 20-25s)
+        const timeoutMs = currentStyle === 'detailed' ? 45000 : 30000;
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
         
         const response = await fetch(`/api/answer?${params}`, {
           signal: controller.signal
