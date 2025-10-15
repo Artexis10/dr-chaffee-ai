@@ -113,7 +113,19 @@ export const Footer: React.FC = () => {
               <strong>Educational Content Only:</strong> This content is for educational purposes only and should not be considered medical advice. Always consult with a healthcare professional.
             </span>
           </p>
-          <p className="copyright">&copy; {new Date().getFullYear()} Ask Dr. Chaffee</p>
+          <div className="footer-credits">
+            <p className="copyright">&copy; {new Date().getFullYear()} Dr Chaffee AI. Built with passion by Hugo Ander Kivi.</p>
+            <p className="support-link">
+              ☕{' '}
+              <a 
+                href="https://buymeacoffee.com/hugoanderkivi" 
+                target="_blank" 
+                rel="noopener noreferrer"
+              >
+                Support Dr Chaffee AI
+              </a>
+            </p>
+          </div>
         </div>
       </div>
       
@@ -238,10 +250,35 @@ export const Footer: React.FC = () => {
           color: var(--color-text);
         }
         
+        .footer-credits {
+          display: flex;
+          flex-direction: column;
+          gap: var(--space-2);
+          align-items: flex-end;
+        }
+        
         .copyright {
           color: var(--color-text-light);
           font-size: 0.9rem;
           margin: 0;
+        }
+        
+        .support-link {
+          color: var(--color-text-light);
+          font-size: 0.9rem;
+          margin: 0;
+        }
+        
+        .support-link a {
+          color: var(--color-primary);
+          text-decoration: none;
+          font-weight: 500;
+          transition: all var(--transition-normal);
+        }
+        
+        .support-link a:hover {
+          color: var(--color-accent);
+          text-decoration: underline;
         }
         
         @media (max-width: 768px) {
@@ -259,6 +296,10 @@ export const Footer: React.FC = () => {
           .footer-bottom {
             flex-direction: column;
             text-align: center;
+          }
+          
+          .footer-credits {
+            align-items: center;
           }
           
           .disclaimer {
