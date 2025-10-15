@@ -538,7 +538,10 @@ async function checkAnswerCache(query: string, style: string): Promise<any | nul
 // Save answer to cache
 async function saveAnswerCache(query: string, style: string, answer: any): Promise<void> {
   try {
+    console.log(`[Cache Save] Starting cache save for query: "${query.substring(0, 50)}..." (style: ${style})`);
+    
     // Generate embedding for the query
+    console.log(`[Cache Save] Fetching embedding from ${RAG_SERVICE_URL}/embed`);
     const embeddingResponse = await fetch(`${RAG_SERVICE_URL}/embed`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -546,13 +549,15 @@ async function saveAnswerCache(query: string, style: string, answer: any): Promi
     });
     
     if (!embeddingResponse.ok) {
-      console.warn('Failed to generate embedding for cache save');
+      console.warn('[Cache Save] Failed to generate embedding for cache save, status:', embeddingResponse.status);
       return;
     }
     
     const { embedding } = await embeddingResponse.json();
+    console.log(`[Cache Save] Got embedding, length: ${embedding?.length || 0}`);
     
     // Insert into cache
+    console.log('[Cache Save] Inserting into answer_cache table...');
     await pool.query(`
       INSERT INTO answer_cache (
         query_text, query_embedding, style, answer_md, citations, 
@@ -571,9 +576,9 @@ async function saveAnswerCache(query: string, style: string, answer: any): Promi
       CACHE_TTL_HOURS
     ]);
     
-    console.log(`✅ Cached answer for: "${query}" (style: ${style})`);
+    console.log(`✅ [Cache Save] Successfully cached answer for: "${query.substring(0, 50)}..." (style: ${style})`);
   } catch (error) {
-    console.error('Cache save error:', error);
+    console.error('[Cache Save] Error:', error);
     // Don't fail the request if caching fails
   }
 }
