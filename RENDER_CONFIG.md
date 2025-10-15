@@ -60,15 +60,24 @@ YOUTUBE_API_KEY=❌ DELETE
 ```
 
 **Keep Only These**:
+
+**Minimal (Required)**:
 ```bash
-# Database
 DATABASE_URL=postgresql://user:password@host:5432/database
-
-# API Keys
 HUGGINGFACE_HUB_TOKEN=hf_your_token_here
+```
 
-# Optional: If you want admin endpoints
-APP_PASSWORD=your_password
+**Recommended (Embedding optimization)**:
+```bash
+EMBEDDING_PROFILE=quality
+EMBEDDING_DEVICE=cpu
+```
+
+**Optional (Admin API)**:
+```bash
+ADMIN_API_KEY=your_secret_key
+YOUTUBE_API_KEY=your_youtube_key  # Only if triggering ingestion via API
+APP_PASSWORD=your_password  # Legacy, use ADMIN_API_KEY instead
 ```
 
 ---
@@ -245,13 +254,32 @@ Go to **Render Dashboard** → **drchaffee-backend** → **Environment** and del
 
 After cleanup, you should have **ONLY**:
 
+**Minimal (2 variables)**:
 ```bash
 DATABASE_URL=postgresql://user:password@host:5432/database
 HUGGINGFACE_HUB_TOKEN=hf_your_token_here
-APP_PASSWORD=your_password  # Optional
 ```
 
-That's it! Just 2-3 variables.
+**Recommended (4 variables)**:
+```bash
+DATABASE_URL=postgresql://user:password@host:5432/database
+HUGGINGFACE_HUB_TOKEN=hf_your_token_here
+EMBEDDING_PROFILE=quality
+EMBEDDING_DEVICE=cpu
+```
+
+**With Admin API (6-7 variables)**:
+```bash
+DATABASE_URL=postgresql://user:password@host:5432/database
+HUGGINGFACE_HUB_TOKEN=hf_your_token_here
+EMBEDDING_PROFILE=quality
+EMBEDDING_DEVICE=cpu
+ADMIN_API_KEY=your_secret_key
+YOUTUBE_API_KEY=your_youtube_key  # Optional
+APP_PASSWORD=your_password  # Legacy
+```
+
+**All other variables are STALE** (only used by ingestion scripts, not the web service).
 
 ---
 
