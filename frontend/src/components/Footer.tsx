@@ -1,4 +1,5 @@
 import React from 'react';
+import Image from 'next/image';
 
 export const Footer: React.FC = () => {
   return (
@@ -6,7 +7,15 @@ export const Footer: React.FC = () => {
       <div className="footer-content">
         <div className="footer-top">
           <div className="footer-logo">
-            <div className="footer-logo-icon">AC</div>
+            <div className="footer-logo-icon">
+              <Image 
+                src="/dr-chaffee.jpg" 
+                alt="Dr. Anthony Chaffee" 
+                width={50} 
+                height={50}
+                style={{ borderRadius: '50%', objectFit: 'cover' }}
+              />
+            </div>
             <div className="footer-logo-text">
               <h3>Ask Dr. Chaffee</h3>
               <p>Medical Knowledge Base</p>
@@ -148,14 +157,13 @@ export const Footer: React.FC = () => {
         .footer-logo-icon {
           width: 50px;
           height: 50px;
-          background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
-          color: white;
           border-radius: 50%;
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 1.2rem;
-          font-weight: 700;
+          overflow: hidden;
+          border: 2px solid var(--color-primary);
+          box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
         }
         
         .footer-logo-text h3 {

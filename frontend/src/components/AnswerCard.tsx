@@ -432,38 +432,6 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
     return null;
   }
 
-  // Process markdown formatting (headings, bold, paragraphs)
-  const processMarkdown = (text: string) => {
-    if (!text) return null;
-    
-    // Split by double newlines for paragraphs
-    const paragraphs = text.split(/\n\n+/);
-    
-    return paragraphs.map((para, idx) => {
-      // Check for headings
-      if (para.startsWith('### ')) {
-        return <h3 key={idx} style={{ marginTop: '1.5rem', marginBottom: '0.75rem', fontSize: '1.1rem', fontWeight: 600 }}>{para.substring(4)}</h3>;
-      }
-      if (para.startsWith('## ')) {
-        return <h2 key={idx} style={{ marginTop: '1.75rem', marginBottom: '0.75rem', fontSize: '1.25rem', fontWeight: 600 }}>{para.substring(3)}</h2>;
-      }
-      if (para.startsWith('# ')) {
-        return <h1 key={idx} style={{ marginTop: '2rem', marginBottom: '1rem', fontSize: '1.5rem', fontWeight: 700 }}>{para.substring(2)}</h1>;
-      }
-      
-      // Process bold text
-      const processedText = para.split(/(\*\*[^*]+\*\*)/).map((chunk, i) => {
-        if (chunk.startsWith('**') && chunk.endsWith('**')) {
-          return <strong key={i}>{chunk.slice(2, -2)}</strong>;
-        }
-        return chunk;
-      });
-      
-      // Regular paragraph
-      return <p key={idx} style={{ marginBottom: '1rem', lineHeight: '1.7' }}>{processedText}</p>;
-    });
-  };
-
   // Parse inline citations and convert to clickable chips
   const renderAnswerWithCitations = (text: string) => {
     const citationRegex = /\[([^@]+)@(\d+:\d+)\]/g;
@@ -473,10 +441,9 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
     const seenCitations = new Set<string>(); // Track seen citations to avoid duplicates
 
     while ((match = citationRegex.exec(text)) !== null) {
-      // Add text before citation (with markdown processing)
+      // Add text before citation
       if (match.index > lastIndex) {
-        const textChunk = text.substring(lastIndex, match.index);
-        parts.push(processMarkdown(textChunk));
+        parts.push(text.substring(lastIndex, match.index));
       }
 
       // Find corresponding citation data
@@ -558,10 +525,9 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
       lastIndex = match.index + match[0].length;
     }
 
-    // Add remaining text (with markdown processing)
+    // Add remaining text
     if (lastIndex < text.length) {
-      const remainingText = text.substring(lastIndex);
-      parts.push(processMarkdown(remainingText));
+      parts.push(text.substring(lastIndex));
     }
 
     return parts;
@@ -919,6 +885,7 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
           line-height: 1.7;
           color: #374151;
           margin: 0;
+          white-space: pre-wrap; /* Preserve line breaks and spacing */
         }
 
         .show-more-button {

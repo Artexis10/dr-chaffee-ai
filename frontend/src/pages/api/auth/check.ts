@@ -6,8 +6,12 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   const appPassword = process.env.APP_PASSWORD;
+  console.log('[Auth Check] APP_PASSWORD exists:', !!appPassword, 'length:', appPassword?.length || 0);
+  
+  const requiresPassword = !!appPassword && appPassword.trim().length > 0;
+  console.log('[Auth Check] Requires password:', requiresPassword);
   
   res.status(200).json({
-    requiresPassword: !!appPassword && appPassword.trim().length > 0
+    requiresPassword
   });
 }
