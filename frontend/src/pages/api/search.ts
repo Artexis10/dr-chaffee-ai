@@ -130,67 +130,34 @@ export default async function handler(
   }
 
   try {
-    // Build dynamic WHERE clause for filters
-    let whereConditions = ['(seg.text ILIKE $1 OR s.title ILIKE $1)'];
-    let queryParams: any[] = [`%${query}%`];
-    let paramCount = 1;
+    // Call embedding service for semantic search
+    const EMBEDDING_SERVICE_URL = process.env.EMBEDDING_SERVICE_URL || 'http://localhost:8001';
+    
+    console.log('Calling embedding service at:', EMBEDDING_SERVICE_URL);
+    
+    const embeddingResponse = await fetch(`${EMBEDDING_SERVICE_URL}/search`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query: query,
+        top_k: limit,
+        min_similarity: 0.3,
+        use_reranking: process.env.RERANK_ENABLED === 'true'
+      }),
+    });
 
-    // Source filter
-    if (source_filter !== 'all') {
-      paramCount++;
-      whereConditions.push(`s.source_type = $${paramCount}`);
-      queryParams.push(source_filter);
+    if (!embeddingResponse.ok) {
+      console.error('Embedding service error:', embeddingResponse.status);
+      throw new Error(`Embedding service returned ${embeddingResponse.status}`);
     }
 
-    // Year filter
-    if (year_filter) {
-      paramCount++;
-      whereConditions.push(`EXTRACT(YEAR FROM s.published_at) = $${paramCount}`);
-      queryParams.push(parseInt(year_filter));
-    }
+    const embeddingData = await embeddingResponse.json();
+    console.log('Embedding service returned:', embeddingData.total_results, 'results');
 
-    const searchQuery = `
-      SELECT 
-        seg.id,
-        s.title,
-        seg.text,
-        s.url,
-        seg.start_sec as start_time_seconds,
-        seg.end_sec as end_time_seconds,
-        s.source_type,
-        s.published_at,
-        COALESCE(s.metadata->>'provenance', 'yt_caption') as provenance,
-        0.5 as similarity -- Initial similarity score
-      FROM segments seg
-      JOIN sources s ON seg.video_id = s.source_id
-      WHERE seg.speaker_label = 'Chaffee' AND ${whereConditions.join(' AND ')}
-      ORDER BY 
-        -- Primary: Text relevance
-        CASE 
-          WHEN seg.text ILIKE $1 THEN 1
-          WHEN s.title ILIKE $1 THEN 2
-          ELSE 3
-        END,
-        -- Secondary: Provenance preference (owner > yt_caption > yt_dlp > whisper)
-        CASE COALESCE(s.metadata->>'provenance', 'yt_caption') 
-          WHEN 'owner' THEN 1
-          WHEN 'yt_caption' THEN 2
-          WHEN 'yt_dlp' THEN 3
-          WHEN 'whisper' THEN 4
-          ELSE 5
-        END,
-        -- Tertiary: Recency boost for recent content
-        s.published_at DESC NULLS LAST,
-        -- Final: Temporal order within content
-        seg.start_sec ASC
-      LIMIT $${paramCount + 1}
-    `;
-
-    queryParams.push(limit);
-    const result = await pool.query(searchQuery, queryParams);
-
-    // Process initial results
-    let searchResults = result.rows.map(row => {
+    // Transform results to match expected format
+    let searchResults = embeddingData.results.map((row: any) => {
       let urlWithTimestamp = row.url;
       if (row.source_type === 'youtube' && row.start_time_seconds) {
         const timestampSeconds = Math.floor(row.start_time_seconds);
@@ -203,18 +170,22 @@ export default async function handler(
         url: urlWithTimestamp,
         start_time_seconds: row.start_time_seconds,
         end_time_seconds: row.end_time_seconds,
-        similarity: Math.abs(row.similarity * 100).toFixed(1),
+        similarity: (row.similarity * 100).toFixed(1),
         source_type: row.source_type,
         published_at: row.published_at,
       };
     });
 
-    // Apply reranking if enabled (placeholder for now - will implement with Python service)
-    const isRerankEnabled = process.env.RERANK_ENABLED === 'true';
-    if (isRerankEnabled && searchResults.length > 5) {
-      // TODO: Call Python reranker service
-      // For now, just take top 5
-      searchResults = searchResults.slice(0, 5);
+    // Apply filters if needed (embedding service doesn't support filters yet)
+    if (source_filter !== 'all') {
+      searchResults = searchResults.filter((r: any) => r.source_type === source_filter);
+    }
+    if (year_filter) {
+      searchResults = searchResults.filter((r: any) => {
+        if (!r.published_at) return false;
+        const year = new Date(r.published_at).getFullYear();
+        return year === parseInt(year_filter);
+      });
     }
 
     // Cluster segments within ±120s

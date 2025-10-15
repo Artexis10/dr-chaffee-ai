@@ -555,8 +555,15 @@ export default function Home() {
     let highlightedText = text;
     
     terms.forEach(term => {
-      const regex = new RegExp(`(${term})`, 'gi');
-      highlightedText = highlightedText.replace(regex, '<mark>$1</mark>');
+      // Escape special regex characters to prevent syntax errors
+      const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      try {
+        const regex = new RegExp(`(${escapedTerm})`, 'gi');
+        highlightedText = highlightedText.replace(regex, '<mark>$1</mark>');
+      } catch (e) {
+        // If regex still fails, skip highlighting for this term
+        console.warn('Failed to highlight term:', term, e);
+      }
     });
     
     return highlightedText;
