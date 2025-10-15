@@ -97,6 +97,26 @@ class VoiceEnrollment:
                     run_opts={"device": self._device}
                 )
                 
+                # CRITICAL: Explicitly move model to CUDA (SpeechBrain sometimes ignores run_opts)
+                if self._device == "cuda" and torch.cuda.is_available():
+                    logger.info("🔧 Explicitly moving SpeechBrain model to CUDA...")
+                    self._embedding_model = self._embedding_model.to('cuda')
+                    
+                    # Verify actual device placement
+                    try:
+                        # Check device of first model parameter
+                        first_param = next(self._embedding_model.mods.parameters())
+                        actual_device = str(first_param.device)
+                        logger.info(f"🔍 SpeechBrain model device: {actual_device}")
+                        
+                        if 'cpu' in actual_device.lower():
+                            logger.error(f"⚠️  CRITICAL: SpeechBrain model on CPU despite CUDA request!")
+                            logger.error(f"⚠️  Voice embedding extraction will be 30-50x slower!")
+                        else:
+                            logger.info(f"✅ SpeechBrain model successfully placed on GPU")
+                    except Exception as e:
+                        logger.warning(f"Could not verify device placement: {e}")
+                
                 logger.info(f"✅ Successfully loaded SpeechBrain ECAPA-TDNN model on {self._device}")
                 
             except Exception as e:
@@ -309,11 +329,15 @@ class VoiceEnrollment:
             
             # Batch process all segments at once (much faster!)
             embeddings = []
-            # CRITICAL: Smaller batch size to prevent OOM (was 32, now 8)
-            batch_size = int(os.getenv('VOICE_ENROLLMENT_BATCH_SIZE', '8'))
+            # CRITICAL: Conservative batch size for multi-model pipeline (Whisper + SpeechBrain + Embeddings)
+            # RTX 5080 has 16GB but memory fragments over time - use small batches to prevent OOM
+            batch_size = int(os.getenv('VOICE_ENROLLMENT_BATCH_SIZE', '4'))
             total_batches = (len(segments) + batch_size - 1) // batch_size
             
             logger.info(f"Processing {len(segments)} segments in {total_batches} batches of {batch_size}")
+            
+            import time
+            batch_start_time = time.time()
             
             for batch_start in range(0, len(segments), batch_size):
                 batch_end = min(batch_start + batch_size, len(segments))
@@ -343,9 +367,15 @@ class VoiceEnrollment:
                             emb = batch_embeddings_np[i] if batch_embeddings_np.ndim > 1 else batch_embeddings_np
                             embeddings.append(emb.astype(np.float64))
                     
-                    # Free GPU memory (del is enough, empty_cache is slow!)
+                    # CRITICAL: Aggressive GPU memory cleanup for long-running pipelines
                     del batch_tensor
                     del batch_embeddings
+                    
+                    # Force GPU cache cleanup every 5 batches to prevent fragmentation
+                    if batch_num % 5 == 0:
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
+                            torch.cuda.synchronize()
                     
                     # Progress logging every 10 batches or at key milestones
                     if batch_num % 10 == 0 or batch_num == total_batches:
@@ -373,8 +403,23 @@ class VoiceEnrollment:
                             del segment_tensor
                         except Exception as e:
                             continue
-                    
-            logger.info(f"Extracted {len(embeddings)} embeddings from {audio_path}")
+            
+            # Performance metrics
+            batch_elapsed = time.time() - batch_start_time
+            embeddings_per_sec = len(embeddings) / batch_elapsed if batch_elapsed > 0 else 0
+            logger.info(f"Extracted {len(embeddings)} embeddings from {audio_path} in {batch_elapsed:.1f}s ({embeddings_per_sec:.1f} emb/sec)")
+            
+            # Warn if performance is poor (GPU should be 10-20 emb/sec for ECAPA-TDNN)
+            if embeddings_per_sec < 5 and len(embeddings) > 50:
+                logger.warning(f"⚠️  Slow voice embedding extraction ({embeddings_per_sec:.1f} emb/sec) - likely running on CPU!")
+                logger.warning(f"⚠️  Expected GPU speed: 10-20 emb/sec")
+            
+            # CRITICAL: Clean up GPU memory after voice enrollment completes
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
+                logger.debug("🧹 Cleared GPU cache after voice enrollment")
+            
             return embeddings
             
         except Exception as e:

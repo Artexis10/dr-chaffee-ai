@@ -178,6 +178,23 @@ class EnhancedASR:
                 if not embeddings:
                     logger.warning("No embeddings extracted, using fallback fast-path")
                     return self._fallback_monologue_fast_path(audio_path)
+            except RuntimeError as e:
+                # Handle CUDA OOM during voice enrollment
+                if 'out of memory' in str(e).lower():
+                    logger.warning(f"⚠️  CUDA OOM during voice enrollment, using fallback fast-path")
+                    # Clean up GPU and use fallback
+                    import torch
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                        torch.cuda.synchronize()
+                    return self._fallback_monologue_fast_path(audio_path)
+                else:
+                    raise
+            except Exception as e:
+                logger.warning(f"Voice enrollment failed ({e}), using fallback fast-path")
+                return self._fallback_monologue_fast_path(audio_path)
+            
+            try:
                 
                 # Test first few embeddings (use more for better accuracy)
                 test_embeddings = embeddings[:5]  # Test first 25 seconds
@@ -1526,6 +1543,13 @@ class EnhancedASR:
             TranscriptionResult with speaker attribution
         """
         try:
+            # CRITICAL: Clean GPU memory before starting ASR (prevents OOM in long pipelines)
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
+                logger.debug("🧹 Cleared GPU cache before ASR")
+            
             # Log configuration for debugging
             self.config.log_config()
             logger.info(f"Starting enhanced ASR transcription: {audio_path}")
