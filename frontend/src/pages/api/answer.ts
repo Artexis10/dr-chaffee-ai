@@ -490,9 +490,13 @@ async function checkAnswerCache(query: string, style: string): Promise<any | nul
       return null;
     }
     
-    const { embedding } = await embeddingResponse.json();
+    const { embedding, dimensions } = await embeddingResponse.json();
+    const embeddingProfile = dimensions === 384 ? 'speed' : 'quality';
+    const embeddingColumn = dimensions === 384 ? 'query_embedding_384' : 'query_embedding_1536';
     
-    // Search for similar cached answers
+    console.log(`[Cache Lookup] Using ${embeddingProfile} profile (${dimensions} dims)`);
+    
+    // Search for similar cached answers using the appropriate embedding column
     const result = await pool.query(`
       SELECT 
         id,
@@ -505,14 +509,16 @@ async function checkAnswerCache(query: string, style: string): Promise<any | nul
         source_clips,
         created_at,
         access_count,
-        1 - (query_embedding <=> $1::vector) as similarity
+        1 - (${embeddingColumn} <=> $1::vector) as similarity
       FROM answer_cache
       WHERE style = $2
+        AND embedding_profile = $3
         AND created_at + (ttl_hours || ' hours')::INTERVAL > NOW()
-        AND 1 - (query_embedding <=> $1::vector) >= $3
+        AND ${embeddingColumn} IS NOT NULL
+        AND 1 - (${embeddingColumn} <=> $1::vector) >= $4
       ORDER BY similarity DESC
       LIMIT 1
-    `, [JSON.stringify(embedding), style, CACHE_SIMILARITY_THRESHOLD]);
+    `, [JSON.stringify(embedding), style, embeddingProfile, CACHE_SIMILARITY_THRESHOLD]);
     
     if (result.rows.length > 0) {
       const cached = result.rows[0];
@@ -553,19 +559,23 @@ async function saveAnswerCache(query: string, style: string, answer: any): Promi
       return;
     }
     
-    const { embedding } = await embeddingResponse.json();
-    console.log(`[Cache Save] Got embedding, length: ${embedding?.length || 0}`);
+    const { embedding, dimensions } = await embeddingResponse.json();
+    const embeddingProfile = dimensions === 384 ? 'speed' : 'quality';
+    const embeddingColumn = dimensions === 384 ? 'query_embedding_384' : 'query_embedding_1536';
     
-    // Insert into cache
+    console.log(`[Cache Save] Got embedding: ${dimensions} dims (${embeddingProfile} profile)`);
+    
+    // Insert into cache with the appropriate embedding column
     console.log('[Cache Save] Inserting into answer_cache table...');
     await pool.query(`
       INSERT INTO answer_cache (
-        query_text, query_embedding, style, answer_md, citations, 
+        query_text, ${embeddingColumn}, embedding_profile, style, answer_md, citations, 
         confidence, notes, used_chunk_ids, source_clips, ttl_hours
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
     `, [
       query,
       JSON.stringify(embedding),
+      embeddingProfile,
       style,
       answer.answer_md,
       JSON.stringify(answer.citations),
@@ -576,7 +586,7 @@ async function saveAnswerCache(query: string, style: string, answer: any): Promi
       CACHE_TTL_HOURS
     ]);
     
-    console.log(`✅ [Cache Save] Successfully cached answer for: "${query.substring(0, 50)}..." (style: ${style})`);
+    console.log(`✅ [Cache Save] Successfully cached answer (${embeddingProfile} profile)`);
   } catch (error) {
     console.error('[Cache Save] Error:', error);
     // Don't fail the request if caching fails
