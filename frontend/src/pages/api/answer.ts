@@ -37,7 +37,7 @@ console.log('ANSWER_ENABLED:', ANSWER_ENABLED);
 console.log('USE_MOCK_MODE:', USE_MOCK_MODE);
 
 // RAG Service Integration
-const RAG_SERVICE_URL = process.env.RAG_SERVICE_URL || 'http://localhost:5001';
+const RAG_SERVICE_URL = process.env.RAG_SERVICE_URL || 'http://localhost:8000';
 
 // Cache configuration
 const CACHE_SIMILARITY_THRESHOLD = 0.92; // 92% similarity to consider a cache hit

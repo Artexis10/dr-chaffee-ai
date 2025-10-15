@@ -191,7 +191,7 @@ export default function Home() {
         
         // Add timeout to the fetch request
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout (answer generation can take 10-15s)
         
         const response = await fetch(`/api/answer?${params}`, {
           signal: controller.signal
