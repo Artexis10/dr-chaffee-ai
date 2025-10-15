@@ -110,12 +110,12 @@ def sync_segments(local_conn, prod_conn, since: datetime) -> int:
     prod_cur = prod_conn.cursor()
     
     try:
-        # Get new segments from local
+        # Get new segments from local (including voice_embedding)
         local_cur.execute("""
             SELECT video_id, start_sec, end_sec, speaker_label, speaker_conf,
                    text, avg_logprob, compression_ratio, no_speech_prob,
                    temperature_used, re_asr, is_overlap, needs_refinement,
-                   embedding, created_at
+                   embedding, voice_embedding, created_at
             FROM segments
             WHERE created_at > %s
             ORDER BY created_at
@@ -132,14 +132,14 @@ def sync_segments(local_conn, prod_conn, since: datetime) -> int:
             batch.append(segment)
             
             if len(batch) >= batch_size:
-                # Insert batch
+                # Insert batch (including voice_embedding)
                 prod_cur.executemany("""
                     INSERT INTO segments (
                         video_id, start_sec, end_sec, speaker_label, speaker_conf,
                         text, avg_logprob, compression_ratio, no_speech_prob,
                         temperature_used, re_asr, is_overlap, needs_refinement,
-                        embedding, created_at
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        embedding, voice_embedding, created_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT DO NOTHING
                 """, batch)
                 prod_conn.commit()
@@ -147,15 +147,15 @@ def sync_segments(local_conn, prod_conn, since: datetime) -> int:
                 logger.info(f"Synced {synced}/{len(new_segments)} segments...")
                 batch = []
         
-        # Insert remaining
+        # Insert remaining (including voice_embedding)
         if batch:
             prod_cur.executemany("""
                 INSERT INTO segments (
                     video_id, start_sec, end_sec, speaker_label, speaker_conf,
                     text, avg_logprob, compression_ratio, no_speech_prob,
                     temperature_used, re_asr, is_overlap, needs_refinement,
-                    embedding, created_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    embedding, voice_embedding, created_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT DO NOTHING
             """, batch)
             prod_conn.commit()
