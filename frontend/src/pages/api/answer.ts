@@ -61,7 +61,10 @@ async function callRAGService(question: string): Promise<RAGResponse | null> {
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      console.error('RAG service error:', response.status, response.statusText);
+      // Silently fail if RAG service doesn't have /search endpoint yet
+      if (response.status !== 404) {
+        console.error('RAG service error:', response.status, response.statusText);
+      }
       return null;
     }
 
