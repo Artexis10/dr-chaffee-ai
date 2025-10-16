@@ -62,8 +62,13 @@ _embedding_generator = None
 def get_embedding_generator():
     global _embedding_generator
     if _embedding_generator is None:
-        # Use OpenAI for production if available, otherwise use small local model
-        if os.getenv('OPENAI_API_KEY'):
+        # Priority: HuggingFace (matches local embeddings) > OpenAI > Local fallback
+        if os.getenv('HUGGINGFACE_API_KEY'):
+            _embedding_generator = EmbeddingGenerator(
+                embedding_provider='huggingface',
+                model_name='Alibaba-NLP/gte-Qwen2-1.5B-instruct'
+            )
+        elif os.getenv('OPENAI_API_KEY'):
             _embedding_generator = EmbeddingGenerator(
                 embedding_provider='openai',
                 model_name='text-embedding-3-large'

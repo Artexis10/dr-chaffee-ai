@@ -59,6 +59,12 @@ class EmbeddingGenerator:
             # text-embedding-3-large produces 1536 dimensions by default
             self.embedding_dimensions = int(os.getenv('EMBEDDING_DIMENSIONS', '1536'))
             self.openai_client = None
+        elif self.provider == 'huggingface':
+            self.model_name = model_name or os.getenv('HUGGINGFACE_MODEL', 'Alibaba-NLP/gte-Qwen2-1.5B-instruct')
+            self.embedding_dimensions = int(os.getenv('EMBEDDING_DIMENSIONS', '1536'))
+            self.hf_api_key = os.getenv('HUGGINGFACE_API_KEY')
+            if not self.hf_api_key:
+                raise ValueError("HUGGINGFACE_API_KEY environment variable required for huggingface provider")
         else:
             # Local sentence-transformers - use profile or env override
             self.model_name = model_name or os.getenv('EMBEDDING_MODEL', profile_config['model'])
@@ -206,6 +212,8 @@ class EmbeddingGenerator:
         
         if self.provider == 'openai':
             return self._generate_openai_embeddings(texts)
+        elif self.provider == 'huggingface':
+            return self._generate_huggingface_embeddings(texts)
         else:
             return self._generate_local_embeddings(texts)
     
@@ -267,6 +275,45 @@ class EmbeddingGenerator:
             # Fallback to local model
             logger.warning("Falling back to local embedding model")
             return self._generate_local_embeddings(texts)
+    
+    def _generate_huggingface_embeddings(self, texts: List[str]) -> List[List[float]]:
+        """Generate embeddings using Hugging Face Inference API"""
+        try:
+            import requests
+            
+            API_URL = f"https://api-inference.huggingface.co/pipeline/feature-extraction/{self.model_name}"
+            headers = {"Authorization": f"Bearer {self.hf_api_key}"}
+            
+            all_embeddings = []
+            batch_size = 10  # HF API limit for free tier
+            
+            for i in range(0, len(texts), batch_size):
+                batch_texts = texts[i:i + batch_size]
+                logger.debug(f"Generating HF embeddings for batch {i//batch_size + 1}/{(len(texts) + batch_size - 1)//batch_size}")
+                
+                response = requests.post(
+                    API_URL,
+                    headers=headers,
+                    json={"inputs": batch_texts, "options": {"wait_for_model": True}}
+                )
+                
+                if response.status_code != 200:
+                    raise Exception(f"HF API error: {response.status_code} - {response.text}")
+                
+                batch_embeddings = response.json()
+                
+                # Handle different response formats
+                if isinstance(batch_embeddings, list):
+                    all_embeddings.extend(batch_embeddings)
+                else:
+                    raise Exception(f"Unexpected HF API response format: {type(batch_embeddings)}")
+            
+            logger.info(f"Generated {len(all_embeddings)} Hugging Face embeddings")
+            return all_embeddings
+            
+        except Exception as e:
+            logger.error(f"Hugging Face embedding generation failed: {e}")
+            raise
     
     def _generate_local_embeddings(self, texts: List[str]) -> List[List[float]]:
         """Generate embeddings using local SentenceTransformer model"""
