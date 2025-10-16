@@ -109,6 +109,7 @@ class SearchResult(BaseModel):
     video_id: str
     title: str
     text: str
+    url: str
     start_time_seconds: float
     end_time_seconds: float
     published_at: str
@@ -218,6 +219,7 @@ async def semantic_search(request: SearchRequest):
                 seg.end_sec as end_time_seconds,
                 s.published_at,
                 s.source_type,
+                s.url,
                 1 - (seg.embedding <=> %s::vector) as similarity
             FROM segments seg
             JOIN sources s ON seg.video_id = s.source_id
@@ -262,6 +264,7 @@ async def semantic_search(request: SearchRequest):
                 video_id=r['video_id'],
                 title=r['title'],
                 text=r['text'],
+                url=r['url'] or '',
                 start_time_seconds=float(r['start_time_seconds']),
                 end_time_seconds=float(r['end_time_seconds']),
                 published_at=r['published_at'].isoformat() if r['published_at'] else '',
