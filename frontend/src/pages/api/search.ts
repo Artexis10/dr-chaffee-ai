@@ -4,8 +4,7 @@ import { Pool } from 'pg';
 // Database connection
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  // Disable SSL for local development
-  ssl: false
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
 interface SearchResult {
