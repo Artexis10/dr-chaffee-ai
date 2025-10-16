@@ -205,6 +205,8 @@ install_pgvector.py
 migrate_db_to_production.py
 migrate_production.ps1
 remove_backend_voices.py
+backend/scripts/migrate_profile_to_db.py
+fix_secrets.ps1
 
 # Downloaded media
 *.webm
