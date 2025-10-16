@@ -1,0 +1,8 @@
+DATABASE_URL=postgresql://user:password@host:5432/database
+OPENAI_API_KEY=sk-proj-your_actual_key_here
+NODE_ENV=production
+SUMMARIZER_MODEL=gpt-3.5-turbo
+ANSWER_TOPK=50
+ANSWER_STYLE_DEFAULT=concise
+EMBEDDING_SERVICE_URL=https://drchaffee-backend.onrender.com
+APP_PASSWORD=your_secure_password_here
