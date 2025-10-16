@@ -1,0 +1,39 @@
+services:
+  # =============================================================================
+  # FRONTEND - Next.js Web Service (with API routes)
+  # =============================================================================
+  - type: web
+    name: ask-dr-chaffee-frontend
+    env: node
+    region: oregon
+    plan: starter
+    buildCommand: cd frontend && npm install && npm run build
+    startCommand: cd frontend && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ask-dr-chaffee-db
+          property: connectionString
+      - key: OPENAI_API_KEY
+        sync: false  # Set manually in Render dashboard
+      - key: SUMMARIZER_MODEL
+        value: gpt-3.5-turbo
+      - key: ANSWER_TOPK
+        value: 50
+      - key: ANSWER_STYLE_DEFAULT
+        value: concise
+      - key: APP_PASSWORD
+        sync: false  # Set manually in Render dashboard
+      - key: EMBEDDING_SERVICE_URL
+        value: http://localhost:8001  # Update if you deploy backend separately
+
+# =============================================================================
+# DATABASE - PostgreSQL
+# =============================================================================
+databases:
+  - name: ask-dr-chaffee-db
+    databaseName: askdrchaffee
+    plan: starter
+    region: oregon
