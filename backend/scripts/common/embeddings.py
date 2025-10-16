@@ -59,6 +59,12 @@ class EmbeddingGenerator:
             # text-embedding-3-large produces 1536 dimensions by default
             self.embedding_dimensions = int(os.getenv('EMBEDDING_DIMENSIONS', '1536'))
             self.openai_client = None
+        elif self.provider == 'nomic':
+            self.model_name = model_name or os.getenv('NOMIC_MODEL', 'nomic-embed-text-v1.5')
+            self.embedding_dimensions = int(os.getenv('EMBEDDING_DIMENSIONS', '768'))
+            self.nomic_api_key = os.getenv('NOMIC_API_KEY')
+            if not self.nomic_api_key:
+                raise ValueError("NOMIC_API_KEY environment variable required for nomic provider")
         elif self.provider == 'huggingface':
             self.model_name = model_name or os.getenv('HUGGINGFACE_MODEL', 'Alibaba-NLP/gte-Qwen2-1.5B-instruct')
             self.embedding_dimensions = int(os.getenv('EMBEDDING_DIMENSIONS', '1536'))
@@ -212,6 +218,8 @@ class EmbeddingGenerator:
         
         if self.provider == 'openai':
             return self._generate_openai_embeddings(texts)
+        elif self.provider == 'nomic':
+            return self._generate_nomic_embeddings(texts)
         elif self.provider == 'huggingface':
             return self._generate_huggingface_embeddings(texts)
         else:
@@ -275,6 +283,49 @@ class EmbeddingGenerator:
             # Fallback to local model
             logger.warning("Falling back to local embedding model")
             return self._generate_local_embeddings(texts)
+    
+    def _generate_nomic_embeddings(self, texts: List[str]) -> List[List[float]]:
+        """Generate embeddings using Nomic Atlas API"""
+        try:
+            import requests
+            
+            API_URL = "https://api-atlas.nomic.ai/v1/embedding/text"
+            headers = {"Authorization": f"Bearer {self.nomic_api_key}"}
+            
+            all_embeddings = []
+            batch_size = 100  # Nomic supports up to 100 texts per request
+            
+            for i in range(0, len(texts), batch_size):
+                batch_texts = texts[i:i + batch_size]
+                logger.debug(f"Generating Nomic embeddings for batch {i//batch_size + 1}/{(len(texts) + batch_size - 1)//batch_size}")
+                
+                response = requests.post(
+                    API_URL,
+                    headers=headers,
+                    json={
+                        "model": self.model_name,
+                        "texts": batch_texts,
+                        "task_type": "search_document"  # or "search_query" for queries
+                    }
+                )
+                
+                if response.status_code != 200:
+                    raise Exception(f"Nomic API error: {response.status_code} - {response.text}")
+                
+                result = response.json()
+                batch_embeddings = result.get("embeddings", [])
+                
+                if not batch_embeddings:
+                    raise Exception(f"No embeddings in Nomic response: {result}")
+                
+                all_embeddings.extend(batch_embeddings)
+            
+            logger.info(f"Generated {len(all_embeddings)} Nomic embeddings")
+            return all_embeddings
+            
+        except Exception as e:
+            logger.error(f"Nomic embedding generation failed: {e}")
+            raise
     
     def _generate_huggingface_embeddings(self, texts: List[str]) -> List[List[float]]:
         """Generate embeddings using Hugging Face Inference API"""

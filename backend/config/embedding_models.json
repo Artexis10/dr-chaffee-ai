@@ -1,0 +1,72 @@
+{
+  "models": {
+    "gte-qwen2-1.5b": {
+      "key": "gte-qwen2-1.5b",
+      "provider": "local",
+      "model_name": "Alibaba-NLP/gte-Qwen2-1.5B-instruct",
+      "dimensions": 1536,
+      "cost_per_1k": 0.0,
+      "description": "Local GPU model, free, high quality"
+    },
+    "openai-3-large": {
+      "key": "openai-3-large",
+      "provider": "openai",
+      "model_name": "text-embedding-3-large",
+      "dimensions": 1536,
+      "cost_per_1k": 0.13,
+      "description": "OpenAI API, paid, highest quality"
+    },
+    "openai-3-small": {
+      "key": "openai-3-small",
+      "provider": "openai",
+      "model_name": "text-embedding-3-small",
+      "dimensions": 1536,
+      "cost_per_1k": 0.02,
+      "description": "OpenAI API, paid, cheaper"
+    },
+    "openai-ada-002": {
+      "key": "openai-ada-002",
+      "provider": "openai",
+      "model_name": "text-embedding-ada-002",
+      "dimensions": 1536,
+      "cost_per_1k": 0.10,
+      "description": "OpenAI legacy model"
+    },
+    "bge-large-en": {
+      "key": "bge-large-en",
+      "provider": "local",
+      "model_name": "BAAI/bge-large-en-v1.5",
+      "dimensions": 1024,
+      "cost_per_1k": 0.0,
+      "description": "BGE model, different dimensions"
+    },
+    "voyage-2": {
+      "key": "voyage-2",
+      "provider": "voyage",
+      "model_name": "voyage-2",
+      "dimensions": 1024,
+      "cost_per_1k": 0.10,
+      "description": "Voyage AI embeddings"
+    },
+    "nomic-v1.5": {
+      "key": "nomic-v1.5",
+      "provider": "nomic",
+      "model_name": "nomic-embed-text-v1.5",
+      "dimensions": 768,
+      "cost_per_1k": 0.0,
+      "description": "Nomic embeddings - 10M free tokens/month, exact local/API parity"
+    }
+  },
+  "active_query_model": "nomic-v1.5",
+  "active_ingestion_models": ["nomic-v1.5"],
+  "recommended_model": "nomic-v1.5",
+  "storage_strategy": "normalized",
+  "notes": [
+    "Normalized storage: segment_embeddings table stores all models",
+    "Supports ANY dimension size - no schema changes needed",
+    "active_query_model: Which embeddings to use for search queries",
+    "active_ingestion_models: Which embeddings to generate during ingestion (can be multiple)",
+    "To switch: Just change active_query_model - instant if embeddings exist",
+    "To add a new model: Add to config, add to active_ingestion_models, run ingestion"
+  ]
+}

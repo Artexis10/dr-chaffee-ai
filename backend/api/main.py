@@ -81,6 +81,43 @@ def get_embedding_generator():
             )
     return _embedding_generator
 
+def get_active_model_key():
+    """Get the active model key from config"""
+    import json
+    from pathlib import Path
+    
+    # Load config
+    config_path = Path(__file__).parent.parent / 'config' / 'embedding_models.json'
+    try:
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+        
+        # Get active model from env or config
+        active_model = os.getenv('EMBEDDING_QUERY_MODEL', config.get('active_query_model', 'gte-qwen2-1.5b'))
+        return active_model
+    except Exception as e:
+        logger.warning(f"Failed to load embedding config: {e}")
+        return 'gte-qwen2-1.5b'
+
+def use_normalized_embeddings():
+    """Check if we should use the normalized segment_embeddings table"""
+    # Check if table exists
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.tables 
+                WHERE table_name = 'segment_embeddings'
+            )
+        """)
+        exists = cur.fetchone()[0]
+        cur.close()
+        conn.close()
+        return exists
+    except:
+        return False
+
 def get_db_connection():
     """Get database connection"""
     return psycopg2.connect(
@@ -209,41 +246,80 @@ async def semantic_search(request: SearchRequest):
                 detail=f"Embedding dimension mismatch: query={embedding_dim}, database=1536. Please set OPENAI_API_KEY environment variable."
             )
         
+        # Convert embedding to list
+        embedding_list = query_embedding.tolist() if hasattr(query_embedding, 'tolist') else query_embedding
+        
         # Connect to database
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Semantic search query
-        search_query = f"""
-            SELECT 
-                seg.id,
-                seg.video_id,
-                s.title,
-                seg.text,
-                seg.start_sec as start_time_seconds,
-                seg.end_sec as end_time_seconds,
-                s.published_at,
-                s.source_type,
-                s.url,
-                1 - (seg.embedding <=> %s::vector) as similarity
-            FROM segments seg
-            JOIN sources s ON seg.video_id = s.source_id
-            WHERE seg.speaker_label = 'Chaffee'
-              AND seg.embedding IS NOT NULL
-              AND 1 - (seg.embedding <=> %s::vector) >= %s
-            ORDER BY similarity DESC
-            LIMIT %s
-        """
+        # Get the active model key
+        model_key = get_active_model_key()
+        logger.info(f"Using embedding model: {model_key}")
         
-        # Convert embedding to list
-        embedding_list = query_embedding.tolist() if hasattr(query_embedding, 'tolist') else query_embedding
+        # Check if we're using normalized storage
+        if use_normalized_embeddings():
+            # Use segment_embeddings table
+            search_query = """
+                SELECT 
+                    seg.id,
+                    seg.video_id,
+                    s.title,
+                    seg.text,
+                    seg.start_sec as start_time_seconds,
+                    seg.end_sec as end_time_seconds,
+                    s.published_at,
+                    s.source_type,
+                    s.url,
+                    1 - (se.embedding <=> %s::vector) as similarity
+                FROM segments seg
+                JOIN segment_embeddings se ON seg.id = se.segment_id
+                JOIN sources s ON seg.video_id = s.source_id
+                WHERE seg.speaker_label = 'Chaffee'
+                  AND se.model_key = %s
+                  AND se.embedding IS NOT NULL
+                  AND 1 - (se.embedding <=> %s::vector) >= %s
+                ORDER BY similarity DESC
+                LIMIT %s
+            """
+            query_params = [
+                str(embedding_list),
+                model_key,
+                str(embedding_list),
+                request.min_similarity,
+                request.top_k
+            ]
+        else:
+            # Fallback to old embedding column
+            search_query = """
+                SELECT 
+                    seg.id,
+                    seg.video_id,
+                    s.title,
+                    seg.text,
+                    seg.start_sec as start_time_seconds,
+                    seg.end_sec as end_time_seconds,
+                    s.published_at,
+                    s.source_type,
+                    s.url,
+                    1 - (seg.embedding <=> %s::vector) as similarity
+                FROM segments seg
+                JOIN sources s ON seg.video_id = s.source_id
+                WHERE seg.speaker_label = 'Chaffee'
+                  AND seg.embedding IS NOT NULL
+                  AND 1 - (seg.embedding <=> %s::vector) >= %s
+                ORDER BY similarity DESC
+                LIMIT %s
+            """
+            query_params = [
+                str(embedding_list),
+                str(embedding_list),
+                request.min_similarity,
+                request.top_k
+            ]
         
-        cur.execute(search_query, [
-            str(embedding_list),
-            str(embedding_list),
-            request.min_similarity,
-            request.top_k
-        ])
+        # Execute query with appropriate parameters
+        cur.execute(search_query, query_params)
         
         results = cur.fetchall()
         cur.close()
