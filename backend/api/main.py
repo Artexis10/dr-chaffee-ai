@@ -196,6 +196,13 @@ async def semantic_search(request: SearchRequest):
         query_embedding = embeddings[0]
         embedding_dim = len(query_embedding)
         
+        # Check if embedding dimensions match database
+        if embedding_dim != 1536:
+            raise HTTPException(
+                status_code=503, 
+                detail=f"Embedding dimension mismatch: query={embedding_dim}, database=1536. Please set OPENAI_API_KEY environment variable."
+            )
+        
         # Connect to database
         conn = get_db_connection()
         cur = conn.cursor()
