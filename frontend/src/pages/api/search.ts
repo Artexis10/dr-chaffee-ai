@@ -123,7 +123,7 @@ export default async function handler(
   const query = params.q || params.query;
   const source_filter = params.source_filter || 'all';
   const year_filter = params.year_filter;
-  const limit = parseInt(params.limit as string) || 30;
+  const limit = parseInt(params.limit as string) || 100; // Increased from 30 to get more diverse results before clustering
 
   if (!query || typeof query !== 'string' || query.trim().length === 0) {
     return res.status(400).json({ error: 'Query is required' });
