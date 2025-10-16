@@ -285,6 +285,36 @@ async def semantic_search(request: SearchRequest):
         logger.error(f"Search failed: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
+@app.post("/embed")
+@app.post("/api/embed")
+async def generate_embedding(request: dict):
+    """Generate embedding for a text"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        text = request.get('text') or request.get('query')
+        if not text:
+            raise HTTPException(status_code=400, detail="Text or query required")
+        
+        logger.info(f"Generating embedding for: {text[:50]}...")
+        generator = get_embedding_generator()
+        embeddings = generator.generate_embeddings([text])
+        
+        if not embeddings or len(embeddings) == 0:
+            raise HTTPException(status_code=500, detail="Failed to generate embedding")
+        
+        embedding = embeddings[0]
+        
+        return {
+            "embedding": embedding,
+            "dimensions": len(embedding),
+            "text": text
+        }
+    except Exception as e:
+        logger.error(f"Embedding generation failed: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Embedding generation failed: {str(e)}")
+
 @app.get("/answer")
 @app.get("/api/answer")
 async def answer_get(query: str, style: str = 'concise'):
