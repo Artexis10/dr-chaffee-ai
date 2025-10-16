@@ -56,7 +56,8 @@ class EmbeddingGenerator:
         
         if self.provider == 'openai':
             self.model_name = model_name or os.getenv('OPENAI_EMBEDDING_MODEL', 'text-embedding-3-large')
-            self.embedding_dimensions = int(os.getenv('EMBEDDING_DIMENSIONS', '384'))
+            # text-embedding-3-large produces 1536 dimensions by default
+            self.embedding_dimensions = int(os.getenv('EMBEDDING_DIMENSIONS', '1536'))
             self.openai_client = None
         else:
             # Local sentence-transformers - use profile or env override
