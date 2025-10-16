@@ -62,7 +62,18 @@ _embedding_generator = None
 def get_embedding_generator():
     global _embedding_generator
     if _embedding_generator is None:
-        _embedding_generator = EmbeddingGenerator()
+        # Use OpenAI for production if available, otherwise use small local model
+        if os.getenv('OPENAI_API_KEY'):
+            _embedding_generator = EmbeddingGenerator(
+                embedding_provider='openai',
+                model_name='text-embedding-3-large'
+            )
+        else:
+            # Fallback to tiny model for free tier
+            _embedding_generator = EmbeddingGenerator(
+                embedding_provider='local',
+                model_name='sentence-transformers/all-MiniLM-L6-v2'  # Only 80MB!
+            )
     return _embedding_generator
 
 def get_db_connection():
@@ -145,10 +156,16 @@ async def test_db():
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
+@app.get("/search")
 @app.get("/api/search")
 async def search_get(q: str, top_k: int = 50, min_similarity: float = 0.5):
     """GET endpoint for search (for frontend compatibility)"""
     request = SearchRequest(query=q, top_k=top_k, min_similarity=min_similarity)
+    return await semantic_search(request)
+
+@app.post("/search", response_model=SearchResponse)
+async def search_post(request: SearchRequest):
+    """POST endpoint for search (alternative path)"""
     return await semantic_search(request)
 
 @app.post("/api/search", response_model=SearchResponse)
@@ -258,6 +275,7 @@ async def semantic_search(request: SearchRequest):
         logger.error(f"Search failed: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
+@app.get("/answer")
 @app.get("/api/answer")
 async def answer_get(query: str, style: str = 'concise'):
     """GET endpoint for answer (for frontend compatibility)"""

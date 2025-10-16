@@ -8,6 +8,7 @@ import os
 import sys
 import logging
 import psycopg2
+import psycopg2.extras
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -85,6 +86,15 @@ def sync_sources(local_conn, prod_conn, since: datetime) -> int:
                 logger.debug(f"Source {source[2]} already exists, skipping")
                 continue
             
+            # Convert dict/list to Json for JSONB columns (metadata, tags)
+            source_data = list(source[1:])
+            # metadata is at index 6 in source_data (after skipping id)
+            if source_data[6] is not None and isinstance(source_data[6], dict):
+                source_data[6] = psycopg2.extras.Json(source_data[6])
+            # tags is at index 13 in source_data (after skipping id)
+            if source_data[13] is not None and isinstance(source_data[13], (dict, list)):
+                source_data[13] = psycopg2.extras.Json(source_data[13])
+            
             # Insert source
             prod_cur.execute("""
                 INSERT INTO sources (
@@ -92,8 +102,8 @@ def sync_sources(local_conn, prod_conn, since: datetime) -> int:
                     view_count, metadata, created_at, channel_name, channel_url,
                     thumbnail_url, like_count, comment_count, tags, description, url
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (source_id) DO NOTHING
-            """, source[1:])
+                ON CONFLICT (source_type, source_id) DO NOTHING
+            """, source_data)
             synced += 1
         
         prod_conn.commit()
@@ -129,7 +139,15 @@ def sync_segments(local_conn, prod_conn, since: datetime) -> int:
         batch = []
         
         for segment in new_segments:
-            batch.append(segment)
+            # Convert voice_embedding to Json if present
+            segment_data = list(segment)
+            # voice_embedding is at index 14 (15th column)
+            if segment_data[14] is not None:
+                # Convert dict or list to Json for JSONB column
+                if isinstance(segment_data[14], (dict, list)):
+                    segment_data[14] = psycopg2.extras.Json(segment_data[14])
+            
+            batch.append(tuple(segment_data))
             
             if len(batch) >= batch_size:
                 # Insert batch (including voice_embedding)
