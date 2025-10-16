@@ -21,6 +21,9 @@ import uuid
 from pydantic import BaseModel
 from sqlalchemy import create_engine, text
 from sqlalchemy.pool import StaticPool
+import psycopg2
+from psycopg2.extras import RealDictCursor
+import numpy as np
 
 # Import our existing processors
 import sys
@@ -29,6 +32,7 @@ sys.path.append(backend_path)
 from scripts.process_srt_files import SRTProcessor
 from scripts.common.database_upsert import DatabaseUpserter
 from scripts.common.transcript_common import TranscriptSegment
+from scripts.common.embeddings import EmbeddingGenerator
 
 app = FastAPI(
     title="Ask Dr. Chaffee API",
@@ -52,6 +56,22 @@ ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "admin-secret-key")
 # Background job tracking
 processing_jobs: Dict[str, Dict[str, Any]] = {}
 
+# Initialize embedding generator (lazy load)
+_embedding_generator = None
+
+def get_embedding_generator():
+    global _embedding_generator
+    if _embedding_generator is None:
+        _embedding_generator = EmbeddingGenerator()
+    return _embedding_generator
+
+def get_db_connection():
+    """Get database connection"""
+    return psycopg2.connect(
+        os.getenv('DATABASE_URL'),
+        cursor_factory=RealDictCursor
+    )
+
 class JobStatus(BaseModel):
     job_id: str
     status: str  # pending, processing, completed, failed
@@ -67,16 +87,173 @@ class UploadRequest(BaseModel):
     source_type: str  # youtube_takeout, zoom, manual, other
     description: Optional[str] = None
 
+class SearchRequest(BaseModel):
+    query: str
+    top_k: Optional[int] = 50
+    min_similarity: Optional[float] = 0.5
+    rerank: Optional[bool] = True
+
+class SearchResult(BaseModel):
+    id: int
+    video_id: str
+    title: str
+    text: str
+    start_time_seconds: float
+    end_time_seconds: float
+    published_at: str
+    source_type: str
+    similarity: float
+
+class SearchResponse(BaseModel):
+    results: List[SearchResult]
+    query: str
+    total_results: int
+    embedding_dimensions: int
+
+class AnswerRequest(BaseModel):
+    query: str
+    style: Optional[str] = 'concise'
+
 # Authentication
 async def verify_admin_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     if credentials.credentials != ADMIN_API_KEY:
         raise HTTPException(status_code=401, detail="Invalid admin token")
     return credentials.credentials
 
+@app.get("/")
+async def root():
+    """Root endpoint"""
+    return {"status": "ok", "service": "Ask Dr. Chaffee API"}
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
+@app.get("/api/search")
+async def search_get(q: str, top_k: int = 50, min_similarity: float = 0.5):
+    """GET endpoint for search (for frontend compatibility)"""
+    request = SearchRequest(query=q, top_k=top_k, min_similarity=min_similarity)
+    return await semantic_search(request)
+
+@app.post("/api/search", response_model=SearchResponse)
+async def semantic_search(request: SearchRequest):
+    """
+    Semantic search with optional reranking
+    
+    1. Generate query embedding
+    2. Search database using vector similarity
+    3. Optionally rerank results for better quality
+    """
+    try:
+        # Generate query embedding
+        generator = get_embedding_generator()
+        embeddings = generator.generate_embeddings([request.query])
+        
+        if not embeddings or len(embeddings) == 0:
+            raise HTTPException(status_code=500, detail="Failed to generate query embedding")
+        
+        query_embedding = embeddings[0]
+        embedding_dim = len(query_embedding)
+        
+        # Connect to database
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Semantic search query
+        search_query = f"""
+            SELECT 
+                seg.id,
+                seg.video_id,
+                s.title,
+                seg.text,
+                seg.start_sec as start_time_seconds,
+                seg.end_sec as end_time_seconds,
+                s.published_at,
+                s.source_type,
+                1 - (seg.embedding <=> %s::vector) as similarity
+            FROM segments seg
+            JOIN sources s ON seg.video_id = s.source_id
+            WHERE seg.speaker_label = 'Chaffee'
+              AND seg.embedding IS NOT NULL
+              AND 1 - (seg.embedding <=> %s::vector) >= %s
+            ORDER BY similarity DESC
+            LIMIT %s
+        """
+        
+        # Convert embedding to list
+        embedding_list = query_embedding.tolist() if hasattr(query_embedding, 'tolist') else query_embedding
+        
+        cur.execute(search_query, [
+            str(embedding_list),
+            str(embedding_list),
+            request.min_similarity,
+            request.top_k
+        ])
+        
+        results = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        # Optional reranking
+        if request.rerank and len(results) > 0:
+            query_lower = request.query.lower()
+            query_words = set(query_lower.split())
+            
+            for result in results:
+                text_lower = result['text'].lower()
+                keyword_matches = sum(1 for word in query_words if word in text_lower)
+                keyword_boost = min(0.1, keyword_matches * 0.02)
+                result['similarity'] = min(1.0, result['similarity'] + keyword_boost)
+            
+            results = sorted(results, key=lambda x: x['similarity'], reverse=True)
+        
+        # Convert to response format
+        search_results = [
+            SearchResult(
+                id=r['id'],
+                video_id=r['video_id'],
+                title=r['title'],
+                text=r['text'],
+                start_time_seconds=float(r['start_time_seconds']),
+                end_time_seconds=float(r['end_time_seconds']),
+                published_at=r['published_at'].isoformat() if r['published_at'] else '',
+                source_type=r['source_type'],
+                similarity=float(r['similarity'])
+            )
+            for r in results
+        ]
+        
+        return SearchResponse(
+            results=search_results,
+            query=request.query,
+            total_results=len(search_results),
+            embedding_dimensions=embedding_dim
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+
+@app.get("/api/answer")
+async def answer_get(query: str, style: str = 'concise'):
+    """GET endpoint for answer (for frontend compatibility)"""
+    # Simple placeholder - return search results formatted as answer
+    search_request = SearchRequest(query=query, top_k=5)
+    search_response = await semantic_search(search_request)
+    
+    if not search_response.results:
+        raise HTTPException(status_code=404, detail="No relevant information found")
+    
+    # Format as simple answer
+    answer_text = f"Based on Dr. Chaffee's content:\n\n"
+    for i, result in enumerate(search_response.results[:3], 1):
+        answer_text += f"{i}. {result.text}\n\n"
+    
+    return {
+        "answer": answer_text,
+        "sources": search_response.results,
+        "query": query
+    }
 
 @app.get("/api/jobs", dependencies=[Depends(verify_admin_token)])
 async def list_jobs():
