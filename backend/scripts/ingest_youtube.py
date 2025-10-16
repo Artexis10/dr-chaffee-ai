@@ -1991,49 +1991,50 @@ class EnhancedYouTubeIngester:
             self.db.close_connection()
     
     def setup_chaffee_profile(self, audio_sources: list, overwrite: bool = False, update: bool = False) -> bool:
-        """Setup Chaffee voice profile for speaker identification"""
+        """Setup Chaffee voice profile for speaker identification from multiple sources"""
         try:
-            logger.info("Setting up Chaffee voice profile")
+            logger.info(f"Setting up Chaffee voice profile from {len(audio_sources)} sources")
             
-            success = False
-            for source in audio_sources:
+            success_count = 0
+            failed_sources = []
+            
+            for i, source in enumerate(audio_sources, 1):
+                logger.info(f"[{i}/{len(audio_sources)}] Processing: {source}")
+                
                 if source.startswith('http'):
                     # YouTube URL
                     if 'youtube.com/watch?v=' in source or 'youtu.be/' in source:
                         video_id = source.split('v=')[1].split('&')[0] if 'v=' in source else source.split('/')[-1]
-                        # Check if we should update or overwrite
-                        if update:
-                            # For update, we need to first check if the profile exists
+                        
+                        # Determine mode: first video overwrites, rest update
+                        is_first = (i == 1)
+                        current_mode = overwrite if is_first else True  # Always update after first
+                        
+                        # For first video, use overwrite flag; for rest, always update
+                        if is_first and not overwrite:
+                            # First video but not overwriting - check if profile exists
                             from backend.scripts.common.voice_enrollment_optimized import VoiceEnrollment
                             enrollment = VoiceEnrollment(voices_dir=self.config.voices_dir)
                             if enrollment.load_profile('chaffee'):
-                                # Profile exists, so we'll download the audio and update manually
-                                audio_path = self.transcript_fetcher._download_audio_for_enhanced_asr(video_id)
-                                if audio_path:
-                                    profile = enrollment.enroll_speaker(
-                                        name='Chaffee',
-                                        audio_sources=[audio_path],
-                                        overwrite=False,
-                                        update=True
-                                    )
-                                    success = profile is not None
-                                else:
-                                    logger.error(f"Failed to download audio for {video_id}")
-                                    success = False
-                            else:
-                                # Profile doesn't exist, so we'll create it
-                                success = self.transcript_fetcher.enroll_speaker_from_video(
-                                    video_id, 
-                                    'Chaffee', 
-                                    overwrite=True
-                                )
-                        else:
-                            # Normal enrollment (create or overwrite)
-                            success = self.transcript_fetcher.enroll_speaker_from_video(
-                                video_id, 
-                                'Chaffee', 
-                                overwrite=overwrite
+                                logger.info("Profile exists, updating with first source")
+                                current_mode = True  # Update mode
+                        
+                        # Download and enroll
+                        from backend.scripts.common.voice_enrollment_optimized import VoiceEnrollment
+                        enrollment = VoiceEnrollment(voices_dir=self.config.voices_dir)
+                        audio_path = self.transcript_fetcher._download_audio_for_enhanced_asr(video_id)
+                        
+                        if audio_path:
+                            profile = enrollment.enroll_speaker(
+                                name='Chaffee',
+                                audio_sources=[audio_path],
+                                overwrite=(is_first and overwrite),
+                                update=(not is_first or (is_first and not overwrite and enrollment.load_profile('chaffee')))
                             )
+                            success = profile is not None
+                        else:
+                            logger.error(f"Failed to download audio for {video_id}")
+                            success = False
                     else:
                         logger.warning(f"Unsupported URL format: {source}")
                         continue
@@ -2050,12 +2051,28 @@ class EnhancedYouTubeIngester:
                     success = profile is not None
                 
                 if success:
-                    logger.info(f"Successfully enrolled Chaffee from: {source}")
-                    break
+                    logger.info(f"✅ [{i}/{len(audio_sources)}] Successfully enrolled: {source}")
+                    success_count += 1
                 else:
-                    logger.warning(f"Failed to enroll Chaffee from: {source}")
+                    logger.warning(f"❌ [{i}/{len(audio_sources)}] Failed: {source}")
+                    failed_sources.append(source)
             
-            return success
+            # Summary
+            logger.info(f"\n{'='*60}")
+            logger.info(f"Profile build summary:")
+            logger.info(f"  Total sources: {len(audio_sources)}")
+            logger.info(f"  Successful: {success_count}")
+            logger.info(f"  Failed: {len(failed_sources)}")
+            logger.info(f"  Success rate: {success_count/len(audio_sources)*100:.1f}%")
+            logger.info(f"{'='*60}")
+            
+            if failed_sources:
+                logger.warning(f"Failed sources:")
+                for src in failed_sources:
+                    logger.warning(f"  - {src}")
+            
+            # Return True if at least 50% succeeded
+            return success_count >= len(audio_sources) / 2
             
         except Exception as e:
             logger.error(f"Failed to setup Chaffee profile: {e}")

@@ -597,19 +597,32 @@ class VoiceEnrollment:
                     with open(profile_path, 'r', encoding='utf-8') as f:
                         profile = json.load(f)
                         
-                    # Get existing embeddings
-                    existing_embeddings = [np.array(emb) for emb in profile.get('embeddings', [])]
+                    # Get existing embeddings (handle both flat and nested centroids)
+                    existing_embeddings = []
+                    if 'embeddings' in profile:
+                        for emb in profile['embeddings']:
+                            # Handle nested arrays
+                            if isinstance(emb, list) and len(emb) > 0 and isinstance(emb[0], list):
+                                existing_embeddings.extend([np.array(e) for e in emb])
+                            else:
+                                existing_embeddings.append(np.array(emb))
+                    
+                    # Get existing audio sources
+                    existing_sources = profile.get('audio_sources', [])
+                    
                     logger.info(f"Loaded {len(existing_embeddings)} existing embeddings from profile '{name}'")
                 else:
                     # For overwrite, start with empty embeddings
                     existing_embeddings = []
+                    existing_sources = []
             else:
                 # New profile
                 existing_embeddings = []
+                existing_sources = []
             
             # Process new sources
             all_embeddings = list(existing_embeddings)  # Start with existing embeddings if updating
-            processed_sources = []
+            processed_sources = list(existing_sources)  # Start with existing sources if updating
             total_duration = 0.0
             
             # Process each audio source
@@ -683,21 +696,44 @@ class VoiceEnrollment:
                 
             logger.info(f"Extracted a total of {len(all_embeddings)} embeddings")
             
-            # Calculate centroid
-            centroid = np.mean(all_embeddings, axis=0).tolist()
+            # Ensure all embeddings are numpy arrays (not nested lists)
+            all_embeddings = [np.array(emb).flatten() if not isinstance(emb, np.ndarray) else emb.flatten() for emb in all_embeddings]
+            
+            # Calculate centroid (ensure it's a flat 1D array)
+            centroid_array = np.mean(all_embeddings, axis=0)
+            if centroid_array.ndim > 1:
+                centroid_array = centroid_array.flatten()
+            centroid = centroid_array.tolist()
+            
+            # Validate centroid dimensions
+            expected_dim = 192  # ECAPA embedding dimension
+            if len(centroid) != expected_dim:
+                logger.warning(f"⚠️  Centroid has {len(centroid)} dimensions, expected {expected_dim}")
+            
+            # Convert embeddings to lists (ensure no nesting)
+            embeddings_list = []
+            for emb in all_embeddings:
+                if isinstance(emb, np.ndarray):
+                    flat_emb = emb.flatten().tolist()
+                elif isinstance(emb, list):
+                    flat_emb = emb if not isinstance(emb[0], list) else emb[0]
+                else:
+                    flat_emb = list(emb)
+                embeddings_list.append(flat_emb)
             
             # Create profile
             profile = {
                 'name': name.lower(),
                 'centroid': centroid,
-                'embeddings': [emb.tolist() for emb in all_embeddings],
+                'embeddings': embeddings_list,
                 'threshold': 0.62,  # Default threshold
                 'created_at': datetime.now().isoformat(),
                 'audio_sources': processed_sources,
                 'metadata': {
                     'source': 'voice_enrollment_optimized.py',
-                    'num_embeddings': len(all_embeddings),
-                    'total_duration': total_duration
+                    'num_embeddings': len(embeddings_list),
+                    'total_duration': total_duration,
+                    'embedding_dim': len(centroid)
                 }
             }
             
@@ -727,8 +763,13 @@ class VoiceEnrollment:
             # Save profile
             with open(profile_path, 'w', encoding='utf-8') as f:
                 json.dump(profile, f, indent=2)
-                
-            logger.info(f"✅ Successfully {'updated' if update else 'created'} profile '{name}' with {len(all_embeddings)} embeddings")
+            
+            # Log profile summary
+            action = 'updated' if update else 'created'
+            logger.info(f"✅ Successfully {action} profile '{name}' with {len(embeddings_list)} embeddings")
+            logger.info(f"   Centroid dimensions: {len(centroid)}")
+            logger.info(f"   Audio sources: {len(processed_sources)}")
+            logger.info(f"   Total duration: {total_duration:.1f}s")
             
             return profile
             
