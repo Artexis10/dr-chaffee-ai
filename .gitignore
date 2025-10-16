@@ -197,3 +197,18 @@ voice_enrollment_fixed.py
 diagnose_*.py
 rebuild_*.py
 add_*.py
+
+# One-off utility scripts
+compress_voice_profile.py
+download_seed_audio.py
+install_pgvector.py
+migrate_db_to_production.py
+migrate_production.ps1
+remove_backend_voices.py
+
+# Downloaded media
+*.webm
+
+# Environment config files
+RENDER_CRON_ENV_CLEAN.txt
+YOUTUBE_DOWNLOAD_SETUP.md
