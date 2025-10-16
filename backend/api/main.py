@@ -121,6 +121,7 @@ async def verify_admin_token(credentials: HTTPAuthorizationCredentials = Depends
     return credentials.credentials
 
 @app.get("/")
+@app.head("/")
 async def root():
     """Root endpoint"""
     return {"status": "ok", "service": "Ask Dr. Chaffee API"}
@@ -129,6 +130,20 @@ async def root():
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
+@app.get("/api/test-db")
+async def test_db():
+    """Test database connection"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) as count FROM segments")
+        result = cur.fetchone()
+        cur.close()
+        conn.close()
+        return {"status": "ok", "segment_count": result['count']}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
 
 @app.get("/api/search")
 async def search_get(q: str, top_k: int = 50, min_similarity: float = 0.5):
@@ -145,10 +160,18 @@ async def semantic_search(request: SearchRequest):
     2. Search database using vector similarity
     3. Optionally rerank results for better quality
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
+        logger.info(f"Search request: {request.query}")
+        
         # Generate query embedding
+        logger.info("Loading embedding generator...")
         generator = get_embedding_generator()
+        logger.info("Generating embeddings...")
         embeddings = generator.generate_embeddings([request.query])
+        logger.info(f"Generated {len(embeddings)} embeddings")
         
         if not embeddings or len(embeddings) == 0:
             raise HTTPException(status_code=500, detail="Failed to generate query embedding")
@@ -232,6 +255,7 @@ async def semantic_search(request: SearchRequest):
         )
         
     except Exception as e:
+        logger.error(f"Search failed: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
 @app.get("/api/answer")
