@@ -43,6 +43,10 @@ const ANSWER_STYLE_DEFAULT = process.env.ANSWER_STYLE_DEFAULT || 'concise';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const USE_MOCK_MODE = !OPENAI_API_KEY || OPENAI_API_KEY.includes('your_') || process.env.USE_MOCK_MODE === 'true';
 
+// Clip limits per style (to prevent token overflow and control context size)
+const MAX_CLIPS_CONCISE = parseInt(process.env.MAX_CLIPS_CONCISE || '30'); // Concise: fewer clips, focused answer
+const MAX_CLIPS_DETAILED = parseInt(process.env.MAX_CLIPS_DETAILED || '50'); // Detailed: more clips, comprehensive answer
+
 console.log('ANSWER_ENABLED:', ANSWER_ENABLED);
 console.log('USE_MOCK_MODE:', USE_MOCK_MODE);
 
@@ -339,14 +343,13 @@ async function callSummarizer(query: string, excerpts: ChunkResult[], style: str
 
   console.log(`[callSummarizer] Generating ${style} answer with ${excerpts.length} chunks`);
   
-  // Limit chunks to prevent token overflow
+  // Limit chunks based on style to prevent token overflow and control context size
   // Estimate: ~150 tokens per chunk, system prompt ~500, user prompt ~300
-  // For detailed: allow more chunks (60), for concise: fewer (40)
-  const maxChunks = style === 'detailed' ? 60 : 40;
+  const maxChunks = style === 'detailed' ? MAX_CLIPS_DETAILED : MAX_CLIPS_CONCISE;
   const limitedExcerpts = excerpts.slice(0, maxChunks);
   
   if (excerpts.length > maxChunks) {
-    console.log(`[callSummarizer] ⚠️ Limiting from ${excerpts.length} to ${maxChunks} chunks to prevent token overflow`);
+    console.log(`[callSummarizer] ⚠️ Limiting from ${excerpts.length} to ${maxChunks} chunks (${style} style limit)`);
   }
   
   const excerptText = limitedExcerpts.map((chunk, i) => 
@@ -736,11 +739,20 @@ async function saveAnswerCache(query: string, style: string, answer: any): Promi
     });
     
     if (!embeddingResponse.ok) {
-      console.warn('[Cache Save] Failed to generate embedding for cache save, status:', embeddingResponse.status);
+      const errorText = await embeddingResponse.text();
+      console.error('[Cache Save] Failed to generate embedding for cache save, status:', embeddingResponse.status, 'error:', errorText);
       return;
     }
     
-    const { embedding, dimensions } = await embeddingResponse.json();
+    const embeddingData = await embeddingResponse.json();
+    console.log('[Cache Save] Embedding response:', JSON.stringify(embeddingData).substring(0, 200));
+    
+    const { embedding, dimensions } = embeddingData;
+    
+    if (!embedding || !dimensions) {
+      console.error('[Cache Save] Invalid embedding response - missing embedding or dimensions');
+      return;
+    }
     // Map dimensions to profile and column
     let embeddingProfile: string;
     let embeddingColumn: string;
@@ -759,11 +771,14 @@ async function saveAnswerCache(query: string, style: string, answer: any): Promi
     
     // Insert into cache with the appropriate embedding column
     console.log('[Cache Save] Inserting into answer_cache table...');
-    await pool.query(`
+    console.log('[Cache Save] Using column:', embeddingColumn, 'profile:', embeddingProfile);
+    
+    const insertResult = await pool.query(`
       INSERT INTO answer_cache (
         query_text, ${embeddingColumn}, embedding_profile, style, answer_md, citations, 
         confidence, notes, used_chunk_ids, source_clips, ttl_hours
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING id
     `, [
       query,
       JSON.stringify(embedding),
@@ -778,9 +793,13 @@ async function saveAnswerCache(query: string, style: string, answer: any): Promi
       CACHE_TTL_HOURS
     ]);
     
-    console.log(`✅ [Cache Save] Successfully cached answer (${embeddingProfile} profile)`);
+    console.log(`✅ [Cache Save] Successfully cached answer (${embeddingProfile} profile), cache ID: ${insertResult.rows[0]?.id}`);
   } catch (error) {
     console.error('[Cache Save] Error:', error);
+    if (error instanceof Error) {
+      console.error('[Cache Save] Error message:', error.message);
+      console.error('[Cache Save] Error stack:', error.stack);
+    }
     // Don't fail the request if caching fails
   }
 }
