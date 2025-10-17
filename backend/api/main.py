@@ -118,6 +118,88 @@ def use_normalized_embeddings():
     except:
         return False
 
+def get_available_embedding_models():
+    """Get list of embedding models that have data in the database"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Check if normalized table exists and has data
+        cur.execute("""
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.tables 
+                WHERE table_name = 'segment_embeddings'
+            )
+        """)
+        has_normalized_table = cur.fetchone()[0]
+        
+        if has_normalized_table:
+            # Check if it has any data
+            cur.execute("""
+                SELECT COUNT(*) as count FROM segment_embeddings WHERE embedding IS NOT NULL
+            """)
+            normalized_count = cur.fetchone()['count']
+            
+            if normalized_count > 0:
+                # Use normalized table
+                cur.execute("""
+                    SELECT DISTINCT model_key, dimensions, COUNT(*) as count
+                    FROM segment_embeddings
+                    WHERE embedding IS NOT NULL
+                    GROUP BY model_key, dimensions
+                    ORDER BY count DESC
+                """)
+                results = cur.fetchall()
+                cur.close()
+                conn.close()
+                
+                if results:
+                    models = [{"model_key": r['model_key'], "dimensions": r['dimensions'], "count": r['count']} for r in results]
+                    logger.info(f"Available embedding models (normalized): {models}")
+                    return models
+        
+        # Fallback to old segments table
+        logger.info("Checking legacy segments table for embeddings...")
+        cur.execute("""
+            SELECT COUNT(*) as count
+            FROM segments
+            WHERE embedding IS NOT NULL
+            LIMIT 1
+        """)
+        legacy_result = cur.fetchone()
+        
+        if legacy_result and legacy_result['count'] > 0:
+            # Get dimension from first embedding
+            cur.execute("""
+                SELECT 
+                    COALESCE(embedding_model, 'gte-qwen2-1.5b') as model_key,
+                    array_length(embedding::float[], 1) as dimensions,
+                    COUNT(*) as count
+                FROM segments
+                WHERE embedding IS NOT NULL
+                GROUP BY embedding_model
+                ORDER BY count DESC
+                LIMIT 1
+            """)
+            result = cur.fetchone()
+            cur.close()
+            conn.close()
+            
+            if result:
+                model = {"model_key": result['model_key'], "dimensions": result['dimensions'], "count": result['count']}
+                logger.info(f"Available embedding model (legacy): {model}")
+                return [model]
+        
+        cur.close()
+        conn.close()
+        return []
+    except Exception as e:
+        logger.error(f"Failed to get available models: {e}", exc_info=True)
+        return []
+
 def get_db_connection():
     """Get database connection"""
     return psycopg2.connect(
@@ -216,9 +298,10 @@ async def semantic_search(request: SearchRequest):
     """
     Semantic search with optional reranking
     
-    1. Generate query embedding
-    2. Search database using vector similarity
-    3. Optionally rerank results for better quality
+    1. Detect available embeddings in database
+    2. Generate query embedding with matching model
+    3. Search database using vector similarity
+    4. Optionally rerank results for better quality
     """
     import logging
     logger = logging.getLogger(__name__)
@@ -226,10 +309,47 @@ async def semantic_search(request: SearchRequest):
     try:
         logger.info(f"Search request: {request.query}")
         
-        # Generate query embedding
-        logger.info("Loading embedding generator...")
-        generator = get_embedding_generator()
-        logger.info("Generating embeddings...")
+        # First, detect what embeddings are available in the database
+        available_models = get_available_embedding_models()
+        if not available_models:
+            raise HTTPException(
+                status_code=503, 
+                detail="No embeddings found in database. Please run ingestion first."
+            )
+        
+        # Use the first available model (most common one)
+        db_model = available_models[0]
+        model_key = db_model['model_key']
+        expected_dim = db_model['dimensions']
+        
+        logger.info(f"Database has {db_model['count']} embeddings with model '{model_key}' ({expected_dim} dims)")
+        
+        # Load config to get model details
+        import json
+        from pathlib import Path
+        config_path = Path(__file__).parent.parent / 'config' / 'embedding_models.json'
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+        
+        # Check if model exists in config
+        if model_key not in config['models']:
+            raise HTTPException(
+                status_code=503,
+                detail=f"Model '{model_key}' not found in config. Available: {list(config['models'].keys())}"
+            )
+        
+        model_config = config['models'][model_key]
+        
+        # Generate query embedding with the correct model
+        logger.info(f"Generating query embedding with {model_config['provider']} / {model_config['model_name']}...")
+        
+        # Create a generator for this specific model
+        from scripts.common.embeddings import EmbeddingGenerator
+        generator = EmbeddingGenerator(
+            embedding_provider=model_config['provider'],
+            model_name=model_config['model_name']
+        )
+        
         embeddings = generator.generate_embeddings([request.query])
         logger.info(f"Generated {len(embeddings)} embeddings")
         
@@ -239,20 +359,11 @@ async def semantic_search(request: SearchRequest):
         query_embedding = embeddings[0]
         embedding_dim = len(query_embedding)
         
-        # Get expected dimensions from config
-        model_key = get_active_model_key()
-        import json
-        from pathlib import Path
-        config_path = Path(__file__).parent.parent / 'config' / 'embedding_models.json'
-        with open(config_path, 'r') as f:
-            config = json.load(f)
-        expected_dim = config['models'][model_key]['dimensions']
-        
-        # Check if embedding dimensions match
+        # Verify dimensions match
         if embedding_dim != expected_dim:
             raise HTTPException(
                 status_code=503, 
-                detail=f"Embedding dimension mismatch: query={embedding_dim}, expected={expected_dim} for model {model_key}"
+                detail=f"Dimension mismatch: generated={embedding_dim}, database={expected_dim} for model {model_key}"
             )
         
         # Convert embedding to list
@@ -262,9 +373,7 @@ async def semantic_search(request: SearchRequest):
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Get the active model key
-        model_key = get_active_model_key()
-        logger.info(f"Using embedding model: {model_key}")
+        logger.info(f"Searching with model: {model_key} ({expected_dim} dims)")
         
         # Check if we're using normalized storage
         if use_normalized_embeddings():
