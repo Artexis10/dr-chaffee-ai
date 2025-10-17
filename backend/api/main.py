@@ -23,7 +23,6 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.pool import StaticPool
 import psycopg2
 from psycopg2.extras import RealDictCursor
-import numpy as np
 
 # Import our existing processors
 import sys

@@ -12,7 +12,6 @@ from typing import List, Optional
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
-import numpy as np
 
 # Load environment variables
 load_dotenv()
