@@ -553,27 +553,99 @@ async def generate_embedding(request: dict):
         logger.error(f"Embedding generation failed: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Embedding generation failed: {str(e)}")
 
+@app.post("/answer")
+@app.post("/api/answer")
+async def answer_question(request: SearchRequest):
+    """Generate AI-powered answer using RAG with OpenAI"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        logger.info(f"Answer request: {request.query}")
+        
+        # Step 1: Get relevant segments using semantic search
+        search_response = await semantic_search(request)
+        
+        if not search_response.results:
+            raise HTTPException(status_code=404, detail="No relevant information found")
+        
+        # Step 2: Build RAG context from top results
+        context_parts = []
+        citations = []
+        
+        for result in search_response.results[:10]:  # Use top 10 results
+            # Format context with source info
+            context_parts.append(
+                f"[{result.title}]: {result.text}"
+            )
+            citations.append({
+                "id": result.id,
+                "title": result.title,
+                "url": result.url,
+                "start_time": result.start_time_seconds,
+                "similarity": round(result.similarity, 3)
+            })
+        
+        context = "\n\n".join(context_parts)
+        
+        # Step 3: Create RAG prompt
+        prompt = f"""You are answering a question about Dr. Anthony Chaffee's content. Dr. Chaffee is a neurosurgeon who advocates carnivore diet for health optimization.
+
+QUESTION: {request.query}
+
+RELEVANT CONTENT FROM DR. CHAFFEE'S VIDEOS:
+{context}
+
+Based on the provided content, answer the question accurately. Include:
+1. Direct answer based on the content
+2. Any caveats or nuances mentioned
+3. Supporting evidence or examples provided
+4. Reference which video(s) the information comes from
+
+If the content doesn't fully answer the question, acknowledge the limitations."""
+        
+        # Step 4: Query OpenAI
+        openai_api_key = os.getenv('OPENAI_API_KEY')
+        if not openai_api_key:
+            raise HTTPException(status_code=503, detail="OpenAI API key not configured")
+        
+        from openai import OpenAI
+        client = OpenAI(api_key=openai_api_key)
+        
+        response = client.chat.completions.create(
+            model=os.getenv('OPENAI_MODEL', 'gpt-4-turbo'),
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=1500,
+            temperature=0.1  # Low temperature for medical accuracy
+        )
+        
+        answer = response.choices[0].message.content
+        
+        # Calculate cost
+        input_tokens = response.usage.prompt_tokens
+        output_tokens = response.usage.completion_tokens
+        cost = (input_tokens * 0.01 + output_tokens * 0.03) / 1000
+        
+        logger.info(f"✅ RAG answer generated: ${cost:.4f}")
+        
+        return {
+            "answer": answer,
+            "sources": citations,
+            "query": request.query,
+            "chunks_used": len(citations),
+            "cost_usd": cost
+        }
+        
+    except Exception as e:
+        logger.error(f"Answer generation failed: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Answer generation failed: {str(e)}")
+
 @app.get("/answer")
 @app.get("/api/answer")
-async def answer_get(query: str, style: str = 'concise'):
+async def answer_get(query: str, top_k: int = 10):
     """GET endpoint for answer (for frontend compatibility)"""
-    # Simple placeholder - return search results formatted as answer
-    search_request = SearchRequest(query=query, top_k=5)
-    search_response = await semantic_search(search_request)
-    
-    if not search_response.results:
-        raise HTTPException(status_code=404, detail="No relevant information found")
-    
-    # Format as simple answer
-    answer_text = f"Based on Dr. Chaffee's content:\n\n"
-    for i, result in enumerate(search_response.results[:3], 1):
-        answer_text += f"{i}. {result.text}\n\n"
-    
-    return {
-        "answer": answer_text,
-        "sources": search_response.results,
-        "query": query
-    }
+    request = SearchRequest(query=query, top_k=top_k)
+    return await answer_question(request)
 
 @app.get("/api/jobs", dependencies=[Depends(verify_admin_token)])
 async def list_jobs():

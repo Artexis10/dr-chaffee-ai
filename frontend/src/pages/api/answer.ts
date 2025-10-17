@@ -35,8 +35,8 @@ const USE_MOCK_MODE = !OPENAI_API_KEY || OPENAI_API_KEY.includes('your_') || pro
 console.log('ANSWER_ENABLED:', ANSWER_ENABLED);
 console.log('USE_MOCK_MODE:', USE_MOCK_MODE);
 
-// RAG Service Integration
-const RAG_SERVICE_URL = process.env.RAG_SERVICE_URL || 'http://localhost:8000';
+// Backend API Integration
+const BACKEND_API_URL = process.env.BACKEND_API_URL || process.env.EMBEDDING_SERVICE_URL || 'https://drchaffee-backend.onrender.com';
 
 // Cache configuration
 const CACHE_SIMILARITY_THRESHOLD = 0.92; // 92% similarity to consider a cache hit
@@ -48,12 +48,13 @@ async function callRAGService(question: string): Promise<RAGResponse | null> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
     
-    const response = await fetch(`${RAG_SERVICE_URL}/search`, {
+    // Call the backend's /answer endpoint for RAG
+    const response = await fetch(`${BACKEND_API_URL}/answer`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ query: question }),
+      body: JSON.stringify({ query: question, top_k: 10 }),
       signal: controller.signal
     });
 
@@ -508,7 +509,7 @@ function validateAndProcessResponse(llmResponse: LLMResponse, chunks: ChunkResul
 async function checkAnswerCache(query: string, style: string): Promise<any | null> {
   try {
     // Generate embedding for the query
-    const embeddingResponse = await fetch(`${RAG_SERVICE_URL}/embed`, {
+    const embeddingResponse = await fetch(`${BACKEND_API_URL}/embed`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: query })
@@ -576,8 +577,8 @@ async function saveAnswerCache(query: string, style: string, answer: any): Promi
     console.log(`[Cache Save] Starting cache save for query: "${query.substring(0, 50)}..." (style: ${style})`);
     
     // Generate embedding for the query
-    console.log(`[Cache Save] Fetching embedding from ${RAG_SERVICE_URL}/embed`);
-    const embeddingResponse = await fetch(`${RAG_SERVICE_URL}/embed`, {
+    console.log(`[Cache Save] Fetching embedding from ${BACKEND_API_URL}/embed`);
+    const embeddingResponse = await fetch(`${BACKEND_API_URL}/embed`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: query })
