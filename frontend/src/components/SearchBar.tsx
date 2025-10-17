@@ -149,12 +149,61 @@ export const SearchBar: React.FC<SearchBarProps> = ({ query, setQuery, handleSea
         }
         
         @media (max-width: 768px) {
+          .search-icon {
+            left: var(--space-3);
+          }
+
+          .search-input {
+            padding-left: calc(var(--space-3) + 28px);
+            padding-right: var(--space-3);
+            font-size: 1rem;
+          }
+
           .clear-button {
-            right: var(--space-4);
+            right: var(--space-3);
+            padding: var(--space-2);
           }
           
           .search-button {
             margin-top: var(--space-3);
+            font-size: 1rem;
+            padding: var(--space-3) var(--space-5);
+          }
+        }
+
+        @media (max-width: 480px) {
+          .search-icon {
+            width: 20px;
+            height: 20px;
+          }
+
+          .search-icon svg {
+            width: 18px;
+            height: 18px;
+          }
+
+          .search-input {
+            font-size: 0.95rem;
+            padding: var(--space-3) var(--space-3) var(--space-3) calc(var(--space-3) + 24px);
+          }
+
+          .search-input::placeholder {
+            font-size: 0.9rem;
+          }
+
+          .clear-button svg {
+            width: 14px;
+            height: 14px;
+          }
+
+          .search-button {
+            font-size: 0.95rem;
+            padding: var(--space-3) var(--space-4);
+          }
+
+          .spinner {
+            width: 18px;
+            height: 18px;
           }
         }
       `}</style>

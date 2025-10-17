@@ -728,16 +728,49 @@ body {
     flex-direction: column;
     align-items: stretch;
     gap: var(--space-4);
+    padding: var(--space-3) var(--space-2);
   }
   
   .filter-group {
     justify-content: space-between;
+    flex-wrap: wrap;
+  }
+
+  .filter-label {
+    font-size: 0.85rem;
+    width: 100%;
+    margin-bottom: var(--space-2);
+  }
+
+  .filter-pills {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .filter-pill {
+    padding: var(--space-2) var(--space-3);
+    font-size: 0.85rem;
+  }
+
+  .year-filter {
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    font-size: 0.9rem;
   }
   
   .video-header {
     flex-direction: column;
     align-items: flex-start;
     gap: var(--space-3);
+  }
+
+  .video-header h3 {
+    font-size: 1.1rem;
+  }
+
+  .source-type {
+    font-size: 0.8rem;
+    padding: var(--space-1) var(--space-2);
   }
   
   .clip-footer {
@@ -756,9 +789,21 @@ body {
     padding-bottom: 56.25%; /* 16:9 aspect ratio */
     position: relative;
   }
+
+  .video-card {
+    padding: var(--space-4);
+  }
+
+  .clip-card {
+    padding: var(--space-3);
+  }
 }
 
 @media (max-width: 480px) {
+  .container {
+    padding: var(--space-3);
+  }
+
   .header h1 {
     font-size: 1.8rem;
   }
@@ -767,8 +812,27 @@ body {
     font-size: 1rem;
   }
   
+  .filter-container {
+    padding: var(--space-2);
+    gap: var(--space-3);
+  }
+
+  .filter-label {
+    font-size: 0.8rem;
+  }
+
   .filter-pills {
     flex-wrap: wrap;
+    gap: var(--space-1);
+  }
+
+  .filter-pill {
+    padding: var(--space-1) var(--space-2);
+    font-size: 0.8rem;
+  }
+
+  .year-filter {
+    font-size: 0.85rem;
   }
   
   .clip-actions {
@@ -780,9 +844,46 @@ body {
   .seek-button, .copy-button, .watch-link {
     text-align: center;
     justify-content: center;
+    padding: var(--space-2);
+    font-size: 0.8rem;
   }
   
   .video-card {
-    padding: var(--space-4);
+    padding: var(--space-3);
+    margin-bottom: var(--space-4);
+  }
+
+  .clip-card {
+    padding: var(--space-3);
+    margin-bottom: var(--space-3);
+  }
+
+  .transcript-text {
+    font-size: 0.95rem;
+  }
+
+  .timestamp, .similarity {
+    font-size: 0.8rem;
+  }
+
+  .no-results {
+    padding: var(--space-6) var(--space-3);
+  }
+
+  .no-results h2 {
+    font-size: 1.3rem;
+  }
+
+  .no-results p {
+    font-size: 1rem;
+  }
+
+  .footer {
+    padding: var(--space-4) var(--space-3);
+  }
+
+  .disclaimer {
+    font-size: 0.85rem;
+    padding: var(--space-3);
   }
 }

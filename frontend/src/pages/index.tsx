@@ -7,6 +7,7 @@ import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { Footer } from '../components/Footer';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { DarkModeToggle } from '../components/DarkModeToggle';
+import { DisclaimerBanner } from '../components/DisclaimerBanner';
 import { SearchResult, VideoGroup } from '../types';
 import { analytics, setupAnalyticsListeners, trackEvent } from '../utils/analytics';
 
@@ -186,11 +187,12 @@ export default function Home() {
         
         // Add timeout to the fetch request
         const controller = new AbortController();
-        // Detailed answers need more time (can take 30-40s with 60 chunks)
-        const timeoutMs = currentStyle === 'detailed' ? 60000 : 30000;
+        // Detailed answers need more time (can take 60-90s with 2000-3000 words)
+        // 3 minutes for detailed to handle large responses, 45s for concise
+        const timeoutMs = currentStyle === 'detailed' ? 180000 : 45000;
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
         
-        console.log(`[Answer Request] Timeout set to ${timeoutMs}ms for ${currentStyle} style`);
+        console.log(`[Answer Request] Timeout set to ${timeoutMs}ms (${Math.round(timeoutMs/1000)}s) for ${currentStyle} style`);
         
         const response = await fetch(`/api/answer`, {
           method: 'POST',
@@ -722,6 +724,8 @@ export default function Home() {
           </div>
         </div>
 
+        <DisclaimerBanner />
+
         <ErrorBoundary>
           <SearchBar 
             query={query} 
@@ -941,6 +945,15 @@ export default function Home() {
           }
           
           @media (max-width: 768px) {
+            .container {
+              padding: var(--space-4);
+            }
+
+            .header {
+              padding: var(--space-4) 0;
+              margin-bottom: var(--space-4);
+            }
+
             .header h1 {
               font-size: 2.2rem;
             }
@@ -948,15 +961,87 @@ export default function Home() {
             .header p {
               font-size: 1.1rem;
             }
+
+            .search-hint {
+              padding: var(--space-3);
+              font-size: 0.9rem;
+            }
+
+            .search-hint svg {
+              width: 18px;
+              height: 18px;
+            }
             
             .topics {
               gap: var(--space-2);
             }
             
             .topics button {
+              font-size: 0.85rem;
+              padding: var(--space-2) var(--space-3);
+            }
+
+            .supporting-clips-section h2 {
+              font-size: 1.3rem;
+            }
+
+            .copy-notification {
+              bottom: 1rem;
+              right: 1rem;
+              left: 1rem;
+              padding: 0.75rem 1rem;
+              font-size: 0.9rem;
+            }
+          }
+
+          @media (max-width: 480px) {
+            .container {
+              padding: var(--space-3);
+            }
+
+            .header {
+              padding: var(--space-3) 0;
+            }
+
+            .logo {
+              width: 60px;
+              height: 60px;
+            }
+
+            .header h1 {
+              font-size: 1.8rem;
+            }
+
+            .header p {
+              font-size: 1rem;
+            }
+
+            .search-hint {
+              flex-direction: column;
+              text-align: center;
+              gap: var(--space-2);
+            }
+
+            .topics-title {
+              font-size: 0.9rem;
+            }
+
+            .topics button {
               font-size: 0.8rem;
               padding: var(--space-1) var(--space-2);
-              margin-bottom: var(--space-2);
+            }
+
+            .supporting-clips-section {
+              margin-top: var(--space-6);
+              padding-top: var(--space-4);
+            }
+
+            .supporting-clips-section h2 {
+              font-size: 1.2rem;
+            }
+
+            .supporting-clips-info {
+              font-size: 0.85rem;
             }
           }
           
