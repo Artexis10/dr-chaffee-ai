@@ -214,24 +214,28 @@ function generateCacheKey(queryNorm: string, chunkIds: string[], modelVersion: s
 }
 
 function formatTimestamp(seconds: number): string {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
+  // Always use mm:ss format (YouTube style) - never h:mm:ss
+  // This prevents confusion: 71:21 is clearer than 1:11:21
+  const totalMinutes = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
   
-  if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  }
-  return `${minutes}:${secs.toString().padStart(2, '0')}`;
+  return `${totalMinutes}:${secs.toString().padStart(2, '0')}`;
 }
 
 function timestampToSeconds(timestamp: string): number {
   const parts = timestamp.split(':').map(Number);
   if (parts.length === 3) {
-    // HH:MM:SS format
-    const [hours, minutes, seconds] = parts;
-    return hours * 3600 + minutes * 60 + seconds;
+    // Could be HH:MM:SS or MM:SS with leading zero
+    // If first part > 23, treat as MM:SS (e.g., 71:21:00 is invalid)
+    const [first, second, third] = parts;
+    if (first > 23) {
+      // Treat as MM:SS:00 (malformed) - use first two parts
+      return first * 60 + second;
+    }
+    // Valid HH:MM:SS
+    return first * 3600 + second * 60 + third;
   } else if (parts.length === 2) {
-    // MM:SS format
+    // MM:SS format (standard YouTube format)
     const [minutes, seconds] = parts;
     return minutes * 60 + seconds;
   }
@@ -446,7 +450,7 @@ TONE: You're Dr. Chaffee explaining from YOUR experience and knowledge - not des
 VOICE: First person, specific, professional but natural. NOT generic encyclopedia text.
 ENDINGS: End naturally without generic disclaimers or hedging. You're confident in what you're saying.
 
-Output MUST be valid JSON with this schema:
+Output MUST be valid **JSON RESPONSE FORMAT** (CRITICAL - MUST be valid JSON):
 {
   "answer": "Markdown with sections and inline citations like [abc123@12:34]. MUST be ${targetWords} words (minimum ${minWords} words).",
   "citations": [
@@ -458,8 +462,10 @@ Output MUST be valid JSON with this schema:
 
 **CRITICAL CITATION FORMAT**: 
 - Video IDs must be EXACTLY as shown in the context (e.g., "prSNurxY5ic" not "prSNurxY5j")
-- Timestamps must match exactly (e.g., "76:13" from context)
-- Double-check every video_id character-by-character
+- Timestamps MUST use MM:SS format (e.g., "76:13" for 76 minutes 13 seconds, NOT "1:16:13")
+- For videos longer than 60 minutes, use total minutes (e.g., "71:21" not "1:11:21")
+- Copy timestamps EXACTLY as shown in the context excerpts
+- Double-check every video_id and timestamp character-by-character
 
 **CONFIDENCE SCORING**:
 - Set confidence between 0.7-0.95 based on context quality
