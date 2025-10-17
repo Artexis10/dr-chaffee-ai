@@ -2,6 +2,17 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { Pool } from 'pg';
 import * as crypto from 'crypto';
 
+// Configure API route for longer timeouts (needed for detailed answers)
+export const config = {
+  api: {
+    responseLimit: false,
+    bodyParser: {
+      sizeLimit: '10mb',
+    },
+  },
+  maxDuration: 180, // 3 minutes for detailed answers (Vercel Pro plan)
+};
+
 // Import our RAG functionality
 type RAGResponse = {
   question: string;
@@ -41,6 +52,56 @@ const BACKEND_API_URL = process.env.BACKEND_API_URL || process.env.EMBEDDING_SER
 // Cache configuration
 const CACHE_SIMILARITY_THRESHOLD = 0.92; // 92% similarity to consider a cache hit
 const CACHE_TTL_HOURS = parseInt(process.env.ANSWER_CACHE_TTL_HOURS || '336'); // 14 days
+
+// Rate limiting configuration (per-style limits)
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute window
+const RATE_LIMIT_CONCISE = parseInt(process.env.RATE_LIMIT_CONCISE || '10'); // 10 concise answers per minute
+const RATE_LIMIT_DETAILED = parseInt(process.env.RATE_LIMIT_DETAILED || '3'); // 3 detailed answers per minute (more expensive)
+
+// In-memory rate limit tracking (use Redis in production for multi-instance deployments)
+const rateLimitMap = new Map<string, { concise: number[], detailed: number[] }>();
+
+function checkRateLimit(clientId: string, style: 'concise' | 'detailed'): { allowed: boolean; retryAfter?: number } {
+  const now = Date.now();
+  const limit = style === 'detailed' ? RATE_LIMIT_DETAILED : RATE_LIMIT_CONCISE;
+  
+  // Get or create client record
+  if (!rateLimitMap.has(clientId)) {
+    rateLimitMap.set(clientId, { concise: [], detailed: [] });
+  }
+  
+  const clientRecord = rateLimitMap.get(clientId)!;
+  const requests = clientRecord[style];
+  
+  // Remove requests outside the window
+  const validRequests = requests.filter(timestamp => now - timestamp < RATE_LIMIT_WINDOW_MS);
+  clientRecord[style] = validRequests;
+  
+  // Check if limit exceeded
+  if (validRequests.length >= limit) {
+    const oldestRequest = Math.min(...validRequests);
+    const retryAfter = Math.ceil((oldestRequest + RATE_LIMIT_WINDOW_MS - now) / 1000);
+    return { allowed: false, retryAfter };
+  }
+  
+  // Add current request
+  validRequests.push(now);
+  return { allowed: true };
+}
+
+// Cleanup old entries periodically (every 5 minutes)
+setInterval(() => {
+  const now = Date.now();
+  for (const [clientId, record] of Array.from(rateLimitMap.entries())) {
+    record.concise = record.concise.filter((t: number) => now - t < RATE_LIMIT_WINDOW_MS);
+    record.detailed = record.detailed.filter((t: number) => now - t < RATE_LIMIT_WINDOW_MS);
+    
+    // Remove empty records
+    if (record.concise.length === 0 && record.detailed.length === 0) {
+      rateLimitMap.delete(clientId);
+    }
+  }
+}, 5 * 60 * 1000);
 
 async function callRAGService(question: string): Promise<RAGResponse | null> {
   try {
@@ -148,14 +209,28 @@ function generateCacheKey(queryNorm: string, chunkIds: string[], modelVersion: s
 }
 
 function formatTimestamp(seconds: number): string {
-  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
   const secs = Math.floor(seconds % 60);
+  
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
   return `${minutes}:${secs.toString().padStart(2, '0')}`;
 }
 
 function timestampToSeconds(timestamp: string): number {
-  const [minutes, seconds] = timestamp.split(':').map(Number);
-  return minutes * 60 + seconds;
+  const parts = timestamp.split(':').map(Number);
+  if (parts.length === 3) {
+    // HH:MM:SS format
+    const [hours, minutes, seconds] = parts;
+    return hours * 3600 + minutes * 60 + seconds;
+  } else if (parts.length === 2) {
+    // MM:SS format
+    const [minutes, seconds] = parts;
+    return minutes * 60 + seconds;
+  }
+  return 0;
 }
 
 // Cluster chunks within ±90-120s window to reduce redundancy
@@ -749,6 +824,20 @@ export default async function handler(
 
   if (!['concise', 'detailed'].includes(style)) {
     return res.status(400).json({ error: 'Style must be "concise" or "detailed"' });
+  }
+
+  // Check rate limit (use IP address as client ID)
+  const clientId = req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || 'unknown';
+  const rateLimitCheck = checkRateLimit(clientId, style as 'concise' | 'detailed');
+  
+  if (!rateLimitCheck.allowed) {
+    return res.status(429).json({
+      error: 'Rate limit exceeded',
+      message: `Too many ${style} answer requests. Please try again in ${rateLimitCheck.retryAfter} seconds.`,
+      retryAfter: rateLimitCheck.retryAfter,
+      limit: style === 'detailed' ? RATE_LIMIT_DETAILED : RATE_LIMIT_CONCISE,
+      window: '1 minute'
+    });
   }
 
   try {

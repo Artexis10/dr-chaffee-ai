@@ -114,14 +114,6 @@ export const Footer: React.FC = () => {
         <div className="footer-divider"></div>
         
         <div className="footer-bottom">
-          <p className="disclaimer">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 16V12M12 8H12.01M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-            <span>
-              <strong>Educational Content Only:</strong> This content is for educational purposes only and should not be considered medical advice. Always consult with a healthcare professional.
-            </span>
-          </p>
           <div className="footer-credits">
             <p className="copyright">&copy; {new Date().getFullYear()} Dr Chaffee AI. Built with passion by Hugo Ander Kivi.</p>
             <p className="support-link">
@@ -232,37 +224,17 @@ export const Footer: React.FC = () => {
         
         .footer-bottom {
           display: flex;
-          justify-content: space-between;
+          justify-content: center;
           align-items: center;
           flex-wrap: wrap;
           gap: var(--space-4);
-        }
-        
-        .disclaimer {
-          display: flex;
-          align-items: flex-start;
-          gap: var(--space-2);
-          color: var(--color-text-light);
-          font-size: 0.9rem;
-          margin: 0;
-          max-width: 700px;
-        }
-        
-        .disclaimer svg {
-          flex-shrink: 0;
-          margin-top: 3px;
-          color: var(--color-warning);
-        }
-        
-        .disclaimer strong {
-          color: var(--color-text);
         }
         
         .footer-credits {
           display: flex;
           flex-direction: column;
           gap: var(--space-2);
-          align-items: flex-end;
+          align-items: center;
         }
         
         .copyright {
@@ -308,10 +280,6 @@ export const Footer: React.FC = () => {
           
           .footer-credits {
             align-items: center;
-          }
-          
-          .disclaimer {
-            margin-bottom: var(--space-3);
           }
         }
       `}</style>
