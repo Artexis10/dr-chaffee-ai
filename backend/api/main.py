@@ -282,8 +282,15 @@ class SearchResponse(BaseModel):
     embedding_dimensions: int
 
 class AnswerRequest(BaseModel):
-    query: str
+    query: Optional[str] = None
+    q: Optional[str] = None  # Alternative field name for frontend compatibility
     style: Optional[str] = 'concise'
+    top_k: Optional[int] = 10
+    
+    @property
+    def get_query(self) -> str:
+        """Get query from either 'query' or 'q' field"""
+        return self.query or self.q or ""
 
 # Authentication
 async def verify_admin_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -555,16 +562,22 @@ async def generate_embedding(request: dict):
 
 @app.post("/answer")
 @app.post("/api/answer")
-async def answer_question(request: SearchRequest):
+async def answer_question(request: AnswerRequest):
     """Generate AI-powered answer using RAG with OpenAI"""
     import logging
     logger = logging.getLogger(__name__)
     
     try:
-        logger.info(f"Answer request: {request.query}")
+        # Get query from either 'query' or 'q' field
+        query = request.get_query
+        if not query:
+            raise HTTPException(status_code=400, detail="Query is required")
+        
+        logger.info(f"Answer request: {query}")
         
         # Step 1: Get relevant segments using semantic search
-        search_response = await semantic_search(request)
+        search_request = SearchRequest(query=query, top_k=request.top_k or 10)
+        search_response = await semantic_search(search_request)
         
         if not search_response.results:
             raise HTTPException(status_code=404, detail="No relevant information found")
@@ -636,7 +649,7 @@ If the content doesn't fully answer the question, acknowledge the limitations.""
         return {
             "answer": answer,
             "sources": citations,
-            "query": request.query,
+            "query": query,
             "chunks_used": len(citations),
             "cost_usd": cost
         }
