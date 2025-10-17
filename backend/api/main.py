@@ -282,15 +282,9 @@ class SearchResponse(BaseModel):
     embedding_dimensions: int
 
 class AnswerRequest(BaseModel):
-    query: Optional[str] = None
-    q: Optional[str] = None  # Alternative field name for frontend compatibility
+    query: str
     style: Optional[str] = 'concise'
-    top_k: Optional[int] = 10
-    
-    @property
-    def get_query(self) -> str:
-        """Get query from either 'query' or 'q' field"""
-        return self.query or self.q or ""
+    top_k: Optional[int] = 50  # Use 50 results for better context
 
 # Authentication
 async def verify_admin_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -568,15 +562,10 @@ async def answer_question(request: AnswerRequest):
     logger = logging.getLogger(__name__)
     
     try:
-        # Get query from either 'query' or 'q' field
-        query = request.get_query
-        if not query:
-            raise HTTPException(status_code=400, detail="Query is required")
-        
-        logger.info(f"Answer request: {query}")
+        logger.info(f"Answer request: {request.query} (top_k={request.top_k})")
         
         # Step 1: Get relevant segments using semantic search
-        search_request = SearchRequest(query=query, top_k=request.top_k or 10)
+        search_request = SearchRequest(query=request.query, top_k=request.top_k)
         search_response = await semantic_search(search_request)
         
         if not search_response.results:
@@ -586,7 +575,8 @@ async def answer_question(request: AnswerRequest):
         context_parts = []
         citations = []
         
-        for result in search_response.results[:10]:  # Use top 10 results
+        # Use all retrieved results for context (up to top_k)
+        for result in search_response.results:
             # Format context with source info
             context_parts.append(
                 f"[{result.title}]: {result.text}"
@@ -649,7 +639,7 @@ If the content doesn't fully answer the question, acknowledge the limitations.""
         return {
             "answer": answer,
             "sources": citations,
-            "query": query,
+            "query": request.query,
             "chunks_used": len(citations),
             "cost_usd": cost
         }

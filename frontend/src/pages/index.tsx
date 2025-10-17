@@ -196,8 +196,9 @@ export default function Home() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            q: query.trim(),
-            style: currentStyle
+            query: query.trim(),
+            style: currentStyle,
+            top_k: 50
           }),
           signal: controller.signal
         });
