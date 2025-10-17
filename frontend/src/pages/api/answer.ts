@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 import * as crypto from 'crypto';
 
 // Configure API route for longer timeouts (needed for detailed answers)
+// Note: maxDuration only works on Vercel. For Render/self-hosted, configure timeout in platform settings.
 export const config = {
   api: {
     responseLimit: false,
@@ -10,7 +11,7 @@ export const config = {
       sizeLimit: '10mb',
     },
   },
-  maxDuration: 180, // 3 minutes for detailed answers (Vercel Pro plan)
+  // maxDuration: 180, // Only for Vercel - commented out for Render deployment
 };
 
 // Import our RAG functionality
@@ -573,30 +574,74 @@ Validation requirements:
 
 // Validate citations and compute confidence
 function validateAndProcessResponse(llmResponse: LLMResponse, chunks: ChunkResult[], query?: string): AnswerResponse {
+  // Build maps for both exact and fuzzy matching
   const chunkMap = new Map<string, ChunkResult>();
+  const videoIdMap = new Map<string, ChunkResult[]>();
+  
   chunks.forEach(chunk => {
     const key = `${chunk.video_id}@${formatTimestamp(chunk.start_time_seconds)}`;
     chunkMap.set(key, chunk);
+    
+    // Also index by video_id for fuzzy matching
+    if (!videoIdMap.has(chunk.video_id)) {
+      videoIdMap.set(chunk.video_id, []);
+    }
+    videoIdMap.get(chunk.video_id)!.push(chunk);
   });
 
   // Validate citations
   const validCitations: Citation[] = [];
   const usedChunkIds: string[] = [];
+  const malformedCitations: string[] = [];
   
   llmResponse.citations.forEach(citation => {
     const key = `${citation.video_id}@${citation.timestamp}`;
-    const chunk = chunkMap.get(key);
+    let chunk = chunkMap.get(key);
+    
+    // If exact match fails, try fuzzy matching by timestamp
+    if (!chunk) {
+      // Try to find by video_id and similar timestamp
+      const videoChunks = videoIdMap.get(citation.video_id);
+      if (videoChunks) {
+        // Parse timestamp to seconds
+        const timestampParts = citation.timestamp.split(':').map(Number);
+        let targetSeconds = 0;
+        if (timestampParts.length === 2) {
+          targetSeconds = timestampParts[0] * 60 + timestampParts[1];
+        } else if (timestampParts.length === 3) {
+          targetSeconds = timestampParts[0] * 3600 + timestampParts[1] * 60 + timestampParts[2];
+        }
+        
+        // Find closest chunk within 10 seconds
+        chunk = videoChunks.reduce((closest, current) => {
+          const currentDiff = Math.abs(current.start_time_seconds - targetSeconds);
+          const closestDiff = closest ? Math.abs(closest.start_time_seconds - targetSeconds) : Infinity;
+          return currentDiff < closestDiff && currentDiff <= 10 ? current : closest;
+        }, null as ChunkResult | null) || undefined;
+        
+        if (chunk) {
+          console.log(`[Citation Fix] Fuzzy matched ${citation.video_id}@${citation.timestamp} to ${chunk.video_id}@${formatTimestamp(chunk.start_time_seconds)}`);
+        }
+      }
+    }
     
     if (chunk) {
       validCitations.push({
-        video_id: citation.video_id,
+        video_id: chunk.video_id, // Use the correct video_id from chunk
         title: chunk.title,
         t_start_s: chunk.start_time_seconds,
         published_at: citation.date,
       });
       usedChunkIds.push(`${chunk.video_id}:${chunk.start_time_seconds}`);
+    } else {
+      malformedCitations.push(key);
+      console.warn(`[Citation Validation] Failed to match citation: ${key}`);
     }
   });
+  
+  if (malformedCitations.length > 0) {
+    console.warn(`[Citation Validation] ${malformedCitations.length} malformed citations:`, malformedCitations.slice(0, 5));
+  }
 
   // Compute confidence heuristic
   let confidence = llmResponse.confidence || 0.8; // Default to 0.8 if LLM returns 0
@@ -795,11 +840,20 @@ async function saveAnswerCache(query: string, style: string, answer: any): Promi
     
     console.log(`✅ [Cache Save] Successfully cached answer (${embeddingProfile} profile), cache ID: ${insertResult.rows[0]?.id}`);
   } catch (error) {
+    console.error('❌ [Cache Save] Failed to save to answer_cache');
     console.error('[Cache Save] Error:', error);
     if (error instanceof Error) {
       console.error('[Cache Save] Error message:', error.message);
       console.error('[Cache Save] Error stack:', error.stack);
     }
+    // Log the data that failed to insert (for debugging)
+    console.error('[Cache Save] Failed data:', {
+      query: query.substring(0, 100),
+      style,
+      answerLength: answer.answer_md?.length,
+      citationsCount: answer.citations?.length,
+      confidence: answer.confidence
+    });
     // Don't fail the request if caching fails
   }
 }
@@ -1093,11 +1147,17 @@ export default async function handler(
       }
     }
     
-    // Generic error handler
+    // Generic error handler - log full error for debugging
+    console.error('❌ [Answer API] Unhandled error:', error);
+    if (error instanceof Error) {
+      console.error('[Answer API] Error stack:', error.stack);
+    }
+    
     res.status(500).json({ 
       error: 'Answer generation failed',
       message: error instanceof Error ? error.message : 'An unexpected error occurred.',
-      code: 'GENERATION_FAILED'
+      code: 'GENERATION_FAILED',
+      details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.stack : String(error)) : undefined
     });
   }
 }
