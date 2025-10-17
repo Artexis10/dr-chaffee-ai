@@ -436,7 +436,7 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
   const renderAnswerWithCitations = (text: string) => {
     // First, split by paragraphs and headings
     const lines = text.split('\n');
-    const elements = [];
+    const elements: JSX.Element[] = [];
     let currentParagraph: string[] = [];
     let elementKey = 0;
 
