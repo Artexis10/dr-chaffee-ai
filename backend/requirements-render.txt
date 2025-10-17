@@ -1,6 +1,7 @@
-# Minimal requirements for Render CPU deployment
-# Heavy ML packages (torch, pyannote, speechbrain) are excluded
-# These are only needed for ingestion, which runs as a cron job
+# Minimal requirements for Render production deployment
+# NO heavy ML packages (torch, sentence-transformers, transformers)
+# We use Nomic API for embeddings (cloud-based, no local models needed)
+# Heavy packages are only needed for ingestion scripts (run separately)
 
 # Core dependencies
 psycopg2-binary>=2.9.9
@@ -19,14 +20,7 @@ redis==5.0.1
 asyncio-throttle==1.0.2
 aiohttp==3.9.1
 
-# YouTube API
-google-api-python-client==2.108.0
-google-auth-httplib2==0.1.1
-google-auth-oauthlib==1.1.0
-
-# Embeddings (lightweight)
-sentence-transformers>=2.7.0
-transformers>=4.41.0
+# OpenAI for answer generation (lightweight SDK)
 openai>=1.0.0
 
 # Utilities
