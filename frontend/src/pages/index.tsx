@@ -186,9 +186,11 @@ export default function Home() {
         
         // Add timeout to the fetch request
         const controller = new AbortController();
-        // Detailed answers need more time (can take 20-25s)
-        const timeoutMs = currentStyle === 'detailed' ? 45000 : 30000;
+        // Detailed answers need more time (can take 30-40s with 60 chunks)
+        const timeoutMs = currentStyle === 'detailed' ? 60000 : 30000;
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+        
+        console.log(`[Answer Request] Timeout set to ${timeoutMs}ms for ${currentStyle} style`);
         
         const response = await fetch(`/api/answer`, {
           method: 'POST',
@@ -198,7 +200,7 @@ export default function Home() {
           body: JSON.stringify({
             query: query.trim(),
             style: currentStyle,
-            top_k: 50
+            top_k: 100  // Increased from 50 to 100 for better coverage
           }),
           signal: controller.signal
         });

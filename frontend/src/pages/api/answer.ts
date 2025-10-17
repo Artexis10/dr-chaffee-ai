@@ -25,7 +25,7 @@ const pool = new Pool({
 
 // Configuration
 const ANSWER_ENABLED = process.env.ANSWER_ENABLED !== 'false'; // Default to enabled
-const ANSWER_TOPK = parseInt(process.env.ANSWER_TOPK || '30'); // Number of chunks to retrieve (was 50, reduced for quality)
+const ANSWER_TOPK = parseInt(process.env.ANSWER_TOPK || '100'); // Number of chunks to retrieve (increased for better coverage)
 const ANSWER_TTL_HOURS = parseInt(process.env.ANSWER_TTL_HOURS || '336'); // 14 days
 const SUMMARIZER_MODEL = process.env.SUMMARIZER_MODEL || 'gpt-4o'; // Upgraded from gpt-3.5-turbo for better quality
 const ANSWER_STYLE_DEFAULT = process.env.ANSWER_STYLE_DEFAULT || 'concise';
@@ -262,16 +262,31 @@ async function callSummarizer(query: string, excerpts: ChunkResult[], style: str
     throw new Error('OpenAI API key not configured');
   }
 
-  console.log('Using OpenAI API for answer generation');
+  console.log(`[callSummarizer] Generating ${style} answer with ${excerpts.length} chunks`);
   
-  const excerptText = excerpts.map((chunk, i) => 
+  // Limit chunks to prevent token overflow
+  // Estimate: ~150 tokens per chunk, system prompt ~500, user prompt ~300
+  // For detailed: allow more chunks (60), for concise: fewer (40)
+  const maxChunks = style === 'detailed' ? 60 : 40;
+  const limitedExcerpts = excerpts.slice(0, maxChunks);
+  
+  if (excerpts.length > maxChunks) {
+    console.log(`[callSummarizer] ⚠️ Limiting from ${excerpts.length} to ${maxChunks} chunks to prevent token overflow`);
+  }
+  
+  const excerptText = limitedExcerpts.map((chunk, i) => 
     `- id: ${chunk.video_id}@${formatTimestamp(chunk.start_time_seconds)}\n  date: ${new Date(chunk.published_at).toISOString().split('T')[0]}\n  text: "${chunk.text}"`
   ).join('\n\n');
+  
+  // Calculate approximate token count (rough estimate: 1 token ≈ 4 characters)
+  const estimatedInputTokens = Math.ceil((excerptText.length + 3000) / 4);
+  console.log(`[callSummarizer] Estimated input tokens: ~${estimatedInputTokens}`);
 
   // Enhanced word limits for long-form synthesis
-  const targetWords = style === 'detailed' ? '800-1200' : '250-400';
-  const minWords = style === 'detailed' ? 800 : 250;
-  const maxTokens = style === 'detailed' ? 4000 : 1000; // Increased for detailed answers
+  // Detailed should be 3x longer than concise for clear contrast
+  const targetWords = style === 'detailed' ? '2000-3000' : '600-800';
+  const minWords = style === 'detailed' ? 2000 : 600;
+  const maxTokens = style === 'detailed' ? 8000 : 2000; // Increased significantly for detailed answers
   
   // System Prompt: Emulated Dr. Chaffee (AI) persona
   const systemPrompt = `# Emulated Dr. Anthony Chaffee (AI) - System Prompt
@@ -342,8 +357,8 @@ ${excerptText}
 - Avoid academic formality: No "moreover", "furthermore", "in conclusion", "has been associated with"
 - Avoid overly casual: No "Look", "Here's the deal", "So basically"
 - Cite your videos naturally: "As I talked about at [video_id@mm:ss]"
-- **CRITICAL LENGTH: ${targetWords} words (MINIMUM ${minWords} words) - This is NON-NEGOTIABLE**
-- ${style === 'detailed' ? 'DETAILED: Elaborate thoroughly with examples, reasoning, and depth. Go into detail on each point.' : 'CONCISE: Be direct but complete'}
+- **CRITICAL LENGTH: ${targetWords} words (MINIMUM ${minWords} words) - This is ABSOLUTELY NON-NEGOTIABLE**
+- ${style === 'detailed' ? 'DETAILED MODE: Write a COMPREHENSIVE, IN-DEPTH response. Elaborate thoroughly with multiple examples, detailed reasoning, and extensive depth. Cover every angle. Go into significant detail on each point. Use multiple paragraphs per topic. This should be a thorough, educational piece.' : 'CONCISE MODE: Write a substantial, complete response. Be thorough but efficient. Cover all key points with examples.'}
 - **NO GENERIC CONCLUSIONS**: Don't end with "consult a healthcare professional" or "dietary balance" - that's not your style
 - **Be confident**: You know carnivore works - don't hedge or undermine your message at the end
 - **CRITICAL: Do not hallucinate or add information not in the context** - Stay true to what Dr. Chaffee actually says
@@ -358,18 +373,33 @@ Output MUST be valid JSON with this schema:
   "citations": [
     { "video_id": "abc123", "timestamp": "12:34", "date": "2024-06-18" }
   ],
-  "confidence": 0.0,
+  "confidence": 0.85,
   "notes": "Optional brief notes: conflicts seen, gaps, or scope limits."
 }
 
+**CRITICAL CITATION FORMAT**: 
+- Video IDs must be EXACTLY as shown in the context (e.g., "prSNurxY5ic" not "prSNurxY5j")
+- Timestamps must match exactly (e.g., "76:13" from context)
+- Double-check every video_id character-by-character
+
+**CONFIDENCE SCORING**:
+- Set confidence between 0.7-0.95 based on context quality
+- 0.9-0.95: Excellent coverage with many relevant excerpts
+- 0.8-0.89: Good coverage with solid excerpts
+- 0.7-0.79: Adequate coverage but some gaps
 Validation requirements:
 - Every [video_id@mm:ss] that appears in answer MUST also appear once in citations[].
 - Every citation MUST correspond to an excerpt listed above (exact match or within ±5s).
+- **VIDEO IDs MUST BE EXACT**: Copy video_id character-by-character from context. Do NOT modify.
 - Do NOT include citations to sources not present in the excerpts.
 - Keep formatting clean: no stray backslashes, no code fences in answer, no HTML.
-- If context is too sparse (<8 useful excerpts), create a short answer and explain the limitation in notes.`;
+- **MEET THE WORD COUNT**: ${minWords}+ words is mandatory. Write more content, not less.
+- If context is too sparse (<8 useful excerpts), still aim for target length by elaborating on available content.`;
 
   try {
+    console.log(`[callSummarizer] Calling OpenAI API with model: ${SUMMARIZER_MODEL}`);
+    console.log(`[callSummarizer] Max output tokens: ${maxTokens}`);
+    
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -389,11 +419,19 @@ Validation requirements:
     });
 
     if (!response.ok) {
-      console.error('OpenAI API error:', response.status, response.statusText);
-      throw new Error(`OpenAI API failed: ${response.status} ${response.statusText}`);
+      const errorBody = await response.text();
+      console.error('[callSummarizer] OpenAI API error:', response.status, response.statusText);
+      console.error('[callSummarizer] Error body:', errorBody);
+      throw new Error(`OpenAI API failed: ${response.status} ${response.statusText} - ${errorBody}`);
     }
 
     const data = await response.json();
+    
+    // Log token usage
+    if (data.usage) {
+      console.log(`[callSummarizer] Token usage - Input: ${data.usage.prompt_tokens}, Output: ${data.usage.completion_tokens}, Total: ${data.usage.total_tokens}`);
+    }
+    
     const content = data.choices[0]?.message?.content;
     
     if (!content) {
@@ -410,27 +448,46 @@ Validation requirements:
         jsonContent = jsonMatch[1].trim();
       }
       
-      console.log('Attempting to parse JSON content');
+      console.log('[callSummarizer] Attempting to parse JSON content');
       const parsed = JSON.parse(jsonContent);
       
       // Validate word count
       const wordCount = parsed.answer ? parsed.answer.split(/\s+/).length : 0;
-      console.log(`Generated answer: ${wordCount} words (target: ${targetWords}, min: ${minWords})`);
+      console.log(`[callSummarizer] Generated answer: ${wordCount} words (target: ${targetWords}, min: ${minWords})`);
       
-      if (wordCount < minWords) {
-        console.warn(`⚠️ Answer is too short! Got ${wordCount} words, expected minimum ${minWords}`);
-        // Add a note about the shortness
-        parsed.notes = (parsed.notes || '') + ` [Warning: Answer only ${wordCount} words, below ${minWords} minimum]`;
+      // Calculate how far off we are from target
+      const minTarget = parseInt(targetWords.split('-')[0]);
+      const maxTarget = parseInt(targetWords.split('-')[1]);
+      
+      if (wordCount < minWords * 0.5) {
+        // Severely short - less than 50% of minimum
+        console.error(`[callSummarizer] ❌ Answer is SEVERELY short! Got ${wordCount} words, expected minimum ${minWords}`);
+        parsed.notes = (parsed.notes || '') + ` [CRITICAL: Answer only ${wordCount} words, expected ${minWords}+ words]`;
+      } else if (wordCount < minWords) {
+        // Somewhat short but acceptable
+        console.warn(`[callSummarizer] ⚠️ Answer is short. Got ${wordCount} words, expected minimum ${minWords}`);
+        parsed.notes = (parsed.notes || '') + ` [Note: Answer ${wordCount} words, target was ${minWords}+ words]`;
+      } else if (wordCount >= minTarget && wordCount <= maxTarget) {
+        // Perfect range
+        console.log(`[callSummarizer] ✅ Answer length is perfect: ${wordCount} words in target range ${targetWords}`);
+      } else if (wordCount > maxTarget) {
+        // Over target but that's fine
+        console.log(`[callSummarizer] ✅ Answer is comprehensive: ${wordCount} words (above target ${targetWords})`);
       }
       
-      console.log('Successfully generated synthesis using OpenAI API');
+      console.log('[callSummarizer] ✅ Successfully generated synthesis using OpenAI API');
       return parsed;
     } catch (parseError) {
-      console.error('Failed to parse OpenAI response as JSON:', content);
+      console.error('[callSummarizer] Failed to parse OpenAI response as JSON:', content);
+      console.error('[callSummarizer] Parse error:', parseError);
       throw new Error('Invalid JSON response from OpenAI API');
     }
   } catch (error) {
-    console.error('OpenAI API call failed:', error);
+    console.error('[callSummarizer] OpenAI API call failed:', error);
+    if (error instanceof Error) {
+      console.error('[callSummarizer] Error details:', error.message);
+      console.error('[callSummarizer] Error stack:', error.stack);
+    }
     throw error;
   }
 }
@@ -464,10 +521,18 @@ function validateAndProcessResponse(llmResponse: LLMResponse, chunks: ChunkResul
   });
 
   // Compute confidence heuristic
-  let confidence = llmResponse.confidence;
+  let confidence = llmResponse.confidence || 0.8; // Default to 0.8 if LLM returns 0
+  
+  // If LLM returned 0, calculate from scratch
+  if (confidence === 0) {
+    console.warn('[validateAndProcessResponse] LLM returned confidence 0, calculating from context quality');
+    confidence = 0.7; // Start with baseline
+  }
   
   // Adjust based on citation coverage
-  const citationCoverage = validCitations.length / llmResponse.citations.length;
+  const citationCoverage = llmResponse.citations.length > 0 
+    ? validCitations.length / llmResponse.citations.length 
+    : 0.5;
   confidence *= citationCoverage;
   
   // Adjust based on chunk quality (average similarity)
@@ -671,10 +736,12 @@ export default async function handler(
   // Parse parameters
   const params = req.method === 'POST' ? req.body : req.query;
   const query = params.q || params.query;
-  const maxContext = parseInt(params.max_context as string) || ANSWER_TOPK;
+  const maxContext = parseInt(params.max_context as string) || parseInt(params.top_k as string) || ANSWER_TOPK;
   const maxBullets = parseInt(params.max_bullets as string) || 6;
   const style = (params.style as string) || ANSWER_STYLE_DEFAULT;
   const refresh = params.refresh === '1' || params.refresh === 'true';
+  
+  console.log(`[Answer API] Query: "${query}", maxContext: ${maxContext}, style: ${style}`);
 
   if (!query || typeof query !== 'string' || query.trim().length === 0) {
     return res.status(400).json({ error: 'Query parameter "q" is required' });
@@ -717,13 +784,25 @@ export default async function handler(
     }
 
     // Step 2: Embed query and retrieve relevant chunks
+    console.log(`[Answer API] Generating embedding for query...`);
     const queryEmbedding = await generateQueryEmbedding(query);
+    console.log(`[Answer API] Embedding generated: ${queryEmbedding.length} dimensions`);
     
     let searchQuery: string;
     let queryParams: any[];
     
     if (queryEmbedding.length > 0) {
-      // Semantic search with pgvector using segment_embeddings table (768-dim Nomic)
+      // Determine which model to use based on embedding dimensions
+      let modelKey = 'nomic-v1.5';
+      if (queryEmbedding.length === 384) {
+        modelKey = 'all-minilm-l6-v2';
+      } else if (queryEmbedding.length === 1536) {
+        modelKey = 'gte-qwen2-1.5b';
+      }
+      
+      console.log(`[Answer API] Using model: ${modelKey} (${queryEmbedding.length} dims)`);
+      
+      // Try segment_embeddings table first (normalized storage)
       searchQuery = `
         SELECT 
           se.segment_id as id,
@@ -735,17 +814,17 @@ export default async function handler(
           seg.end_sec as end_time_seconds,
           s.published_at,
           s.source_type,
-          (se.embedding <=> $1::vector) as similarity
+          1 - (se.embedding <=> $1::vector) as similarity
         FROM segment_embeddings se
         JOIN segments seg ON se.segment_id = seg.id
         JOIN sources s ON seg.video_id = s.source_id
         WHERE se.embedding IS NOT NULL 
-          AND se.model_key = 'nomic-v1.5'
+          AND se.model_key = $3
           AND seg.speaker_label = 'Chaffee'
         ORDER BY se.embedding <=> $1::vector
         LIMIT $2
       `;
-      queryParams = [JSON.stringify(queryEmbedding), maxContext];
+      queryParams = [JSON.stringify(queryEmbedding), maxContext, modelKey];
     } else {
       // Fallback to simple text search for reliability
       searchQuery = `
@@ -773,8 +852,37 @@ export default async function handler(
       queryParams = [`%${query}%`, maxContext];
     }
 
-    const searchResult = await pool.query(searchQuery, queryParams);
+    let searchResult = await pool.query(searchQuery, queryParams);
     let chunks: ChunkResult[] = searchResult.rows;
+    
+    console.log(`[Answer API] Initial retrieval: ${chunks.length} chunks`);
+    
+    // Fallback: If segment_embeddings returned no results, try legacy segments.embedding column
+    if (chunks.length === 0 && queryEmbedding.length > 0) {
+      console.log(`[Answer API] No results from segment_embeddings, trying legacy segments.embedding...`);
+      searchQuery = `
+        SELECT 
+          seg.id,
+          s.id as source_id,
+          s.source_id as video_id,
+          s.title,
+          seg.text,
+          seg.start_sec as start_time_seconds,
+          seg.end_sec as end_time_seconds,
+          s.published_at,
+          s.source_type,
+          1 - (seg.embedding <=> $1::vector) as similarity
+        FROM segments seg
+        JOIN sources s ON seg.video_id = s.source_id
+        WHERE seg.embedding IS NOT NULL 
+          AND seg.speaker_label = 'Chaffee'
+        ORDER BY seg.embedding <=> $1::vector
+        LIMIT $2
+      `;
+      searchResult = await pool.query(searchQuery, [JSON.stringify(queryEmbedding), maxContext]);
+      chunks = searchResult.rows;
+      console.log(`[Answer API] Legacy retrieval: ${chunks.length} chunks`);
+    }
     
     if (chunks.length < 1) {
       return res.status(200).json({ 
@@ -810,6 +918,9 @@ export default async function handler(
     
     // Take top chunks without aggressive clustering (semantic search already handles relevance)
     const topChunks = chunks.slice(0, maxContext);
+    
+    console.log(`[Answer API] Final chunks for summarization: ${topChunks.length}`);
+    console.log(`[Answer API] Similarity range: ${topChunks.length > 0 ? `${topChunks[0].similarity.toFixed(3)} - ${topChunks[topChunks.length - 1].similarity.toFixed(3)}` : 'N/A'}`);
     
     if (topChunks.length === 0) {
       return res.status(200).json({ 
