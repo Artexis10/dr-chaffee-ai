@@ -62,11 +62,11 @@ _embedding_generator = None
 def get_embedding_generator():
     global _embedding_generator
     if _embedding_generator is None:
-        # Priority: HuggingFace (matches local embeddings) > OpenAI > Local fallback
-        if os.getenv('HUGGINGFACE_API_KEY'):
+        # Priority: Nomic (free API, exact local parity) > OpenAI > Local fallback
+        if os.getenv('NOMIC_API_KEY'):
             _embedding_generator = EmbeddingGenerator(
-                embedding_provider='huggingface',
-                model_name='Alibaba-NLP/gte-Qwen2-1.5B-instruct'
+                embedding_provider='nomic',
+                model_name='nomic-embed-text-v1.5'
             )
         elif os.getenv('OPENAI_API_KEY'):
             _embedding_generator = EmbeddingGenerator(
@@ -74,10 +74,10 @@ def get_embedding_generator():
                 model_name='text-embedding-3-large'
             )
         else:
-            # Fallback to tiny model for free tier
+            # Fallback to local Nomic model
             _embedding_generator = EmbeddingGenerator(
                 embedding_provider='local',
-                model_name='sentence-transformers/all-MiniLM-L6-v2'  # Only 80MB!
+                model_name='nomic-ai/nomic-embed-text-v1.5'
             )
     return _embedding_generator
 
@@ -239,11 +239,20 @@ async def semantic_search(request: SearchRequest):
         query_embedding = embeddings[0]
         embedding_dim = len(query_embedding)
         
-        # Check if embedding dimensions match database
-        if embedding_dim != 1536:
+        # Get expected dimensions from config
+        model_key = get_active_model_key()
+        import json
+        from pathlib import Path
+        config_path = Path(__file__).parent.parent / 'config' / 'embedding_models.json'
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+        expected_dim = config['models'][model_key]['dimensions']
+        
+        # Check if embedding dimensions match
+        if embedding_dim != expected_dim:
             raise HTTPException(
                 status_code=503, 
-                detail=f"Embedding dimension mismatch: query={embedding_dim}, database=1536. Please set OPENAI_API_KEY environment variable."
+                detail=f"Embedding dimension mismatch: query={embedding_dim}, expected={expected_dim} for model {model_key}"
             )
         
         # Convert embedding to list
