@@ -132,9 +132,10 @@ def get_available_embedding_models():
             SELECT EXISTS (
                 SELECT 1 FROM information_schema.tables 
                 WHERE table_name = 'segment_embeddings'
-            )
+            ) as exists
         """)
-        has_normalized_table = cur.fetchone()[0]
+        result = cur.fetchone()
+        has_normalized_table = result['exists'] if result else False
         
         if has_normalized_table:
             # Check if it has any data

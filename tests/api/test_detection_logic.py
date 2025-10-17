@@ -23,9 +23,10 @@ def get_available_embedding_models_extracted(mock_conn):
             SELECT EXISTS (
                 SELECT 1 FROM information_schema.tables 
                 WHERE table_name = 'segment_embeddings'
-            )
+            ) as exists
         """)
-        has_normalized_table = cur.fetchone()[0]
+        result = cur.fetchone()
+        has_normalized_table = result['exists'] if result else False
         
         if has_normalized_table:
             # Check if it has any data
@@ -141,7 +142,7 @@ def test_production_scenario():
     # 4. Model is gte-qwen2-1.5b
     
     mock_cursor.fetchone.side_effect = [
-        [False],  # segment_embeddings doesn't exist
+        {'exists': False},  # segment_embeddings doesn't exist
         {'count': 5000},  # legacy table has 5000 embeddings
         {'embedding': [0.1] * 1536},  # Sample embedding (list format)
         {'model_key': 'gte-qwen2-1.5b', 'count': 5000}  # Model info
@@ -176,7 +177,7 @@ def test_string_embedding_format():
     embedding_str = '[' + ','.join(['0.1'] * 1536) + ']'
     
     mock_cursor.fetchone.side_effect = [
-        [False],
+        {'exists': False},
         {'count': 5000},
         {'embedding': embedding_str},  # String format!
         {'model_key': 'gte-qwen2-1.5b', 'count': 5000}
@@ -202,7 +203,7 @@ def test_complete_flow():
     mock_conn = Mock()
     mock_cursor = Mock()
     mock_cursor.fetchone.side_effect = [
-        [False],
+        {'exists': False},
         {'count': 5000},
         {'embedding': [0.1] * 1536},
         {'model_key': 'gte-qwen2-1.5b', 'count': 5000}
