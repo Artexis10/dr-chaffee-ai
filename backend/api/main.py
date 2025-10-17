@@ -268,8 +268,8 @@ async def semantic_search(request: SearchRequest):
         
         # Check if we're using normalized storage
         if use_normalized_embeddings():
-            # Use segment_embeddings table
-            search_query = """
+            # Use segment_embeddings table with explicit vector dimensions
+            search_query = f"""
                 SELECT 
                     seg.id,
                     seg.video_id,
@@ -280,14 +280,14 @@ async def semantic_search(request: SearchRequest):
                     s.published_at,
                     s.source_type,
                     s.url,
-                    1 - (se.embedding <=> %s::vector) as similarity
+                    1 - (se.embedding <=> %s::vector({expected_dim})) as similarity
                 FROM segments seg
                 JOIN segment_embeddings se ON seg.id = se.segment_id
                 JOIN sources s ON seg.video_id = s.source_id
                 WHERE seg.speaker_label = 'Chaffee'
                   AND se.model_key = %s
                   AND se.embedding IS NOT NULL
-                  AND 1 - (se.embedding <=> %s::vector) >= %s
+                  AND 1 - (se.embedding <=> %s::vector({expected_dim})) >= %s
                 ORDER BY similarity DESC
                 LIMIT %s
             """
