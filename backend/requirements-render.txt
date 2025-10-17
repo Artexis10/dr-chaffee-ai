@@ -3,27 +3,14 @@
 # We use Nomic API for embeddings (cloud-based, no local models needed)
 # Heavy packages are only needed for ingestion scripts (run separately)
 
-# Core dependencies
+# Core database
 psycopg2-binary>=2.9.9
-alembic>=1.13.0
 sqlalchemy>=2.0.07
 python-dotenv==1.0.0
 
-# Web API dependencies
+# Web API (FastAPI + ASGI server)
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
-python-multipart==0.0.6
-aiofiles==23.2.1
-
-# Database and async
-redis==5.0.1
-asyncio-throttle==1.0.2
-aiohttp==3.9.1
 
 # OpenAI for answer generation (lightweight SDK)
 openai>=1.0.0
-
-# Utilities
-tqdm==4.66.1
-isodate==0.6.1
-psutil>=5.9.0
