@@ -432,13 +432,55 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
     return null;
   }
 
-  // Parse inline citations and convert to clickable chips
+  // Parse markdown headings and inline citations
   const renderAnswerWithCitations = (text: string) => {
+    // First, split by paragraphs and headings
+    const lines = text.split('\n');
+    const elements = [];
+    let currentParagraph: string[] = [];
+    let elementKey = 0;
+
+    const flushParagraph = () => {
+      if (currentParagraph.length > 0) {
+        const paragraphText = currentParagraph.join('\n');
+        elements.push(
+          <p key={`p-${elementKey++}`}>
+            {parseInlineCitations(paragraphText)}
+          </p>
+        );
+        currentParagraph = [];
+      }
+    };
+
+    lines.forEach((line) => {
+      // Check for markdown headings
+      if (line.startsWith('# ')) {
+        flushParagraph();
+        elements.push(<h1 key={`h1-${elementKey++}`}>{line.substring(2)}</h1>);
+      } else if (line.startsWith('## ')) {
+        flushParagraph();
+        elements.push(<h2 key={`h2-${elementKey++}`}>{line.substring(3)}</h2>);
+      } else if (line.startsWith('### ')) {
+        flushParagraph();
+        elements.push(<h3 key={`h3-${elementKey++}`}>{line.substring(4)}</h3>);
+      } else if (line.trim() === '') {
+        flushParagraph();
+      } else {
+        currentParagraph.push(line);
+      }
+    });
+
+    flushParagraph();
+    return elements;
+  };
+
+  // Parse inline citations and convert to clickable chips
+  const parseInlineCitations = (text: string) => {
     const citationRegex = /\[([^@]+)@(\d+:\d+)\]/g;
     const parts = [];
     let lastIndex = 0;
     let match;
-    const seenCitations = new Set<string>(); // Track seen citations to avoid duplicates
+    const seenCitations = new Set<string>();
 
     while ((match = citationRegex.exec(text)) !== null) {
       // Add text before citation
