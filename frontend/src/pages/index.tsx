@@ -946,30 +946,47 @@ export default function Home() {
           
           @media (max-width: 768px) {
             .container {
-              padding: var(--space-4);
+              padding: var(--space-3) var(--space-4);
+              max-width: 100%;
             }
 
             .header {
-              padding: var(--space-4) 0;
-              margin-bottom: var(--space-4);
+              padding: var(--space-5) 0;
+              margin-bottom: var(--space-5);
+            }
+
+            .header-content {
+              padding: 0 var(--space-2);
+            }
+
+            .logo-container {
+              margin-bottom: var(--space-3);
             }
 
             .header h1 {
-              font-size: 2.2rem;
+              font-size: 2rem;
+              margin-bottom: var(--space-2);
             }
             
             .header p {
-              font-size: 1.1rem;
+              font-size: 1.05rem;
+              margin-bottom: var(--space-4);
             }
 
             .search-hint {
-              padding: var(--space-3);
+              padding: var(--space-3) var(--space-4);
               font-size: 0.9rem;
+              margin: 0 var(--space-2);
             }
 
             .search-hint svg {
               width: 18px;
               height: 18px;
+            }
+
+            .topics-container {
+              margin-top: var(--space-5);
+              padding: 0 var(--space-2);
             }
             
             .topics {
@@ -996,39 +1013,65 @@ export default function Home() {
 
           @media (max-width: 480px) {
             .container {
-              padding: var(--space-3);
+              padding: var(--space-3) var(--space-3);
             }
 
             .header {
-              padding: var(--space-3) 0;
+              padding: var(--space-4) 0;
+              margin-bottom: var(--space-4);
+            }
+
+            .header-content {
+              padding: 0;
             }
 
             .logo {
-              width: 60px;
-              height: 60px;
+              width: 64px;
+              height: 64px;
+            }
+
+            .logo-container {
+              margin-bottom: var(--space-3);
             }
 
             .header h1 {
-              font-size: 1.8rem;
+              font-size: 1.75rem;
+              margin-bottom: var(--space-2);
             }
 
             .header p {
-              font-size: 1rem;
+              font-size: 0.95rem;
+              margin-bottom: var(--space-3);
             }
 
             .search-hint {
               flex-direction: column;
               text-align: center;
               gap: var(--space-2);
+              padding: var(--space-3);
+              margin: 0;
+              font-size: 0.85rem;
+            }
+
+            .topics-container {
+              margin-top: var(--space-4);
+              padding: 0;
             }
 
             .topics-title {
-              font-size: 0.9rem;
+              font-size: 0.85rem;
+              margin-bottom: var(--space-2);
+            }
+
+            .topics {
+              gap: var(--space-2);
             }
 
             .topics button {
               font-size: 0.8rem;
-              padding: var(--space-1) var(--space-2);
+              padding: var(--space-2) var(--space-2);
+              flex: 1 1 auto;
+              min-width: 0;
             }
 
             .supporting-clips-section {

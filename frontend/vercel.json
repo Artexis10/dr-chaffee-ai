@@ -1,7 +1,0 @@
-{
-  "functions": {
-    "src/pages/api/answer.ts": {
-      "maxDuration": 180
-    }
-  }
-}
