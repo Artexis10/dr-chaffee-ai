@@ -5,8 +5,7 @@ Database upsert operations for video ingestion pipeline
 
 import logging
 import hashlib
-import numpy as np
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from dataclasses import dataclass
 import psycopg2
 import psycopg2.extras
@@ -27,7 +26,7 @@ class ChunkData:
     text: str
     t_start_s: float
     t_end_s: float
-    embedding: Optional[np.ndarray] = None
+    embedding: Optional[Union[List[float], Any]] = None  # List of floats or numpy array
     
     @classmethod
     def from_transcript_segment(cls, segment: TranscriptSegment, source_id: str) -> 'ChunkData':
