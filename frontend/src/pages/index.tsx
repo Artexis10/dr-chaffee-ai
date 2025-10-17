@@ -180,14 +180,9 @@ export default function Home() {
         console.log(`Answer API attempt ${attempt + 1}/${maxRetries}...`);
         
         const currentStyle = styleOverride || answerStyle;
-        const params = new URLSearchParams({
-          query: query.trim(),
-          style: currentStyle
-        });
         
         console.log(`📊 Using answer style: ${currentStyle}`);
-        
-        console.log('Answer API call URL:', `/api/answer?${params}`);
+        console.log('Answer API call URL:', `/api/answer`);
         
         // Add timeout to the fetch request
         const controller = new AbortController();
@@ -195,7 +190,15 @@ export default function Home() {
         const timeoutMs = currentStyle === 'detailed' ? 45000 : 30000;
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
         
-        const response = await fetch(`/api/answer?${params}`, {
+        const response = await fetch(`/api/answer`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            q: query.trim(),
+            style: currentStyle
+          }),
           signal: controller.signal
         });
         
