@@ -607,10 +607,15 @@ If the content doesn't fully answer the question, acknowledge the limitations.""
         # Step 4: Query OpenAI
         openai_api_key = os.getenv('OPENAI_API_KEY')
         if not openai_api_key:
+            logger.error("OPENAI_API_KEY not configured")
             raise HTTPException(status_code=503, detail="OpenAI API key not configured")
         
-        from openai import OpenAI
-        client = OpenAI(api_key=openai_api_key)
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=openai_api_key)
+        except ImportError as e:
+            logger.error(f"Failed to import OpenAI: {e}")
+            raise HTTPException(status_code=503, detail="OpenAI library not available")
         
         response = client.chat.completions.create(
             model=os.getenv('OPENAI_MODEL', 'gpt-4-turbo'),
@@ -642,7 +647,7 @@ If the content doesn't fully answer the question, acknowledge the limitations.""
 
 @app.get("/answer")
 @app.get("/api/answer")
-async def answer_get(query: str, top_k: int = 10):
+async def answer_get(query: str, top_k: int = 10, style: str = 'concise'):
     """GET endpoint for answer (for frontend compatibility)"""
     request = SearchRequest(query=query, top_k=top_k)
     return await answer_question(request)
