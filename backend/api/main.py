@@ -410,8 +410,12 @@ async def semantic_search(request: SearchRequest):
         
         logger.info(f"Searching with model: {model_key} ({expected_dim} dims)")
         
-        # Check if we're using normalized storage
-        if use_normalized_embeddings():
+        # We already detected the table in get_available_embedding_models()
+        # If we found models from segment_embeddings, use that table
+        # Check if the model came from normalized storage (has count > 0 means it exists)
+        use_normalized = db_model['count'] > 0 and 'model_key' in db_model
+        
+        if use_normalized:
             # Use segment_embeddings table with explicit vector dimensions
             search_query = f"""
                 SELECT 
