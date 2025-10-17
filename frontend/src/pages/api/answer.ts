@@ -723,10 +723,10 @@ export default async function handler(
     let queryParams: any[];
     
     if (queryEmbedding.length > 0) {
-      // Semantic search with pgvector
+      // Semantic search with pgvector using segment_embeddings table (768-dim Nomic)
       searchQuery = `
         SELECT 
-          seg.id,
+          se.segment_id as id,
           s.id as source_id,
           s.source_id as video_id,
           s.title,
@@ -735,11 +735,14 @@ export default async function handler(
           seg.end_sec as end_time_seconds,
           s.published_at,
           s.source_type,
-          (seg.embedding <=> $1::vector) as similarity
-        FROM segments seg
+          (se.embedding <=> $1::vector) as similarity
+        FROM segment_embeddings se
+        JOIN segments seg ON se.segment_id = seg.id
         JOIN sources s ON seg.video_id = s.source_id
-        WHERE seg.embedding IS NOT NULL AND seg.speaker_label = 'Chaffee'
-        ORDER BY seg.embedding <=> $1::vector
+        WHERE se.embedding IS NOT NULL 
+          AND se.model_key = 'nomic-embed-text-v1.5'
+          AND seg.speaker_label = 'Chaffee'
+        ORDER BY se.embedding <=> $1::vector
         LIMIT $2
       `;
       queryParams = [JSON.stringify(queryEmbedding), maxContext];
