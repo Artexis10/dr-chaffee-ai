@@ -650,28 +650,21 @@ async function checkAnswerCache(query: string, style: string): Promise<any | nul
     });
     
     if (!embeddingResponse.ok) {
-      console.warn('Failed to generate embedding for cache lookup');
+      console.warn('[Cache Lookup] Failed to generate embedding');
       return null;
     }
     
-    const { embedding, dimensions } = await embeddingResponse.json();
-    // Map dimensions to profile and column
-    let embeddingProfile: string;
-    let embeddingColumn: string;
-    if (dimensions === 384) {
-      embeddingProfile = 'speed';
-      embeddingColumn = 'query_embedding_384';
-    } else if (dimensions === 768) {
-      embeddingProfile = 'nomic';
-      embeddingColumn = 'query_embedding_768';
-    } else {
-      embeddingProfile = 'quality';
-      embeddingColumn = 'query_embedding_1536';
+    const { embedding, model_key } = await embeddingResponse.json();
+    
+    if (!embedding || !model_key) {
+      console.warn('[Cache Lookup] Invalid embedding response');
+      return null;
     }
     
-    console.log(`[Cache Lookup] Using ${embeddingProfile} profile (${dimensions} dims)`);
+    console.log(`[Cache Lookup] Using model: ${model_key}`);
     
-    // Search for similar cached answers using the appropriate embedding column
+    // Search for cached answers with the same model_key
+    // Use cosine similarity on the embedding vector
     const result = await pool.query(`
       SELECT 
         id,
@@ -684,36 +677,67 @@ async function checkAnswerCache(query: string, style: string): Promise<any | nul
         source_clips,
         created_at,
         access_count,
-        1 - (${embeddingColumn} <=> $1::vector) as similarity
+        query_embedding
       FROM answer_cache
-      WHERE style = $2
-        AND embedding_profile = $3
+      WHERE style = $1
+        AND query_embedding ? $2
         AND created_at + (ttl_hours || ' hours')::INTERVAL > NOW()
-        AND ${embeddingColumn} IS NOT NULL
-        AND 1 - (${embeddingColumn} <=> $1::vector) >= $4
-      ORDER BY similarity DESC
-      LIMIT 1
-    `, [JSON.stringify(embedding), style, embeddingProfile, CACHE_SIMILARITY_THRESHOLD]);
+      ORDER BY created_at DESC
+    `, [style, model_key]);
     
-    if (result.rows.length > 0) {
-      const cached = result.rows[0];
-      console.log(`Cache hit: "${cached.query_text}" (similarity: ${(cached.similarity * 100).toFixed(1)}%)`);
+    // Calculate cosine similarity in-memory for matching model_key
+    let bestMatch = null;
+    let bestSimilarity = 0;
+    
+    for (const row of result.rows) {
+      const cachedEmbedding = row.query_embedding[model_key];
+      if (!cachedEmbedding) continue;
+      
+      // Calculate cosine similarity
+      const similarity = cosineSimilarity(embedding, cachedEmbedding);
+      
+      if (similarity >= CACHE_SIMILARITY_THRESHOLD && similarity > bestSimilarity) {
+        bestSimilarity = similarity;
+        bestMatch = { ...row, similarity };
+      }
+    }
+    
+    if (bestMatch) {
+      console.log(`✅ [Cache Hit] "${bestMatch.query_text.substring(0, 50)}..." (similarity: ${(bestMatch.similarity * 100).toFixed(1)}%)`);
       
       // Update access count and timestamp
       await pool.query(`
         UPDATE answer_cache 
         SET accessed_at = NOW(), access_count = access_count + 1
         WHERE id = $1
-      `, [cached.id]);
+      `, [bestMatch.id]);
       
-      return cached;
+      return bestMatch;
     }
     
+    console.log('[Cache Lookup] No cache hit found');
     return null;
   } catch (error) {
-    console.error('Cache lookup error:', error);
+    console.error('❌ [Cache Lookup] Error:', error);
     return null; // Fail gracefully
   }
+}
+
+// Helper function to calculate cosine similarity
+function cosineSimilarity(a: number[], b: number[]): number {
+  if (a.length !== b.length) return 0;
+  
+  let dotProduct = 0;
+  let normA = 0;
+  let normB = 0;
+  
+  for (let i = 0; i < a.length; i++) {
+    dotProduct += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  
+  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
 // Save answer to cache
@@ -731,49 +755,37 @@ async function saveAnswerCache(query: string, style: string, answer: any): Promi
     
     if (!embeddingResponse.ok) {
       const errorText = await embeddingResponse.text();
-      console.error('[Cache Save] Failed to generate embedding for cache save, status:', embeddingResponse.status, 'error:', errorText);
+      console.error('[Cache Save] Failed to generate embedding, status:', embeddingResponse.status, 'error:', errorText);
       return;
     }
     
     const embeddingData = await embeddingResponse.json();
-    console.log('[Cache Save] Embedding response:', JSON.stringify(embeddingData).substring(0, 200));
+    const { embedding, model_key } = embeddingData;
     
-    const { embedding, dimensions } = embeddingData;
-    
-    if (!embedding || !dimensions) {
-      console.error('[Cache Save] Invalid embedding response - missing embedding or dimensions');
+    if (!embedding || !model_key) {
+      console.error('[Cache Save] Invalid embedding response - missing embedding or model_key');
       return;
     }
-    // Map dimensions to profile and column
-    let embeddingProfile: string;
-    let embeddingColumn: string;
-    if (dimensions === 384) {
-      embeddingProfile = 'speed';
-      embeddingColumn = 'query_embedding_384';
-    } else if (dimensions === 768) {
-      embeddingProfile = 'nomic';
-      embeddingColumn = 'query_embedding_768';
-    } else {
-      embeddingProfile = 'quality';
-      embeddingColumn = 'query_embedding_1536';
-    }
     
-    console.log(`[Cache Save] Got embedding: ${dimensions} dims (${embeddingProfile} profile)`);
+    console.log(`[Cache Save] Got embedding for model: ${model_key}`);
     
-    // Insert into cache with the appropriate embedding column
+    // Store embedding as JSONB with model_key
+    const queryEmbedding = {
+      [model_key]: embedding
+    };
+    
+    // Insert into cache
     console.log('[Cache Save] Inserting into answer_cache table...');
-    console.log('[Cache Save] Using column:', embeddingColumn, 'profile:', embeddingProfile);
     
     const insertResult = await pool.query(`
       INSERT INTO answer_cache (
-        query_text, ${embeddingColumn}, embedding_profile, style, answer_md, citations, 
+        query_text, query_embedding, style, answer_md, citations, 
         confidence, notes, used_chunk_ids, source_clips, ttl_hours
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING id
     `, [
       query,
-      JSON.stringify(embedding),
-      embeddingProfile,
+      JSON.stringify(queryEmbedding),
       style,
       answer.answer_md,
       JSON.stringify(answer.citations),
@@ -784,7 +796,7 @@ async function saveAnswerCache(query: string, style: string, answer: any): Promi
       CACHE_TTL_HOURS
     ]);
     
-    console.log(`✅ [Cache Save] Successfully cached answer (${embeddingProfile} profile), cache ID: ${insertResult.rows[0]?.id}`);
+    console.log(`✅ [Cache Save] Successfully cached answer (model: ${model_key}), cache ID: ${insertResult.rows[0]?.id}`);
   } catch (error) {
     console.error('❌ [Cache Save] Failed to save to answer_cache');
     console.error('[Cache Save] Error:', error);
