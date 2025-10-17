@@ -54,7 +54,7 @@ async function callRAGService(question: string): Promise<RAGResponse | null> {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ query: question, top_k: 10 }),
+      body: JSON.stringify({ query: question, top_k: 50 }),  // Use 50 for better quality
       signal: controller.signal
     });
 
@@ -701,32 +701,12 @@ export default async function handler(
       console.log('Cache miss, generating new answer');
     }
 
-    // Try RAG service first (preferred method)
-    const ragResult = await callRAGService(query);
+    // DISABLED: Basic RAG service (using sophisticated local method instead)
+    // const ragResult = await callRAGService(query);
+    // if (ragResult && ragResult.answer) { ... }
     
-    if (ragResult && ragResult.answer) {
-      console.log('Using RAG service response');
-      
-      // Transform RAG response to match frontend expectations
-      const citations = ragResult.citations.map(citation => ({
-        video_id: citation.video_id,
-        t_start_s: timestampToSeconds(citation.timestamp.replace(/[\[\]]/g, '')), // Remove brackets and parse
-        published_at: new Date().toISOString() // RAG doesn't provide published_at, use current time
-      }));
-      
-      return res.status(200).json({
-        answer_md: ragResult.answer,
-        citations: citations,
-        confidence: ragResult.chunks_used >= 5 ? 0.9 : 0.7, // High confidence if many sources
-        notes: `Generated using RAG service with ${ragResult.chunks_used} source chunks. Cost: $${ragResult.cost_usd.toFixed(4)}`,
-        used_chunk_ids: [], // RAG service doesn't provide chunk IDs
-        rag_enabled: true,
-        processing_cost: ragResult.cost_usd
-      });
-    }
-    
-    // Fallback to original method if RAG service fails
-    console.log('RAG service unavailable, falling back to original method');
+    // Using sophisticated local method with Chaffee personality emulation
+    console.log('Using sophisticated local answer generation with Chaffee personality');
 
     if (USE_MOCK_MODE) {
       return res.status(503).json({
