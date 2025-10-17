@@ -172,26 +172,54 @@ def get_available_embedding_models():
         legacy_result = cur.fetchone()
         
         if legacy_result and legacy_result['count'] > 0:
-            # Get dimension from first embedding
+            # Get a sample embedding to determine dimensions
             cur.execute("""
-                SELECT 
-                    COALESCE(embedding_model, 'gte-qwen2-1.5b') as model_key,
-                    array_length(embedding::float[], 1) as dimensions,
-                    COUNT(*) as count
+                SELECT embedding
                 FROM segments
                 WHERE embedding IS NOT NULL
-                GROUP BY embedding_model
-                ORDER BY count DESC
                 LIMIT 1
             """)
-            result = cur.fetchone()
-            cur.close()
-            conn.close()
+            sample = cur.fetchone()
             
-            if result:
-                model = {"model_key": result['model_key'], "dimensions": result['dimensions'], "count": result['count']}
-                logger.info(f"Available embedding model (legacy): {model}")
-                return [model]
+            if sample and sample['embedding']:
+                # Get dimensions from the vector
+                # Try multiple methods to be robust
+                try:
+                    # Method 1: If it's already a list/array
+                    if hasattr(sample['embedding'], '__len__'):
+                        dimensions = len(sample['embedding'])
+                    else:
+                        # Method 2: Parse as string '[0.1, 0.2, ...]'
+                        embedding_str = str(sample['embedding'])
+                        dimensions = len(embedding_str.strip('[]').split(','))
+                except Exception as e:
+                    logger.error(f"Failed to determine dimensions: {e}")
+                    # Fallback to common dimension
+                    dimensions = 1536
+                
+                # Get model info
+                cur.execute("""
+                    SELECT 
+                        COALESCE(embedding_model, 'gte-qwen2-1.5b') as model_key,
+                        COUNT(*) as count
+                    FROM segments
+                    WHERE embedding IS NOT NULL
+                    GROUP BY embedding_model
+                    ORDER BY count DESC
+                    LIMIT 1
+                """)
+                result = cur.fetchone()
+                cur.close()
+                conn.close()
+                
+                if result:
+                    model = {
+                        "model_key": result['model_key'], 
+                        "dimensions": dimensions, 
+                        "count": result['count']
+                    }
+                    logger.info(f"Available embedding model (legacy): {model}")
+                    return [model]
         
         cur.close()
         conn.close()
