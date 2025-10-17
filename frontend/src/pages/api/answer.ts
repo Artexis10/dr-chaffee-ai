@@ -740,7 +740,7 @@ export default async function handler(
         JOIN segments seg ON se.segment_id = seg.id
         JOIN sources s ON seg.video_id = s.source_id
         WHERE se.embedding IS NOT NULL 
-          AND se.model_key = 'nomic-embed-text-v1.5'
+          AND se.model_key = 'nomic-v1.5'
           AND seg.speaker_label = 'Chaffee'
         ORDER BY se.embedding <=> $1::vector
         LIMIT $2
