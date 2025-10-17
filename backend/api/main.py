@@ -185,13 +185,19 @@ def get_available_embedding_models():
                 # Get dimensions from the vector
                 # Try multiple methods to be robust
                 try:
-                    # Method 1: If it's already a list/array
-                    if hasattr(sample['embedding'], '__len__'):
+                    # Method 1: If it's already a list/array (most common)
+                    if isinstance(sample['embedding'], (list, tuple)):
+                        dimensions = len(sample['embedding'])
+                    elif hasattr(sample['embedding'], '__len__') and not isinstance(sample['embedding'], str):
                         dimensions = len(sample['embedding'])
                     else:
                         # Method 2: Parse as string '[0.1, 0.2, ...]'
                         embedding_str = str(sample['embedding'])
-                        dimensions = len(embedding_str.strip('[]').split(','))
+                        # Remove brackets and split by comma
+                        parts = embedding_str.strip('[]').split(',')
+                        # Filter out empty strings
+                        parts = [p.strip() for p in parts if p.strip()]
+                        dimensions = len(parts)
                 except Exception as e:
                     logger.error(f"Failed to determine dimensions: {e}")
                     # Fallback to common dimension
