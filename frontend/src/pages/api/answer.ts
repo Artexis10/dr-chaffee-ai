@@ -39,7 +39,7 @@ const pool = new Pool({
 const ANSWER_ENABLED = process.env.ANSWER_ENABLED !== 'false'; // Default to enabled
 const ANSWER_TOPK = parseInt(process.env.ANSWER_TOPK || '100'); // Number of chunks to retrieve (increased for better coverage)
 const ANSWER_TTL_HOURS = parseInt(process.env.ANSWER_TTL_HOURS || '336'); // 14 days
-const SUMMARIZER_MODEL = process.env.SUMMARIZER_MODEL || 'gpt-4o'; // Upgraded from gpt-3.5-turbo for better quality
+const SUMMARIZER_MODEL = process.env.SUMMARIZER_MODEL || 'gpt-4o-mini'; // Default to gpt-4o-mini: faster, cheaper, better than gpt-3.5-turbo
 const ANSWER_STYLE_DEFAULT = process.env.ANSWER_STYLE_DEFAULT || 'concise';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const USE_MOCK_MODE = !OPENAI_API_KEY || OPENAI_API_KEY.includes('your_') || process.env.USE_MOCK_MODE === 'true';
@@ -365,11 +365,11 @@ async function callSummarizer(query: string, excerpts: ChunkResult[], style: str
   const estimatedInputTokens = Math.ceil((excerptText.length + 3000) / 4);
   console.log(`[callSummarizer] Estimated input tokens: ~${estimatedInputTokens}`);
 
-  // Enhanced word limits for long-form synthesis
-  // Detailed should be 3x longer than concise for clear contrast
-  const targetWords = style === 'detailed' ? '2000-3000' : '600-800';
-  const minWords = style === 'detailed' ? 2000 : 600;
-  const maxTokens = style === 'detailed' ? 8000 : 2000; // Increased significantly for detailed answers
+  // Word limits optimized for 60s timeout (Render Starter)
+  // gpt-4o-mini can generate 1500-2000 words in ~35-45s
+  const targetWords = style === 'detailed' ? '1500-2000' : '600-800';
+  const minWords = style === 'detailed' ? 1500 : 600;
+  const maxTokens = style === 'detailed' ? 5000 : 2000; // Optimized for gpt-4o-mini speed
   
   // System Prompt: Emulated Dr. Chaffee (AI) persona
   const systemPrompt = `# Emulated Dr. Anthony Chaffee (AI) - System Prompt
