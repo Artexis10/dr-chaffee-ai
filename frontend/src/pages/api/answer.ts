@@ -663,56 +663,37 @@ async function checkAnswerCache(query: string, style: string): Promise<any | nul
     
     console.log(`[Cache Lookup] Using model: ${model_key}`);
     
-    // Search for cached answers with the same model_key
-    // Use cosine similarity on the embedding vector
+    // Use the search function to find similar cached answers
     const result = await pool.query(`
       SELECT 
-        id,
-        query_text,
-        answer_md,
-        citations,
-        confidence,
-        notes,
-        used_chunk_ids,
-        source_clips,
-        created_at,
-        access_count,
-        query_embedding
-      FROM answer_cache
-      WHERE style = $1
-        AND query_embedding ? $2
-        AND created_at + (ttl_hours || ' hours')::INTERVAL > NOW()
-      ORDER BY created_at DESC
-    `, [style, model_key]);
+        ac.id,
+        ac.query_text,
+        ac.answer_md,
+        ac.citations,
+        ac.confidence,
+        ac.notes,
+        ac.used_chunk_ids,
+        ac.source_clips,
+        ac.created_at,
+        ac.access_count,
+        cache_search.similarity
+      FROM search_answer_cache_by_model($1::vector, $2, $3, $4, 1) cache_search
+      JOIN answer_cache ac ON ac.id = cache_search.cache_id
+      LIMIT 1
+    `, [JSON.stringify(embedding), model_key, style, CACHE_SIMILARITY_THRESHOLD]);
     
-    // Calculate cosine similarity in-memory for matching model_key
-    let bestMatch = null;
-    let bestSimilarity = 0;
-    
-    for (const row of result.rows) {
-      const cachedEmbedding = row.query_embedding[model_key];
-      if (!cachedEmbedding) continue;
-      
-      // Calculate cosine similarity
-      const similarity = cosineSimilarity(embedding, cachedEmbedding);
-      
-      if (similarity >= CACHE_SIMILARITY_THRESHOLD && similarity > bestSimilarity) {
-        bestSimilarity = similarity;
-        bestMatch = { ...row, similarity };
-      }
-    }
-    
-    if (bestMatch) {
-      console.log(`✅ [Cache Hit] "${bestMatch.query_text.substring(0, 50)}..." (similarity: ${(bestMatch.similarity * 100).toFixed(1)}%)`);
+    if (result.rows.length > 0) {
+      const cached = result.rows[0];
+      console.log(`✅ [Cache Hit] "${cached.query_text.substring(0, 50)}..." (similarity: ${(cached.similarity * 100).toFixed(1)}%)`);
       
       // Update access count and timestamp
       await pool.query(`
         UPDATE answer_cache 
         SET accessed_at = NOW(), access_count = access_count + 1
         WHERE id = $1
-      `, [bestMatch.id]);
+      `, [cached.id]);
       
-      return bestMatch;
+      return cached;
     }
     
     console.log('[Cache Lookup] No cache hit found');
@@ -721,23 +702,6 @@ async function checkAnswerCache(query: string, style: string): Promise<any | nul
     console.error('❌ [Cache Lookup] Error:', error);
     return null; // Fail gracefully
   }
-}
-
-// Helper function to calculate cosine similarity
-function cosineSimilarity(a: number[], b: number[]): number {
-  if (a.length !== b.length) return 0;
-  
-  let dotProduct = 0;
-  let normA = 0;
-  let normB = 0;
-  
-  for (let i = 0; i < a.length; i++) {
-    dotProduct += a[i] * b[i];
-    normA += a[i] * a[i];
-    normB += b[i] * b[i];
-  }
-  
-  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
 // Save answer to cache
@@ -769,23 +733,17 @@ async function saveAnswerCache(query: string, style: string, answer: any): Promi
     
     console.log(`[Cache Save] Got embedding for model: ${model_key}`);
     
-    // Store embedding as JSONB with model_key
-    const queryEmbedding = {
-      [model_key]: embedding
-    };
-    
-    // Insert into cache
+    // Insert into answer_cache table (without embedding)
     console.log('[Cache Save] Inserting into answer_cache table...');
     
     const insertResult = await pool.query(`
       INSERT INTO answer_cache (
-        query_text, query_embedding, style, answer_md, citations, 
+        query_text, style, answer_md, citations, 
         confidence, notes, used_chunk_ids, source_clips, ttl_hours
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING id
     `, [
       query,
-      JSON.stringify(queryEmbedding),
       style,
       answer.answer_md,
       JSON.stringify(answer.citations),
@@ -796,7 +754,16 @@ async function saveAnswerCache(query: string, style: string, answer: any): Promi
       CACHE_TTL_HOURS
     ]);
     
-    console.log(`✅ [Cache Save] Successfully cached answer (model: ${model_key}), cache ID: ${insertResult.rows[0]?.id}`);
+    const cacheId = insertResult.rows[0]?.id;
+    
+    // Insert embedding into answer_cache_embeddings table
+    await pool.query(`
+      INSERT INTO answer_cache_embeddings (
+        answer_cache_id, model_key, embedding
+      ) VALUES ($1, $2, $3::vector)
+    `, [cacheId, model_key, JSON.stringify(embedding)]);
+    
+    console.log(`✅ [Cache Save] Successfully cached answer (model: ${model_key}), cache ID: ${cacheId}`);
   } catch (error) {
     console.error('❌ [Cache Save] Failed to save to answer_cache');
     console.error('[Cache Save] Error:', error);
