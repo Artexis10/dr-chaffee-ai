@@ -521,8 +521,19 @@ async function checkAnswerCache(query: string, style: string): Promise<any | nul
     }
     
     const { embedding, dimensions } = await embeddingResponse.json();
-    const embeddingProfile = dimensions === 384 ? 'speed' : 'quality';
-    const embeddingColumn = dimensions === 384 ? 'query_embedding_384' : 'query_embedding_1536';
+    // Map dimensions to profile and column
+    let embeddingProfile: string;
+    let embeddingColumn: string;
+    if (dimensions === 384) {
+      embeddingProfile = 'speed';
+      embeddingColumn = 'query_embedding_384';
+    } else if (dimensions === 768) {
+      embeddingProfile = 'nomic';
+      embeddingColumn = 'query_embedding_768';
+    } else {
+      embeddingProfile = 'quality';
+      embeddingColumn = 'query_embedding_1536';
+    }
     
     console.log(`[Cache Lookup] Using ${embeddingProfile} profile (${dimensions} dims)`);
     
@@ -590,8 +601,19 @@ async function saveAnswerCache(query: string, style: string, answer: any): Promi
     }
     
     const { embedding, dimensions } = await embeddingResponse.json();
-    const embeddingProfile = dimensions === 384 ? 'speed' : 'quality';
-    const embeddingColumn = dimensions === 384 ? 'query_embedding_384' : 'query_embedding_1536';
+    // Map dimensions to profile and column
+    let embeddingProfile: string;
+    let embeddingColumn: string;
+    if (dimensions === 384) {
+      embeddingProfile = 'speed';
+      embeddingColumn = 'query_embedding_384';
+    } else if (dimensions === 768) {
+      embeddingProfile = 'nomic';
+      embeddingColumn = 'query_embedding_768';
+    } else {
+      embeddingProfile = 'quality';
+      embeddingColumn = 'query_embedding_1536';
+    }
     
     console.log(`[Cache Save] Got embedding: ${dimensions} dims (${embeddingProfile} profile)`);
     
