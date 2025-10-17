@@ -284,7 +284,7 @@ class SearchResponse(BaseModel):
 class AnswerRequest(BaseModel):
     query: str
     style: Optional[str] = 'concise'
-    top_k: Optional[int] = 50  # Use 50 results for better context
+    top_k: Optional[int] = None  # Will use ANSWER_TOP_K env var if not specified
 
 # Authentication
 async def verify_admin_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -562,10 +562,13 @@ async def answer_question(request: AnswerRequest):
     logger = logging.getLogger(__name__)
     
     try:
-        logger.info(f"Answer request: {request.query} (top_k={request.top_k})")
+        # Get top_k from request, env var, or default to 50
+        top_k = request.top_k or int(os.getenv('ANSWER_TOP_K', '50'))
+        
+        logger.info(f"Answer request: {request.query} (top_k={top_k})")
         
         # Step 1: Get relevant segments using semantic search
-        search_request = SearchRequest(query=request.query, top_k=request.top_k)
+        search_request = SearchRequest(query=request.query, top_k=top_k)
         search_response = await semantic_search(search_request)
         
         if not search_response.results:
