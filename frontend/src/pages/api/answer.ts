@@ -25,7 +25,7 @@ const pool = new Pool({
 
 // Configuration
 const ANSWER_ENABLED = process.env.ANSWER_ENABLED !== 'false'; // Default to enabled
-const ANSWER_TOPK = parseInt(process.env.ANSWER_TOPK || '50'); // Increased from 40 for better quality
+const ANSWER_TOPK = parseInt(process.env.ANSWER_TOPK || '30'); // Number of chunks to retrieve (was 50, reduced for quality)
 const ANSWER_TTL_HOURS = parseInt(process.env.ANSWER_TTL_HOURS || '336'); // 14 days
 const SUMMARIZER_MODEL = process.env.SUMMARIZER_MODEL || 'gpt-4o'; // Upgraded from gpt-3.5-turbo for better quality
 const ANSWER_STYLE_DEFAULT = process.env.ANSWER_STYLE_DEFAULT || 'concise';
