@@ -9,6 +9,22 @@ cd "$(dirname "$0")"
 echo "🗄️  Running Alembic migrations..."
 echo ""
 
+# Activate virtual environment if it exists
+if [ -d ".venv" ]; then
+    echo "Activating virtual environment..."
+    source .venv/bin/activate
+elif [ -d "venv" ]; then
+    echo "Activating virtual environment..."
+    source venv/bin/activate
+fi
+
+# Check if alembic is available
+if ! command -v alembic &> /dev/null; then
+    echo "⚠️  Alembic not found. Installing..."
+    pip install alembic psycopg2-binary python-dotenv
+    echo ""
+fi
+
 # Check if DATABASE_URL is set
 if [ -z "$DATABASE_URL" ]; then
     echo "⚠️  DATABASE_URL not set"
