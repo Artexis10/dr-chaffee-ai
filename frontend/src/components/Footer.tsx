@@ -77,34 +77,10 @@ export const Footer: React.FC = () => {
             </div>
             
             <div className="footer-links-column">
-              <h4>Support</h4>
+              <h4>About</h4>
               <div className="footer-links">
-                <a 
-                  href="https://www.patreon.com/AnthonyChaffeeMD" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="footer-link"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M19 14C21.2091 14 23 12.2091 23 10C23 7.79086 21.2091 6 19 6C16.7909 6 15 7.79086 15 10C15 12.2091 16.7909 14 19 14Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M15 13.5V21H3.5C3.22386 21 3 20.7761 3 20.5V5.5C3 5.22386 3.22386 5 3.5 5H15V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  Support on Patreon
-                </a>
-                <a 
-                  href="https://www.youtube.com/@anthonychaffeemd/join" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="footer-link"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 12.5C13.6569 12.5 15 11.1569 15 9.5C15 7.84315 13.6569 6.5 12 6.5C10.3431 6.5 9 7.84315 9 9.5C9 11.1569 10.3431 12.5 12 12.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M19.5 19.5L16.5 16.5M12 21.5C7.02944 21.5 3 17.4706 3 12.5C3 7.52944 7.02944 3.5 12 3.5C16.9706 3.5 21 7.52944 21 12.5C21 14.5631 20.3375 16.4757 19.2236 18.0186" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  YouTube Membership
-                </a>
                 <div className="footer-text-info">
-                  Dr. Chaffee is a board-certified neurosurgeon and advocate for the carnivore diet and ancestral health.
+                  Dr. Anthony Chaffee is an American medical doctor practicing functional medicine who has researched optimal nutrition for human performance and health. He advocates for the carnivore diet and ancestral health principles.
                 </div>
               </div>
             </div>
