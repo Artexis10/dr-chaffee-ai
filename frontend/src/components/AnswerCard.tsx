@@ -930,6 +930,49 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
           white-space: pre-wrap; /* Preserve line breaks and spacing */
         }
 
+        .answer-text p {
+          margin-bottom: 1.25em;
+        }
+
+        .answer-text p:last-child {
+          margin-bottom: 0;
+        }
+
+        .answer-text h1 {
+          font-size: 1.5em;
+          font-weight: 700;
+          color: #1f2937;
+          margin-top: 1.5em;
+          margin-bottom: 0.75em;
+          line-height: 1.3;
+        }
+
+        .answer-text h1:first-child {
+          margin-top: 0;
+        }
+
+        .answer-text h2 {
+          font-size: 1.25em;
+          font-weight: 600;
+          color: #374151;
+          margin-top: 1.5em;
+          margin-bottom: 0.75em;
+          line-height: 1.3;
+        }
+
+        .answer-text h2:first-child {
+          margin-top: 0;
+        }
+
+        .answer-text h3 {
+          font-size: 1.1em;
+          font-weight: 600;
+          color: #4b5563;
+          margin-top: 1.25em;
+          margin-bottom: 0.5em;
+          line-height: 1.3;
+        }
+
         .show-more-button {
           display: inline-flex;
           align-items: center;
