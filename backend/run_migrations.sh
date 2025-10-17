@@ -9,11 +9,11 @@ cd "$(dirname "$0")"
 echo "🗄️  Running Alembic migrations..."
 echo ""
 
-# Activate virtual environment if it exists
-if [ -d ".venv" ]; then
+# Activate virtual environment if it exists and has activate script
+if [ -f ".venv/bin/activate" ]; then
     echo "Activating virtual environment..."
     source .venv/bin/activate
-elif [ -d "venv" ]; then
+elif [ -f "venv/bin/activate" ]; then
     echo "Activating virtual environment..."
     source venv/bin/activate
 fi
@@ -21,7 +21,7 @@ fi
 # Check if alembic is available
 if ! command -v alembic &> /dev/null; then
     echo "⚠️  Alembic not found. Installing..."
-    pip install alembic psycopg2-binary python-dotenv
+    pip3 install alembic psycopg2-binary python-dotenv
     echo ""
 fi
 
