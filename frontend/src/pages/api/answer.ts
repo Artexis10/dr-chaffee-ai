@@ -906,21 +906,32 @@ export default async function handler(
   }
 
   // Check rate limit (use IP address as client ID)
-  const clientId = req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || 'unknown';
-  const rateLimitCheck = checkRateLimit(clientId, style as 'concise' | 'detailed');
+  let clientId = 'unknown';
+  let rateLimitCheck: { allowed: boolean; retryAfter?: number } = { allowed: true };
   
-  if (!rateLimitCheck.allowed) {
-    return res.status(429).json({
-      error: 'Rate limit exceeded',
-      message: `Too many ${style} answer requests. Please try again in ${rateLimitCheck.retryAfter} seconds.`,
-      retryAfter: rateLimitCheck.retryAfter,
-      limit: style === 'detailed' ? RATE_LIMIT_DETAILED : RATE_LIMIT_CONCISE,
-      window: '1 minute'
-    });
+  try {
+    clientId = req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || 'unknown';
+    rateLimitCheck = checkRateLimit(clientId, style as 'concise' | 'detailed');
+    
+    if (!rateLimitCheck.allowed) {
+      console.log(`[Answer API] Rate limit exceeded for ${clientId}, style: ${style}`);
+      return res.status(429).json({
+        error: 'Rate limit exceeded',
+        message: `Too many ${style} answer requests. Please try again in ${rateLimitCheck.retryAfter} seconds.`,
+        retryAfter: rateLimitCheck.retryAfter,
+        limit: style === 'detailed' ? RATE_LIMIT_DETAILED : RATE_LIMIT_CONCISE,
+        window: '1 minute'
+      });
+    }
+  } catch (rateLimitError) {
+    console.error('[Answer API] Rate limit check failed:', rateLimitError);
+    // Continue anyway - don't block requests if rate limiting fails
   }
 
   try {
-    console.log('Processing query:', query, 'style:', style);
+    console.log(`[Answer API] Processing query: "${query}", style: ${style}, refresh: ${refresh}`);
+    console.log(`[Answer API] Client ID: ${clientId}`);
+    console.log(`[Answer API] Rate limit passed for ${style} style`);
 
     // Check cache first (unless refresh is requested)
     if (!refresh) {
