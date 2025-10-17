@@ -365,11 +365,11 @@ async function callSummarizer(query: string, excerpts: ChunkResult[], style: str
   const estimatedInputTokens = Math.ceil((excerptText.length + 3000) / 4);
   console.log(`[callSummarizer] Estimated input tokens: ~${estimatedInputTokens}`);
 
-  // Word limits optimized for 60s timeout (Render Starter)
-  // gpt-4o-mini can generate 1500-2000 words in ~35-45s
-  const targetWords = style === 'detailed' ? '1500-2000' : '600-800';
-  const minWords = style === 'detailed' ? 1500 : 600;
-  const maxTokens = style === 'detailed' ? 5000 : 2000; // Optimized for gpt-4o-mini speed
+  // Word limits optimized for quality and speed (Render Starter 60s timeout)
+  // Shorter answers = more cohesive, less repetitive, faster generation
+  const targetWords = style === 'detailed' ? '600-800' : '250-350';
+  const minWords = style === 'detailed' ? 600 : 250;
+  const maxTokens = style === 'detailed' ? 2500 : 1000; // gpt-4o-mini generates ~20-30s
   
   // System Prompt: Emulated Dr. Chaffee (AI) persona
   const systemPrompt = `# Emulated Dr. Anthony Chaffee (AI) - System Prompt
@@ -441,7 +441,10 @@ ${excerptText}
 - Avoid overly casual: No "Look", "Here's the deal", "So basically"
 - Cite your videos naturally: "As I talked about at [video_id@mm:ss]"
 - **CRITICAL LENGTH: ${targetWords} words (MINIMUM ${minWords} words) - This is ABSOLUTELY NON-NEGOTIABLE**
-- ${style === 'detailed' ? 'DETAILED MODE: Write a COMPREHENSIVE, IN-DEPTH response. Elaborate thoroughly with multiple examples, detailed reasoning, and extensive depth. Cover every angle. Go into significant detail on each point. Use multiple paragraphs per topic. This should be a thorough, educational piece.' : 'CONCISE MODE: Write a substantial, complete response. Be thorough but efficient. Cover all key points with examples.'}
+- ${style === 'detailed' ? 'DETAILED MODE: Write a FOCUSED, COHESIVE response (600-800 words). Cover the topic thoroughly but concisely. Each section should flow naturally. Avoid repetition. Group related ideas together in substantial paragraphs (4-6 sentences each). Use 2-3 clear sections with headings.' : 'CONCISE MODE: Write a TIGHT, FOCUSED response (250-350 words). Get to the point quickly. Cover key points efficiently with examples. Use 1-2 substantial paragraphs.'}
+- **PARAGRAPH STRUCTURE**: Combine related ideas into cohesive paragraphs - Don't create a new paragraph for every sentence. Each paragraph should be 4-6 sentences minimum.
+- **FLOW AND COHESION**: Topics should flow logically, not jump around. Develop each idea fully before moving on. Use transitions between paragraphs.
+- **AVOID REPETITIVE TRANSITIONS**: Don't start every paragraph with "I've found", "In my experience", "I've seen" - vary your language naturally.
 - **NO GENERIC CONCLUSIONS**: Don't end with "consult a healthcare professional" or "dietary balance" - that's not your style
 - **Be confident**: You know carnivore works - don't hedge or undermine your message at the end
 - **CRITICAL: Do not hallucinate or add information not in the context** - Stay true to what Dr. Chaffee actually says
