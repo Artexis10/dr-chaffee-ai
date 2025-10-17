@@ -14,21 +14,6 @@ export const config = {
   // maxDuration: 180, // Only for Vercel - commented out for Render deployment
 };
 
-// Import our RAG functionality
-type RAGResponse = {
-  question: string;
-  answer: string;
-  citations: Array<{
-    video_id: string;
-    title: string;
-    timestamp: string;
-    similarity: number;
-  }>;
-  chunks_used: number;
-  cost_usd: number;
-  timestamp: number;
-};
-
 // Database connection
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -107,54 +92,6 @@ setInterval(() => {
     }
   }
 }, 5 * 60 * 1000);
-
-async function callRAGService(question: string): Promise<RAGResponse | null> {
-  try {
-    // Create timeout promise
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-    
-    // Call the backend's /answer endpoint for RAG
-    const response = await fetch(`${BACKEND_API_URL}/answer`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ query: question, top_k: 50 }),  // Use 50 for better quality
-      signal: controller.signal
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      // Silently fail if RAG service doesn't have /search endpoint yet
-      if (response.status !== 404) {
-        console.error('RAG service error:', response.status, response.statusText);
-      }
-      return null;
-    }
-
-    const data = await response.json();
-    
-    // Transform RAG response to match our format
-    return {
-      question: data.question || question,
-      answer: data.answer || '',
-      citations: data.sources?.map((source: any) => ({
-        video_id: source.video_id,
-        title: source.title,
-        timestamp: source.timestamp || '',
-        similarity: source.similarity || 0
-      })) || [],
-      chunks_used: data.sources?.length || 0,
-      cost_usd: data.cost_usd || 0,
-      timestamp: Date.now()
-    };
-  } catch (error) {
-    console.error('RAG service call failed:', error);
-    return null;
-  }
-}
 
 interface AnswerParams {
   q: string;

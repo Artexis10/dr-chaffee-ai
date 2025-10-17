@@ -184,9 +184,8 @@ export const Footer: React.FC = () => {
         .footer-text-info {
           font-size: 0.85rem;
           color: var(--color-text-light);
-          margin-top: var(--space-3);
           line-height: 1.5;
-          max-width: 220px;
+          max-width: 280px;
           padding: var(--space-2);
           background: rgba(59, 130, 246, 0.05);
           border-radius: var(--radius-md);
