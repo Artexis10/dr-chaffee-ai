@@ -807,27 +807,29 @@ export default async function handler(
     });
 
     chunks.sort((a, b) => b.similarity - a.similarity);
-    const clusteredChunks = clusterChunks(chunks.slice(0, maxContext));
     
-    if (clusteredChunks.length === 0) {
+    // Take top chunks without aggressive clustering (semantic search already handles relevance)
+    const topChunks = chunks.slice(0, maxContext);
+    
+    if (topChunks.length === 0) {
       return res.status(200).json({ 
         error: 'No relevant content found',
-        message: 'Could not find any relevant content after processing and clustering.',
+        message: 'Could not find any relevant content.',
         code: 'NO_RELEVANT_CONTENT'
       });
     }
 
     // Generate and validate answer
-    const llmResponse = await callSummarizer(query, clusteredChunks, style);
-    const validatedResponse = validateAndProcessResponse(llmResponse, clusteredChunks, query);
+    const llmResponse = await callSummarizer(query, topChunks, style);
+    const validatedResponse = validateAndProcessResponse(llmResponse, topChunks, query);
 
     // Prepare response
     const responseData = {
       ...validatedResponse,
-      source_clips: clusteredChunks,
+      source_clips: topChunks,
       cached: false,
       total_chunks_considered: chunks.length,
-      chunks_after_clustering: clusteredChunks.length,
+      chunks_used: topChunks.length,
     };
 
     // Cache the result for future queries
