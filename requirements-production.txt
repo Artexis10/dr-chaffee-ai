@@ -16,7 +16,7 @@ python-dotenv==1.0.0
 # Embeddings for semantic search (CPU-only is fine)
 sentence-transformers==2.2.2
 torch>=2.2.0,<2.9.0  # CPU version automatically installed
-transformers==4.33.2
+transformers==4.53.0
 
 # Lightweight incremental ingestion (1-2 videos/day on CPU)
 faster-whisper>=1.0.2  # CPU mode works fine for small batches
