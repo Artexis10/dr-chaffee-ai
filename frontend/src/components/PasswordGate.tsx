@@ -13,15 +13,16 @@ export function PasswordGate({ children }: PasswordGateProps) {
   const [requiresPassword, setRequiresPassword] = useState(false);
 
   useEffect(() => {
+    // Check localStorage first (synchronous, no flash)
+    const authToken = localStorage.getItem('auth_token');
+    
     // Check if password is required
     fetch('/api/auth/check')
       .then(res => res.json())
       .then(data => {
         setRequiresPassword(data.requiresPassword);
-        setIsLoading(false);
         
-        // Check if already authenticated
-        const authToken = localStorage.getItem('auth_token');
+        // If already have token and password is required, verify it
         if (authToken && data.requiresPassword) {
           // Verify token
           fetch('/api/auth/verify', {
@@ -34,10 +35,14 @@ export function PasswordGate({ children }: PasswordGateProps) {
               } else {
                 localStorage.removeItem('auth_token');
               }
+              setIsLoading(false);
             })
             .catch(() => {
               localStorage.removeItem('auth_token');
+              setIsLoading(false);
             });
+        } else {
+          setIsLoading(false);
         }
       })
       .catch(() => {
@@ -144,7 +149,7 @@ export function PasswordGate({ children }: PasswordGateProps) {
           marginBottom: '2rem',
           fontSize: '1rem'
         }}>
-          AI-powered medical knowledge search
+          Interactive Knowledge Base
         </p>
 
         <div style={{
@@ -235,7 +240,7 @@ export function PasswordGate({ children }: PasswordGateProps) {
           color: '#94a3b8',
           fontSize: '0.85rem'
         }}>
-          Powered by AI • Based on Dr. Chaffee's content
+          Based on Anthony Chaffee's content
         </p>
       </div>
     </div>

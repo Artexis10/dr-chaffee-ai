@@ -12,8 +12,8 @@ export const DisclaimerBanner: React.FC = () => {
             </svg>
           </div>
           <div className="disclaimer-text">
-            <strong>Not Medical Advice:</strong> This AI tool provides educational information based on Dr. Chaffee's content. 
-            Always consult your healthcare provider for medical advice.
+            <strong>Educational Content Only:</strong> This AI tool provides educational information based on Anthony Chaffee's content. 
+            Always consult your healthcare provider for personalized advice.
           </div>
         </div>
 

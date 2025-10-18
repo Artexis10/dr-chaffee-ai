@@ -18,7 +18,7 @@ export const Footer: React.FC = () => {
             </div>
             <div className="footer-logo-text">
               <h3>Ask Dr. Chaffee</h3>
-              <p>Medical Knowledge Base</p>
+              <p>Interactive Knowledge Base</p>
             </div>
           </div>
           
@@ -80,7 +80,7 @@ export const Footer: React.FC = () => {
               <h4>About</h4>
               <div className="footer-links">
                 <div className="footer-text-info">
-                  Dr. Anthony Chaffee is an American medical doctor practicing functional medicine who has researched optimal nutrition for human performance and health. He advocates for the carnivore diet and ancestral health principles.
+                  Anthony Chaffee is a neurosurgical resident and former professional rugby player who researches optimal nutrition for human performance and health. He advocates for the carnivore diet and ancestral health principles.
                 </div>
               </div>
             </div>
