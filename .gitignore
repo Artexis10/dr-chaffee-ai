@@ -214,3 +214,9 @@ fix_secrets.ps1
 # Environment config files
 RENDER_CRON_ENV_CLEAN.txt
 YOUTUBE_DOWNLOAD_SETUP.md
+# Database backups
+backup*.sql
+backup*.dump
+
+# Vercel config (auto-detected)
+frontend/vercel.json
