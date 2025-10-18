@@ -4,7 +4,7 @@ import { Pool } from 'pg';
 // Database connection
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: false
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -13,30 +13,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Get segment count
-    const segmentResult = await pool.query(
-      "SELECT COUNT(*) as count FROM segments WHERE speaker_label = 'Chaffee'"
-    );
+    // Single optimized query to get all stats
+    const result = await pool.query(`
+      SELECT 
+        (SELECT COUNT(*) FROM segments) as total_segments,
+        (SELECT COUNT(DISTINCT video_id) FROM segments) as total_videos,
+        (SELECT MAX(published_at) FROM segments) as latest_video
+    `);
     
-    // Get video count
-    const videoResult = await pool.query(
-      "SELECT COUNT(DISTINCT source_id) as count FROM sources WHERE source_type = 'youtube'"
-    );
+    const stats = result.rows[0];
+    const segmentCount = parseInt(stats.total_segments || '0');
+    const videoCount = parseInt(stats.total_videos || '0');
     
-    const segmentCount = parseInt(segmentResult.rows[0]?.count || '0');
-    const videoCount = parseInt(videoResult.rows[0]?.count || '0');
+    // Cache for 5 minutes (stats don't change often)
+    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
     
     res.status(200).json({
       segments: segmentCount,
       videos: videoCount,
+      latest_video: stats.latest_video,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error('Stats API error:', error);
     // Return fallback values on error
     res.status(200).json({
-      segments: 1695,
-      videos: 26,
+      segments: 15000,
+      videos: 300,
       timestamp: new Date().toISOString(),
       fallback: true
     });

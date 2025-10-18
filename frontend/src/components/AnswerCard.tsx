@@ -32,7 +32,9 @@ interface AnswerCardProps {
 export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onCancel, answerStyle = 'concise', onStyleChange }: AnswerCardProps) {
   const [showSources, setShowSources] = useState(false);
   const [loadingTime, setLoadingTime] = useState(0);
-  const [stats, setStats] = useState({ segments: 1695, videos: 26 }); // Default fallback values
+  const [stats, setStats] = useState({ segments: 0, videos: 0 });
+  const [statsLoaded, setStatsLoaded] = useState(false);
+  const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState<number | null>(null);
   
   // Fetch stats on mount
   useEffect(() => {
@@ -41,14 +43,18 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
       .then(data => {
         if (data.segments && data.videos) {
           setStats({ segments: data.segments, videos: data.videos });
+          setStatsLoaded(true);
         }
       })
       .catch(err => {
         console.warn('Failed to fetch stats, using fallback values:', err);
+        // Use fallback values
+        setStats({ segments: 15000, videos: 300 });
+        setStatsLoaded(true);
       });
   }, []);
   
-  // Track loading time
+  // Track loading time and estimate remaining time
   useEffect(() => {
     let interval: NodeJS.Timeout;
     
@@ -58,25 +64,36 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
       interval = setInterval(() => {
         const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
         setLoadingTime(elapsedSeconds);
+        
+        // Estimate time remaining based on answer style
+        if (elapsedSeconds > 5) {
+          const avgTime = answerStyle === 'detailed' ? 45 : 25;
+          const remaining = Math.max(0, avgTime - elapsedSeconds);
+          setEstimatedTimeRemaining(remaining);
+        }
       }, 1000);
     } else {
       // Reset timer when loading ends
       setLoadingTime(0);
+      setEstimatedTimeRemaining(null);
     }
     
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [loading]);
+  }, [loading, answerStyle]);
 
   if (loading) {
     // Loading messages that change based on elapsed time (using dynamic stats)
     const loadingMessages = [
       { threshold: 0, message: "Generating query embedding for semantic search..." },
-      { threshold: 3, message: `Searching ${stats.segments.toLocaleString()} segments across ${stats.videos} videos...` },
+      { threshold: 3, message: statsLoaded 
+          ? `Searching ${stats.segments.toLocaleString()} segments across ${stats.videos} videos...`
+          : "Searching database..." 
+      },
       { threshold: 7, message: "Ranking segments by semantic similarity..." },
-      { threshold: 12, message: "Analyzing Dr. Chaffee's transcript excerpts..." },
-      { threshold: 18, message: "Synthesizing answer in Dr. Chaffee's voice..." },
+      { threshold: 12, message: "Analyzing transcript excerpts..." },
+      { threshold: 18, message: "Synthesizing answer with AI..." },
       { threshold: 25, message: "Generating citations with timestamps..." },
       { threshold: 35, message: "Complex synthesis in progress..." },
       { threshold: 45, message: "Finalizing AI-emulated response..." }
@@ -97,9 +114,14 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
             <div className="spinner"></div>
           </div>
           <div className="loading-text">
-            <h3>Emulated Dr. Chaffee (AI)</h3>
+            <h3>AI Answer Generator</h3>
             <p>{currentMessage}</p>
-            <div className="loading-timer">{loadingTime}s</div>
+            <div className="loading-meta">
+              <div className="loading-timer">{loadingTime}s</div>
+              {estimatedTimeRemaining !== null && estimatedTimeRemaining > 0 && (
+                <div className="loading-eta">~{estimatedTimeRemaining}s remaining</div>
+              )}
+            </div>
           </div>
         </div>
         <div className="loading-progress">
@@ -108,9 +130,19 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
         <div className="loading-tips">
           <p>While you wait:</p>
           <ul>
-            <li>Generating embeddings for semantic search across {stats.segments.toLocaleString()} segments</li>
-            <li>AI is analyzing Dr. Chaffee's transcript content from {stats.videos} videos</li>
-            <li>Synthesizing answer in Dr. Chaffee's voice with citations</li>
+            {statsLoaded ? (
+              <>
+                <li>Searching {stats.segments.toLocaleString()} segments across {stats.videos} videos</li>
+                <li>AI is analyzing transcript content and ranking by relevance</li>
+                <li>Synthesizing answer with citations and timestamps</li>
+              </>
+            ) : (
+              <>
+                <li>Loading database statistics...</li>
+                <li>Preparing semantic search...</li>
+                <li>Initializing AI answer generator...</li>
+              </>
+            )}
           </ul>
         </div>
         
@@ -171,15 +203,32 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
             color: #6b7280;
             line-height: 1.4;
           }
+          .loading-meta {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-top: 8px;
+            flex-wrap: wrap;
+          }
+          
           .loading-timer {
             display: inline-block;
             background: rgba(59, 130, 246, 0.1);
             color: #3b82f6;
             font-size: 12px;
             font-weight: 600;
-            padding: 2px 8px;
+            padding: 4px 10px;
             border-radius: 12px;
-            margin-top: 8px;
+          }
+          
+          .loading-eta {
+            display: inline-block;
+            background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 12px;
           }
           .loading-progress {
             height: 4px;
@@ -629,24 +678,6 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
               </span>
             </div>
             <div className="badges">
-              {onStyleChange && (
-                <div className="answer-style-toggle">
-                  <button
-                    className={`style-button ${answerStyle === 'concise' ? 'active' : ''}`}
-                    onClick={() => onStyleChange('concise')}
-                    title="Short, concise answer"
-                  >
-                    Short
-                  </button>
-                  <button
-                    className={`style-button ${answerStyle === 'detailed' ? 'active' : ''}`}
-                    onClick={() => onStyleChange('detailed')}
-                    title="Detailed, comprehensive answer"
-                  >
-                    Long
-                  </button>
-                </div>
-              )}
               <span 
                 className="confidence-badge"
                 style={{ backgroundColor: confidenceColor }}
@@ -860,37 +891,6 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
           gap: 8px;
           align-items: center;
           flex-shrink: 0;
-        }
-
-        .answer-style-toggle {
-          display: flex;
-          background: #f3f4f6;
-          border-radius: 8px;
-          padding: 2px;
-          gap: 2px;
-        }
-
-        .style-button {
-          padding: 6px 14px;
-          border: none;
-          background: transparent;
-          color: #6b7280;
-          font-size: 13px;
-          font-weight: 600;
-          border-radius: 6px;
-          cursor: pointer;
-          transition: all 0.2s ease;
-        }
-
-        .style-button:hover {
-          background: #e5e7eb;
-          color: #374151;
-        }
-
-        .style-button.active {
-          background: #ffffff;
-          color: #3b82f6;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
 
         .confidence-badge {
