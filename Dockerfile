@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y \
     wget \
     curl \
     git \
+    postgresql-client-17 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install yt-dlp from latest release
