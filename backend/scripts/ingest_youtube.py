@@ -2145,6 +2145,8 @@ Examples:
                        help='YouTube channel URL (default: env YOUTUBE_CHANNEL_URL)')
     parser.add_argument('--since-published',
                        help='Only process videos published after this date (ISO8601 or YYYY-MM-DD)')
+    parser.add_argument('--days-back', type=int,
+                       help='Only process videos from last N days (convenience for --since-published)')
     
     # Processing configuration  
     parser.add_argument('--concurrency', type=int, default=4,
@@ -2280,7 +2282,14 @@ Examples:
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
     
-    # Check if we're in setup-chaffee mode before creating config
+    # Convert --days-back to --since-published if provided
+    if args.days_back:
+        from datetime import datetime, timedelta
+        cutoff_date = datetime.now() - timedelta(days=args.days_back)
+        args.since_published = cutoff_date.strftime('%Y-%m-%d')
+        logger.info(f"Date filter: Processing videos from last {args.days_back} days (since {args.since_published})")
+    
+    # Handle setup-chaffee mode first (before config creation)
     setup_chaffee_mode = hasattr(args, 'setup_chaffee') and args.setup_chaffee
     
     # CRITICAL WARNING: YouTube captions bypass speaker ID

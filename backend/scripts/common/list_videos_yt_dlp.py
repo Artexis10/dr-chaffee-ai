@@ -190,13 +190,14 @@ class YtDlpVideoLister:
             logger.error(f"Failed to dump channel JSON: {e}")
             raise
     
-    def list_channel_videos(self, channel_url: str, use_cache: bool = False, skip_members_only: bool = True) -> List[VideoInfo]:
+    def list_channel_videos(self, channel_url: str, use_cache: bool = False, skip_members_only: bool = True, days_back: Optional[int] = None) -> List[VideoInfo]:
         """List all videos from a YouTube channel
         
         Args:
             channel_url: YouTube channel URL
             use_cache: If True, use cached data (WARNING: may be stale - availability can change!)
             skip_members_only: Filter out subscriber-only/members-only content
+            days_back: Only return videos published within the last N days (None = all videos)
         """
         # Create cache file path
         cache_dir = Path("backend/data")
@@ -237,6 +238,16 @@ class YtDlpVideoLister:
             filtered_count = original_count - len(videos)
             if filtered_count > 0:
                 logger.info(f"✅ Filtered out {filtered_count} members-only videos, {len(videos)} remaining")
+        
+        # Apply date filter if requested
+        if days_back is not None:
+            from datetime import datetime, timedelta
+            cutoff_date = datetime.now() - timedelta(days=days_back)
+            original_count = len(videos)
+            videos = [v for v in videos if v.published_at and v.published_at >= cutoff_date]
+            filtered_count = original_count - len(videos)
+            if filtered_count > 0:
+                logger.info(f"📅 Filtered out {filtered_count} videos older than {days_back} days, {len(videos)} remaining")
         
         return videos
     

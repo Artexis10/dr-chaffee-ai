@@ -14,19 +14,31 @@ Environment="PYTHONUNBUFFERED=1"
 # Load environment variables
 EnvironmentFile=/path/to/ask-dr-chaffee/backend/.env
 
-# Run ingestion
-ExecStart=/usr/bin/python3 /path/to/ask-dr-chaffee/backend/scripts/ingest_youtube_enhanced_asr.py \
-    --channel-url "https://www.youtube.com/@anthonychaffeemd" \
+# Run ingestion (Render Starter Plan: 512MB RAM, shared CPU)
+# CRITICAL: Very conservative limits to avoid OOM and timeouts
+ExecStart=/usr/bin/python3 /path/to/ask-dr-chaffee/backend/scripts/ingest_youtube.py \
+    --source yt-dlp \
     --days-back 2 \
-    --skip-existing
+    --limit 2 \
+    --limit-unprocessed \
+    --skip-shorts \
+    --newest-first \
+    --io-concurrency 2 \
+    --asr-concurrency 1 \
+    --db-concurrency 2 \
+    --embedding-batch-size 32
 
 # Logging
 StandardOutput=append:/path/to/ask-dr-chaffee/backend/logs/ingest.log
 StandardError=append:/path/to/ask-dr-chaffee/backend/logs/ingest-error.log
 
-# Resource limits (prevent runaway process)
-MemoryMax=8G
-CPUQuota=400%
+# Resource limits (Render Starter: 512MB RAM, shared CPU)
+# CRITICAL: Stay well under 512MB to avoid OOM kills
+MemoryMax=450M
+CPUQuota=100%
+
+# Timeout (Render has 12h limit, but keep conservative)
+TimeoutStartSec=10800
 
 # Restart on failure
 Restart=on-failure
