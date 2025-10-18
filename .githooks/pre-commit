@@ -1,0 +1,79 @@
+#!/bin/bash
+# Pre-commit hook to prevent committing secrets
+# This runs automatically before every commit
+
+set -e
+
+echo "🔍 Checking for secrets and sensitive data..."
+
+# Colors for output
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Track if we found any issues
+FOUND_ISSUES=0
+
+# 1. Check for .env files (except .env.example)
+if git diff --cached --name-only | grep -E '\.env$|\.env\..*' | grep -v '\.env\.example'; then
+    echo -e "${RED}❌ ERROR: Attempting to commit .env file!${NC}"
+    echo "Files:"
+    git diff --cached --name-only | grep -E '\.env$|\.env\..*' | grep -v '\.env\.example'
+    echo ""
+    echo "These files should be in .gitignore, not committed."
+    FOUND_ISSUES=1
+fi
+
+# 2. Check for database URLs with credentials (exclude .md files)
+if git diff --cached -- ':!*.md' | grep -E 'postgresql://[^:]+:[^@]+@'; then
+    echo -e "${RED}❌ ERROR: Database credentials detected!${NC}"
+    echo "Found database URL with password in staged changes."
+    echo ""
+    FOUND_ISSUES=1
+fi
+
+# 3. Check for common API key patterns
+if git diff --cached | grep -iE '(api[_-]?key|secret[_-]?key|password|token)["\s]*[:=]["\s]*[a-zA-Z0-9_-]{20,}'; then
+    echo -e "${YELLOW}⚠️  WARNING: Possible API key or secret detected!${NC}"
+    echo "Please review your changes for hardcoded secrets."
+    echo ""
+    # Don't block, just warn
+fi
+
+# 4. Check for AWS keys
+if git diff --cached | grep -E 'AKIA[0-9A-Z]{16}'; then
+    echo -e "${RED}❌ ERROR: AWS Access Key detected!${NC}"
+    FOUND_ISSUES=1
+fi
+
+# 5. Check for private keys (exclude .md files)
+if git diff --cached -- ':!*.md' | grep -E 'BEGIN (RSA|DSA|EC|OPENSSH) PRIVATE KEY'; then
+    echo -e "${RED}❌ ERROR: Private key detected!${NC}"
+    FOUND_ISSUES=1
+fi
+
+# 6. Check for specific leaked passwords (add more as needed)
+LEAKED_PASSWORDS=(
+    "R3shsw9dirMQQcnO8hFqO9L0MU8OSV4t"
+    "DnSngpEEOx3L@wnvnJa@"
+    "DAZTyfcDz4ATs9PHQGnkXtFkZQLYKsqqI3bvBYGzOsS042Zl3H"
+)
+
+for password in "${LEAKED_PASSWORDS[@]}"; do
+    if git diff --cached | grep -F "$password"; then
+        echo -e "${RED}❌ ERROR: Known leaked password detected!${NC}"
+        echo "Password: ${password:0:10}..."
+        FOUND_ISSUES=1
+    fi
+done
+
+# Exit with error if issues found
+if [ $FOUND_ISSUES -eq 1 ]; then
+    echo ""
+    echo -e "${RED}Commit blocked due to security concerns.${NC}"
+    echo "Please remove sensitive data and try again."
+    exit 1
+fi
+
+echo "✅ No secrets detected. Proceeding with commit."
+exit 0

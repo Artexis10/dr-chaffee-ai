@@ -1,8 +1,21 @@
 # Ask Dr. Chaffee
 
-**Ask Dr. Chaffee** is an AI-powered transcript search app for Dr. Anthony Chaffee’s content.  
+**Ask Dr. Chaffee** is an AI-powered transcript search app for Dr. Anthony Chaffee's content.  
 It indexes transcripts from his **YouTube channel** and optional **Zoom recordings**, then makes them searchable with semantic embeddings and full-text queries.  
 Instead of digging through hundreds of hours of video, you can jump straight to the exact clip where a topic is discussed.
+
+---
+
+## 🔒 **IMPORTANT: First-Time Setup**
+
+**After cloning, immediately run:**
+```bash
+./scripts/setup-hooks.sh
+```
+
+This installs git hooks that **prevent accidentally committing secrets** (API keys, passwords, etc.).
+
+📖 **Full setup guide:** See [SETUP.md](SETUP.md)
 
 ---
 
