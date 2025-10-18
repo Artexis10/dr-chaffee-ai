@@ -1,14 +1,26 @@
 #!/bin/bash
 # Pre-commit hook to prevent committing secrets
 # This runs automatically before every commit
+# 
+# To bypass: git commit --no-verify (use with caution!)
+# To allow specific secrets: Add # ALLOW_SECRET comment on same line
 
 set -e
 
+# Check if user wants to bypass
+if [ "$SKIP_SECRET_CHECK" = "1" ]; then
+    echo "⚠️  Skipping secret check (SKIP_SECRET_CHECK=1)"
+    exit 0
+fi
+
 echo "🔍 Checking for secrets and sensitive data..."
+echo "   (To bypass: git commit --no-verify or SKIP_SECRET_CHECK=1 git commit)"
+echo ""
 
 # Colors for output
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
+GREEN='\033[0;32m'
 NC='\033[0m' # No Color
 
 # Track if we found any issues
@@ -24,20 +36,38 @@ if git diff --cached --name-only | grep -E '\.env$|\.env\..*' | grep -v '\.env\.
     FOUND_ISSUES=1
 fi
 
-# 2. Check for database URLs with credentials (exclude .md files)
-if git diff --cached -- ':!*.md' | grep -E 'postgresql://[^:]+:[^@]+@'; then
+# 2. Check for database URLs with credentials (exclude .md files and hook files)
+if git diff --cached -- ':!*.md' ':!.githooks/*' | grep -E 'postgresql://[^:]+:[^@]+@'; then
     echo -e "${RED}❌ ERROR: Database credentials detected!${NC}"
     echo "Found database URL with password in staged changes."
     echo ""
     FOUND_ISSUES=1
 fi
 
-# 3. Check for common API key patterns
-if git diff --cached | grep -iE '(api[_-]?key|secret[_-]?key|password|token)["\s]*[:=]["\s]*[a-zA-Z0-9_-]{20,}'; then
+# 3. Check for common API key patterns (excluding ALLOW_SECRET lines)
+if git diff --cached | grep -v "# ALLOW_SECRET" | grep -iE '(api[_-]?key|secret[_-]?key|password|token)["\s]*[:=]["\s]*[a-zA-Z0-9_-]{20,}'; then
     echo -e "${YELLOW}⚠️  WARNING: Possible API key or secret detected!${NC}"
     echo "Please review your changes for hardcoded secrets."
+    echo "To allow: Add '# ALLOW_SECRET' comment on the same line"
     echo ""
     # Don't block, just warn
+fi
+
+# 3b. Check for generic long secrets (likely API keys)
+# Matches: sk-proj-..., pk_live_..., any 40+ char alphanumeric strings
+if git diff --cached | grep -v "# ALLOW_SECRET" | grep -v "your-key-here" | grep -v "your_key_here" | grep -E '(sk-|pk_|api_|key_)[a-zA-Z0-9_-]{40,}'; then
+    echo -e "${RED}❌ ERROR: Potential API key detected (sk-, pk-, api_ prefix with 40+ chars)${NC}"
+    echo "This looks like a real API key. Remove it or add '# ALLOW_SECRET' to bypass."
+    echo ""
+    FOUND_ISSUES=1
+fi
+
+# 3c. Check for JWT tokens
+if git diff --cached | grep -v "# ALLOW_SECRET" | grep -E 'eyJ[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}'; then
+    echo -e "${RED}❌ ERROR: JWT token detected!${NC}"
+    echo "Remove the JWT token or add '# ALLOW_SECRET' to bypass."
+    echo ""
+    FOUND_ISSUES=1
 fi
 
 # 4. Check for AWS keys
@@ -60,7 +90,7 @@ LEAKED_PASSWORDS=(
 )
 
 for password in "${LEAKED_PASSWORDS[@]}"; do
-    if git diff --cached | grep -F "$password"; then
+    if git diff --cached -- ':!.githooks/*' | grep -F "$password"; then
         echo -e "${RED}❌ ERROR: Known leaked password detected!${NC}"
         echo "Password: ${password:0:10}..."
         FOUND_ISSUES=1
@@ -72,8 +102,13 @@ if [ $FOUND_ISSUES -eq 1 ]; then
     echo ""
     echo -e "${RED}Commit blocked due to security concerns.${NC}"
     echo "Please remove sensitive data and try again."
+    echo ""
+    echo -e "${YELLOW}To bypass (use with caution):${NC}"
+    echo "  - git commit --no-verify"
+    echo "  - SKIP_SECRET_CHECK=1 git commit"
+    echo "  - Add '# ALLOW_SECRET' comment on the line with the secret"
     exit 1
 fi
 
-echo "✅ No secrets detected. Proceeding with commit."
+echo -e "${GREEN}✅ No secrets detected. Proceeding with commit.${NC}"
 exit 0
