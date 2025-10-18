@@ -679,8 +679,8 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>Ask Dr. Chaffee | Search Knowledge Base</title>
-        <meta name="description" content="Search through Dr. Anthony Chaffee's knowledge base" />
+        <title>Ask Dr. Chaffee | Interactive Knowledge Base</title>
+        <meta name="description" content="Interactive knowledge base with AI-powered answers from Anthony Chaffee's content" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
@@ -701,14 +701,14 @@ export default function Home() {
               </div>
             </div>
             <h1>Ask Dr. Chaffee</h1>
-            <p>Search through Dr. Anthony Chaffee's knowledge base</p>
+            <p>Interactive Knowledge Base</p>
             <div className="search-hint">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M12 16V12M12 8H12.01M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12Z" 
                   stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
               <span>
-                <strong>How it works:</strong> Enter your question and get AI-generated answers based on Dr. Chaffee's content, with direct links to video clips.
+                <strong>How it works:</strong> Enter your question and get AI-generated answers based on Anthony Chaffee's content, with direct links to video clips.
               </span>
             </div>
           </div>
@@ -719,7 +719,7 @@ export default function Home() {
               <button onClick={() => setQuery('autoimmune conditions treatment')}>Autoimmune Conditions</button>
               <button onClick={() => setQuery('ketosis explained')}>Ketosis</button>
               <button onClick={() => setQuery('plant toxins in food')}>Plant Toxins</button>
-              <button onClick={() => setQuery('optimal human diet')}>Optimal Human Diet</button>
+              <button onClick={() => setQuery('mental health and depression')}>Mental Health</button>
             </div>
           </div>
         </div>
@@ -731,7 +731,9 @@ export default function Home() {
             query={query} 
             setQuery={handleSetQuery} 
             handleSearch={handleSearch} 
-            loading={loading} 
+            loading={loading}
+            answerStyle={answerStyle}
+            onAnswerStyleChange={setAnswerStyle}
           />
         </ErrorBoundary>
 

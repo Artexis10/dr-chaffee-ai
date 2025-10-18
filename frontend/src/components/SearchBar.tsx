@@ -5,9 +5,11 @@ interface SearchBarProps {
   setQuery: (query: string) => void;
   handleSearch: (e: React.FormEvent) => void;
   loading: boolean;
+  answerStyle: 'concise' | 'detailed';
+  onAnswerStyleChange: (style: 'concise' | 'detailed') => void;
 }
 
-export const SearchBar: React.FC<SearchBarProps> = ({ query, setQuery, handleSearch, loading }) => {
+export const SearchBar: React.FC<SearchBarProps> = ({ query, setQuery, handleSearch, loading, answerStyle, onAnswerStyleChange }) => {
   const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   
@@ -54,7 +56,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ query, setQuery, handleSea
           ref={inputRef}
           type="text"
           className="search-input"
-          placeholder="Ask Dr. Chaffee about carnivore diet, autoimmune conditions, ketosis..."
+          placeholder="Ask your question..."
           value={query}
           onChange={handleInputChange}
           onFocus={() => setIsFocused(true)}
@@ -84,6 +86,29 @@ export const SearchBar: React.FC<SearchBarProps> = ({ query, setQuery, handleSea
         >
           {loading ? 'Searching...' : 'Search'}
         </button>
+      </div>
+      
+      {/* Answer Style Toggle - Below search bar */}
+      <div className="answer-style-toggle">
+        <span className="toggle-label">Answer style:</span>
+        <div className="toggle-buttons">
+          <button
+            type="button"
+            className={`toggle-btn ${answerStyle === 'concise' ? 'active' : ''}`}
+            onClick={() => onAnswerStyleChange('concise')}
+            title="Short, focused answer (~30 seconds)"
+          >
+            Short
+          </button>
+          <button
+            type="button"
+            className={`toggle-btn ${answerStyle === 'detailed' ? 'active' : ''}`}
+            onClick={() => onAnswerStyleChange('detailed')}
+            title="Comprehensive answer (~60 seconds)"
+          >
+            Long
+          </button>
+        </div>
       </div>
       
       <style jsx>{`
@@ -148,6 +173,55 @@ export const SearchBar: React.FC<SearchBarProps> = ({ query, setQuery, handleSea
           to { transform: rotate(360deg); }
         }
         
+        .answer-style-toggle {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 12px;
+          margin-top: 16px;
+        }
+
+        .toggle-label {
+          font-size: 14px;
+          font-weight: 500;
+          color: #6b7280;
+        }
+
+        .toggle-buttons {
+          display: inline-flex;
+          background: #1f2937;
+          padding: 3px;
+          border-radius: 12px;
+          gap: 3px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .toggle-btn {
+          padding: 10px 28px;
+          font-size: 14px;
+          font-weight: 600;
+          color: #9ca3af;
+          background: transparent;
+          border: none;
+          border-radius: 10px;
+          cursor: pointer;
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+          white-space: nowrap;
+          position: relative;
+        }
+
+        .toggle-btn:hover:not(.active) {
+          color: #d1d5db;
+          background: rgba(255, 255, 255, 0.05);
+        }
+
+        .toggle-btn.active {
+          background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+          color: white;
+          box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4), 0 2px 4px rgba(0, 0, 0, 0.1);
+          transform: translateY(-1px);
+        }
+        
         @media (max-width: 768px) {
           .search-icon {
             left: var(--space-3);
@@ -168,6 +242,21 @@ export const SearchBar: React.FC<SearchBarProps> = ({ query, setQuery, handleSea
             margin-top: var(--space-3);
             font-size: 1rem;
             padding: var(--space-3) var(--space-5);
+          }
+          
+          .answer-style-toggle {
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 12px;
+          }
+
+          .toggle-buttons {
+            width: 100%;
+            max-width: 300px;
+          }
+
+          .toggle-btn {
+            flex: 1;
           }
         }
 
