@@ -304,10 +304,10 @@ async function callSummarizer(query: string, excerpts: ChunkResult[], style: str
 
   // Word limits optimized for quality and speed (Render Starter 60s timeout)
   // Short: ~400 words (focused, efficient)
-  // Long: ~800 words (comprehensive, detailed) - 2x the length of short
-  const targetWords = style === 'detailed' ? '750-850' : '350-450';
-  const minWords = style === 'detailed' ? 750 : 350;
-  const maxTokens = style === 'detailed' ? 2800 : 1400; // gpt-4o-mini generates ~20-30s
+  // Long: ~1000 words (comprehensive, detailed) - 2.5x the length of short
+  const targetWords = style === 'detailed' ? '900-1100' : '350-450';
+  const minWords = style === 'detailed' ? 900 : 350;
+  const maxTokens = style === 'detailed' ? 3500 : 1400; // gpt-4o-mini generates ~20-30s
   
   // System Prompt: Emulated Dr. Chaffee (AI) persona
   const systemPrompt = `# Emulated Dr. Anthony Chaffee (AI) - System Prompt
@@ -379,7 +379,7 @@ ${excerptText}
 - Avoid overly casual: No "Look", "Here's the deal", "So basically"
 - **CITATION FORMAT (CRITICAL)**: Use SQUARE BRACKETS [video_id@mm:ss], NOT parentheses. Example: "As I talked about [abc123@12:34]" or "I've discussed this [xyz789@45:12]"
 - **CRITICAL LENGTH: ${targetWords} words (MINIMUM ${minWords} words) - This is ABSOLUTELY NON-NEGOTIABLE**
-- ${style === 'detailed' ? 'DETAILED MODE: Write a COMPREHENSIVE response (750-850 words). Use 2-3 clear sections with markdown headings (## Heading). Each section should have 2-3 paragraphs of 4-6 sentences each. Cover the topic thoroughly with proper structure.' : 'CONCISE MODE: Write a TIGHT, FOCUSED response (350-450 words). NO HEADINGS. Write as ONE OR TWO substantial paragraphs ONLY. Each paragraph must be 6-8 sentences minimum. Do NOT break into multiple short paragraphs. Keep it flowing and cohesive.'}
+- ${style === 'detailed' ? 'DETAILED MODE: Write a COMPREHENSIVE response (900-1100 words). Organize into logical sections with markdown headings (## Heading) based on the natural topics that emerge from the content. Use as many sections as needed to cover different aspects thoroughly - could be 2-5 sections depending on topic complexity. Each section should have 2-4 paragraphs of 4-6 sentences each. Let the content dictate the structure.' : 'CONCISE MODE: Write a TIGHT, FOCUSED response (350-450 words). NO HEADINGS. Write as ONE OR TWO substantial paragraphs ONLY. Each paragraph must be 6-8 sentences minimum. Do NOT break into multiple short paragraphs. Keep it flowing and cohesive.'}
 - **PARAGRAPH STRUCTURE**: ${style === 'detailed' ? 'Combine related ideas into cohesive paragraphs - Each paragraph should be 4-6 sentences minimum.' : 'CRITICAL: Write as ONE continuous paragraph or maximum TWO paragraphs. Do NOT create 3+ paragraphs. Keep the response flowing without breaks.'}
 - **FLOW AND COHESION**: Topics should flow logically, not jump around. Develop each idea fully before moving on. Use transitions between paragraphs.
 - **AVOID REPETITIVE TRANSITIONS**: Don't start every paragraph with "I've found", "In my experience", "I've seen" - vary your language naturally.
