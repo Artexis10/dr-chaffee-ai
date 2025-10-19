@@ -66,8 +66,9 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
         setLoadingTime(elapsedSeconds);
         
         // Estimate time remaining based on answer style
+        // Short (~400 words): ~30s, Long (~800 words): ~50s
         if (elapsedSeconds > 5) {
-          const avgTime = answerStyle === 'detailed' ? 45 : 25;
+          const avgTime = answerStyle === 'detailed' ? 50 : 30;
           const remaining = Math.max(0, avgTime - elapsedSeconds);
           setEstimatedTimeRemaining(remaining);
         }

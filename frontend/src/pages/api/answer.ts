@@ -303,10 +303,11 @@ async function callSummarizer(query: string, excerpts: ChunkResult[], style: str
   console.log(`[callSummarizer] Estimated input tokens: ~${estimatedInputTokens}`);
 
   // Word limits optimized for quality and speed (Render Starter 60s timeout)
-  // Shorter answers = more cohesive, less repetitive, faster generation
-  const targetWords = style === 'detailed' ? '600-800' : '250-350';
-  const minWords = style === 'detailed' ? 600 : 250;
-  const maxTokens = style === 'detailed' ? 2500 : 1000; // gpt-4o-mini generates ~20-30s
+  // Short: ~400 words (focused, efficient)
+  // Long: ~800 words (comprehensive, detailed) - 2x the length of short
+  const targetWords = style === 'detailed' ? '750-850' : '350-450';
+  const minWords = style === 'detailed' ? 750 : 350;
+  const maxTokens = style === 'detailed' ? 2800 : 1400; // gpt-4o-mini generates ~20-30s
   
   // System Prompt: Emulated Dr. Chaffee (AI) persona
   const systemPrompt = `# Emulated Dr. Anthony Chaffee (AI) - System Prompt
