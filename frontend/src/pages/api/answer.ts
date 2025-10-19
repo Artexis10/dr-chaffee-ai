@@ -17,7 +17,9 @@ export const config = {
 // Database connection
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  ssl: process.env.DATABASE_URL?.includes('render.com') || process.env.NODE_ENV === 'production' 
+    ? { rejectUnauthorized: false } 
+    : false
 });
 
 // Configuration
@@ -31,7 +33,7 @@ const USE_MOCK_MODE = !OPENAI_API_KEY || OPENAI_API_KEY.includes('your_') || pro
 
 // Clip limits per style (to prevent token overflow and control context size)
 const MAX_CLIPS_CONCISE = parseInt(process.env.MAX_CLIPS_CONCISE || '30'); // Concise: fewer clips, focused answer
-const MAX_CLIPS_DETAILED = parseInt(process.env.MAX_CLIPS_DETAILED || '50'); // Detailed: more clips, comprehensive answer
+const MAX_CLIPS_DETAILED = parseInt(process.env.MAX_CLIPS_DETAILED || '100'); // Detailed: more clips, comprehensive answer
 
 console.log('ANSWER_ENABLED:', ANSWER_ENABLED);
 console.log('USE_MOCK_MODE:', USE_MOCK_MODE);
@@ -301,6 +303,7 @@ async function callSummarizer(query: string, excerpts: ChunkResult[], style: str
   // Calculate approximate token count (rough estimate: 1 token ≈ 4 characters)
   const estimatedInputTokens = Math.ceil((excerptText.length + 3000) / 4);
   console.log(`[callSummarizer] Estimated input tokens: ~${estimatedInputTokens}`);
+  console.log(`[callSummarizer] 🎯 STYLE: ${style}, TARGET: ${style === 'detailed' ? '900-1100 words' : '350-450 words'}`);
 
   // Word limits optimized for quality and speed (Render Starter 60s timeout)
   // Short: ~400 words (focused, efficient)
@@ -368,6 +371,8 @@ ${excerptText}
 
 ## Instructions
 
+**ANSWER STYLE: ${style.toUpperCase()} (${style === 'detailed' ? '900-1100 WORDS WITH HEADINGS' : '350-450 WORDS NO HEADINGS'})**
+
 - **ONLY use information from the retrieved context above** - DO NOT add generic medical knowledge or fill in gaps
 - **If the context doesn't cover something, explicitly say so** - "I haven't specifically talked about that" or "I don't have content on that specific topic"
 - **NEVER recommend non-carnivore foods** - Dr. Chaffee advocates for animal-based eating only
@@ -378,9 +383,9 @@ ${excerptText}
 - Avoid academic formality: No "moreover", "furthermore", "in conclusion", "has been associated with"
 - Avoid overly casual: No "Look", "Here's the deal", "So basically"
 - **CITATION FORMAT (CRITICAL)**: ALWAYS use SQUARE BRACKETS with FULL video_id [video_id@mm:ss]. NEVER use bare timestamps like "4:43" or parentheses "(video@time)". Every citation MUST have both video_id AND timestamp. Example: "As I talked about [vKiUYeKpHDs@36:56]" or "I've discussed this [1rUsspHnlmk@112:25]"
-- **CRITICAL LENGTH: ${targetWords} words (MINIMUM ${minWords} words) - This is ABSOLUTELY NON-NEGOTIABLE**
-- **PARAGRAPH BREAKS**: Use double line breaks between paragraphs for readability. Don't create a wall of text.
-- ${style === 'detailed' ? 'DETAILED MODE: Write a COMPREHENSIVE response (900-1100 words). Organize into logical sections with markdown headings (## Heading) based on the natural topics that emerge from the content. Use as many sections as needed to cover different aspects thoroughly - could be 2-5 sections depending on topic complexity. Each section should have 2-4 paragraphs of 4-6 sentences each. Let the content dictate the structure.' : 'CONCISE MODE: Write a TIGHT, FOCUSED response (350-450 words). NO HEADINGS. Write as ONE OR TWO substantial paragraphs ONLY. Each paragraph must be 6-8 sentences minimum. Do NOT break into multiple short paragraphs. Keep it flowing and cohesive.'}
+- **CRITICAL LENGTH: ${targetWords} words (MINIMUM ${minWords} words) - This is ABSOLUTELY NON-NEGOTIABLE. COUNT YOUR WORDS BEFORE RESPONDING. If you write less than ${minWords} words, START OVER and write more.**
+- **PARAGRAPH BREAKS (CRITICAL)**: ALWAYS use double line breaks (\\n\\n) between EVERY paragraph. Each paragraph should be separated by a blank line. This applies to paragraphs within the same section AND between sections.
+- ${style === 'detailed' ? '🔴 DETAILED MODE REQUIREMENTS (NON-NEGOTIABLE):\n  1. LENGTH: 900-1100 words (COUNT THEM!)\n  2. STRUCTURE: 2-5 sections with ## Markdown Headings\n  3. SECTIONS: Each section has 2-4 paragraphs (4-6 sentences each)\n  4. BLANK LINES: MANDATORY double newline (\\n\\n) between EVERY paragraph - no exceptions!\n  5. FORMATTING: After each paragraph, press Enter TWICE to create a blank line\n  6. EXAMPLE FORMAT (note the blank lines):\n     ## First Topic\n     Paragraph 1 here with 4-6 sentences.\n     \n     Paragraph 2 here with 4-6 sentences.\n     \n     ## Second Topic\n     Paragraph 1 here with 4-6 sentences.\n     \n     Paragraph 2 here with 4-6 sentences.' : '🔵 CONCISE MODE REQUIREMENTS (NON-NEGOTIABLE):\n  1. LENGTH: 350-450 words (COUNT THEM!)\n  2. NO HEADINGS - just flowing paragraphs\n  3. STRUCTURE: 1-2 substantial paragraphs ONLY\n  4. Each paragraph: 6-8 sentences minimum\n  5. BLANK LINE: Use \\n\\n between the two paragraphs if you write two'}
 - **PARAGRAPH STRUCTURE**: ${style === 'detailed' ? 'Combine related ideas into cohesive paragraphs - Each paragraph should be 4-6 sentences minimum.' : 'CRITICAL: Write as ONE continuous paragraph or maximum TWO paragraphs. Do NOT create 3+ paragraphs. Keep the response flowing without breaks.'}
 - **FLOW AND COHESION**: Topics should flow logically, not jump around. Develop each idea fully before moving on. Use transitions between paragraphs.
 - **AVOID REPETITIVE TRANSITIONS**: Don't start every paragraph with "I've found", "In my experience", "I've seen" - vary your language naturally.
@@ -394,7 +399,7 @@ ENDINGS: End naturally without generic disclaimers or hedging. You're confident 
 
 Output MUST be valid **JSON RESPONSE FORMAT** (CRITICAL - MUST be valid JSON):
 {
-  "answer": "Markdown with sections and inline citations like [abc123@12:34]. MUST be ${targetWords} words (minimum ${minWords} words).",
+  "answer": "${style === 'detailed' ? 'Markdown text with ## Section Headings. CRITICAL: Use TWO newline characters (\\\\n\\\\n) between every paragraph. Example: \\"Paragraph 1 text here.\\\\n\\\\nParagraph 2 text here.\\" MUST be 900-1100 words.' : 'Markdown text with NO headings. Use \\\\n\\\\n between paragraphs. MUST be 350-450 words.'}",
   "citations": [
     { "video_id": "abc123", "timestamp": "12:34", "date": "2024-06-18" }
   ],

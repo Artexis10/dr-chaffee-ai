@@ -4,7 +4,9 @@ import { Pool } from 'pg';
 // Database connection
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  ssl: process.env.DATABASE_URL?.includes('render.com') || process.env.NODE_ENV === 'production' 
+    ? { rejectUnauthorized: false } 
+    : false
 });
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -17,8 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const result = await pool.query(`
       SELECT 
         (SELECT COUNT(*) FROM segments) as total_segments,
-        (SELECT COUNT(DISTINCT video_id) FROM segments) as total_videos,
-        (SELECT MAX(published_at) FROM segments) as latest_video
+        (SELECT COUNT(DISTINCT video_id) FROM segments) as total_videos
     `);
     
     const stats = result.rows[0];
@@ -31,7 +32,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(200).json({
       segments: segmentCount,
       videos: videoCount,
-      latest_video: stats.latest_video,
       timestamp: new Date().toISOString()
     });
   } catch (error) {

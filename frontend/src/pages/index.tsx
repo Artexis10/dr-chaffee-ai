@@ -529,7 +529,7 @@ export default function Home() {
     
     Promise.resolve().then(async () => {
       try {
-        await performAnswerWithRetry(query); // Use the retry version directly
+        await performAnswerWithRetry(query, 5, answerStyle); // Pass current answer style
         
         // Track successful answer generation
         if (answerData) {
@@ -553,7 +553,7 @@ export default function Home() {
     }).catch(err => {
       console.error('Answer promise failed:', err);
     });
-  }, [query, sourceFilter, yearFilter, performSearch, performAnswerWithRetry, totalResults, answerData]);
+  }, [query, sourceFilter, yearFilter, performSearch, performAnswerWithRetry, totalResults, answerData, answerStyle]);
 
   // Function to highlight search terms in text
   const highlightSearchTerms = (text: string, query: string): string => {

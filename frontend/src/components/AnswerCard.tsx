@@ -494,7 +494,7 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
       if (currentParagraph.length > 0) {
         const paragraphText = currentParagraph.join('\n');
         elements.push(
-          <p key={`p-${elementKey++}`}>
+          <p key={`p-${elementKey++}`} style={{ marginBottom: '1.5em', lineHeight: '1.8' }}>
             {parseInlineCitations(paragraphText)}
           </p>
         );
@@ -931,11 +931,14 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
           white-space: pre-wrap; /* Preserve line breaks and spacing */
         }
 
-        .answer-text p {
-          margin-bottom: 1.25em;
+        .answer-content .answer-text p {
+          display: block;
+          margin-top: 0;
+          margin-bottom: 2.5em;
+          line-height: 1.8;
         }
 
-        .answer-text p:last-child {
+        .answer-content .answer-text p:last-child {
           margin-bottom: 0;
         }
 

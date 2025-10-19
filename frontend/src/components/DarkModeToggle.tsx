@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 
 export const DarkModeToggle: React.FC = () => {
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  // Initialize to dark mode by default (will be updated by useEffect if needed)
+  const [isDarkMode, setIsDarkMode] = useState(true);
 
   // Initialize dark mode - default to dark unless explicitly set to light
   useEffect(() => {

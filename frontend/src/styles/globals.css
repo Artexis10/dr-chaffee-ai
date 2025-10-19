@@ -236,17 +236,24 @@ body {
 }
 
 .filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: var(--space-2) var(--space-4);
   border: 2px solid var(--color-border);
   background: var(--color-card);
-  border-radius: 20px;
+  color: var(--color-text);
+  border-radius: var(--radius-full);
+  font-size: 0.9rem;
+  font-weight: 600;
   cursor: pointer;
   transition: all var(--transition-normal);
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--color-text-light);
   position: relative;
   overflow: hidden;
+}
+
+.filter-pill svg {
+  flex-shrink: 0;
 }
 
 .filter-pill::before {

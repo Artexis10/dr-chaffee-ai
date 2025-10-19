@@ -34,7 +34,11 @@ export const FilterPills: React.FC<FilterPillsProps> = ({
             aria-pressed={sourceFilter === 'youtube'}
             aria-label="Filter by YouTube only"
           >
-            📺 YouTube
+            <svg width="18" height="18" viewBox="0 0 159 110" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M154 17.5c-1.82-6.73-7.07-12-13.8-13.8C128.4 0 79.5 0 79.5 0S30.6 0 18.8 3.7C12.07 5.5 6.82 10.77 5 17.5 1.5 29.4 1.5 55 1.5 55s0 25.6 3.5 37.5c1.82 6.73 7.07 12 13.8 13.8 11.8 3.7 60.7 3.7 60.7 3.7s48.9 0 60.7-3.7c6.73-1.8 11.98-7.07 13.8-13.8 3.5-11.9 3.5-37.5 3.5-37.5s0-25.6-3.5-37.5z" fill="#FF0000"/>
+              <path d="M64 78.2V31.8L104.5 55 64 78.2z" fill="#FFFFFF"/>
+            </svg>
+            YouTube
           </button>
           <button
             className={`filter-pill ${sourceFilter === 'zoom' ? 'active' : ''}`}
@@ -42,7 +46,11 @@ export const FilterPills: React.FC<FilterPillsProps> = ({
             aria-pressed={sourceFilter === 'zoom'}
             aria-label="Filter by Zoom only"
           >
-            💼 Zoom
+            <svg width="18" height="18" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect width="512" height="512" rx="100" fill="#2D8CFF"/>
+              <path d="M160 176h160v80l80-60v160l-80-60v80H160V176z" fill="white"/>
+            </svg>
+            Zoom
           </button>
         </div>
       </div>
