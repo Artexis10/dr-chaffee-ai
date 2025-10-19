@@ -377,9 +377,9 @@ ${excerptText}
 - Natural flow: Use "so", "and", "you know", "I mean" where appropriate
 - Avoid academic formality: No "moreover", "furthermore", "in conclusion", "has been associated with"
 - Avoid overly casual: No "Look", "Here's the deal", "So basically"
-- Cite your videos naturally: "As I talked about at [video_id@mm:ss]"
+- **CITATION FORMAT (CRITICAL)**: Use SQUARE BRACKETS [video_id@mm:ss], NOT parentheses. Example: "As I talked about [abc123@12:34]" or "I've discussed this [xyz789@45:12]"
 - **CRITICAL LENGTH: ${targetWords} words (MINIMUM ${minWords} words) - This is ABSOLUTELY NON-NEGOTIABLE**
-- ${style === 'detailed' ? 'DETAILED MODE: Write a FOCUSED, COHESIVE response (600-800 words). Cover the topic thoroughly but concisely. Each section should flow naturally. Avoid repetition. Group related ideas together in substantial paragraphs (4-6 sentences each). Use 2-3 clear sections with headings (## Heading).' : 'CONCISE MODE: Write a TIGHT, FOCUSED response (250-350 words). NO HEADINGS. Write as ONE OR TWO substantial paragraphs ONLY. Each paragraph must be 6-8 sentences minimum. Do NOT break into multiple short paragraphs. Keep it flowing and cohesive.'}
+- ${style === 'detailed' ? 'DETAILED MODE: Write a COMPREHENSIVE response (750-850 words). Use 2-3 clear sections with markdown headings (## Heading). Each section should have 2-3 paragraphs of 4-6 sentences each. Cover the topic thoroughly with proper structure.' : 'CONCISE MODE: Write a TIGHT, FOCUSED response (350-450 words). NO HEADINGS. Write as ONE OR TWO substantial paragraphs ONLY. Each paragraph must be 6-8 sentences minimum. Do NOT break into multiple short paragraphs. Keep it flowing and cohesive.'}
 - **PARAGRAPH STRUCTURE**: ${style === 'detailed' ? 'Combine related ideas into cohesive paragraphs - Each paragraph should be 4-6 sentences minimum.' : 'CRITICAL: Write as ONE continuous paragraph or maximum TWO paragraphs. Do NOT create 3+ paragraphs. Keep the response flowing without breaks.'}
 - **FLOW AND COHESION**: Topics should flow logically, not jump around. Develop each idea fully before moving on. Use transitions between paragraphs.
 - **AVOID REPETITIVE TRANSITIONS**: Don't start every paragraph with "I've found", "In my experience", "I've seen" - vary your language naturally.
@@ -402,11 +402,13 @@ Output MUST be valid **JSON RESPONSE FORMAT** (CRITICAL - MUST be valid JSON):
 }
 
 **CRITICAL CITATION FORMAT**: 
+- **USE SQUARE BRACKETS ONLY**: [video_id@mm:ss] NOT (video_id@mm:ss) or any other format
 - Video IDs must be EXACTLY as shown in the context (e.g., "prSNurxY5ic" not "prSNurxY5j")
 - Timestamps MUST use MM:SS format (e.g., "76:13" for 76 minutes 13 seconds, NOT "1:16:13")
 - For videos longer than 60 minutes, use total minutes (e.g., "71:21" not "1:11:21")
 - Copy timestamps EXACTLY as shown in the context excerpts
 - Double-check every video_id and timestamp character-by-character
+- Example: "As I discussed [vKiUYeKpHDs@36:56], the connection is clear"
 
 **CONFIDENCE SCORING**:
 - Set confidence between 0.7-0.95 based on context quality
