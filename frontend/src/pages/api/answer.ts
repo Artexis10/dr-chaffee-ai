@@ -377,8 +377,9 @@ ${excerptText}
 - Natural flow: Use "so", "and", "you know", "I mean" where appropriate
 - Avoid academic formality: No "moreover", "furthermore", "in conclusion", "has been associated with"
 - Avoid overly casual: No "Look", "Here's the deal", "So basically"
-- **CITATION FORMAT (CRITICAL)**: Use SQUARE BRACKETS [video_id@mm:ss], NOT parentheses. Example: "As I talked about [abc123@12:34]" or "I've discussed this [xyz789@45:12]"
+- **CITATION FORMAT (CRITICAL)**: ALWAYS use SQUARE BRACKETS with FULL video_id [video_id@mm:ss]. NEVER use bare timestamps like "4:43" or parentheses "(video@time)". Every citation MUST have both video_id AND timestamp. Example: "As I talked about [vKiUYeKpHDs@36:56]" or "I've discussed this [1rUsspHnlmk@112:25]"
 - **CRITICAL LENGTH: ${targetWords} words (MINIMUM ${minWords} words) - This is ABSOLUTELY NON-NEGOTIABLE**
+- **PARAGRAPH BREAKS**: Use double line breaks between paragraphs for readability. Don't create a wall of text.
 - ${style === 'detailed' ? 'DETAILED MODE: Write a COMPREHENSIVE response (900-1100 words). Organize into logical sections with markdown headings (## Heading) based on the natural topics that emerge from the content. Use as many sections as needed to cover different aspects thoroughly - could be 2-5 sections depending on topic complexity. Each section should have 2-4 paragraphs of 4-6 sentences each. Let the content dictate the structure.' : 'CONCISE MODE: Write a TIGHT, FOCUSED response (350-450 words). NO HEADINGS. Write as ONE OR TWO substantial paragraphs ONLY. Each paragraph must be 6-8 sentences minimum. Do NOT break into multiple short paragraphs. Keep it flowing and cohesive.'}
 - **PARAGRAPH STRUCTURE**: ${style === 'detailed' ? 'Combine related ideas into cohesive paragraphs - Each paragraph should be 4-6 sentences minimum.' : 'CRITICAL: Write as ONE continuous paragraph or maximum TWO paragraphs. Do NOT create 3+ paragraphs. Keep the response flowing without breaks.'}
 - **FLOW AND COHESION**: Topics should flow logically, not jump around. Develop each idea fully before moving on. Use transitions between paragraphs.
@@ -402,13 +403,17 @@ Output MUST be valid **JSON RESPONSE FORMAT** (CRITICAL - MUST be valid JSON):
 }
 
 **CRITICAL CITATION FORMAT**: 
-- **USE SQUARE BRACKETS ONLY**: [video_id@mm:ss] NOT (video_id@mm:ss) or any other format
+- **USE SQUARE BRACKETS ONLY**: [video_id@mm:ss] NOT (video_id@mm:ss) or bare timestamps
+- **NEVER use bare timestamps**: "4:43" is WRONG. Must be "[video_id@4:43]"
+- **ALWAYS include video_id**: Every citation needs BOTH video_id AND timestamp
 - Video IDs must be EXACTLY as shown in the context (e.g., "prSNurxY5ic" not "prSNurxY5j")
 - Timestamps MUST use MM:SS format (e.g., "76:13" for 76 minutes 13 seconds, NOT "1:16:13")
 - For videos longer than 60 minutes, use total minutes (e.g., "71:21" not "1:11:21")
 - Copy timestamps EXACTLY as shown in the context excerpts
 - Double-check every video_id and timestamp character-by-character
 - Example: "As I discussed [vKiUYeKpHDs@36:56], the connection is clear"
+- WRONG: "personality types 4:43" or "(vKiUYeKpHDs@36:56)"
+- RIGHT: "personality types [abc123@4:43]" or "[vKiUYeKpHDs@36:56]"
 
 **CONFIDENCE SCORING**:
 - Set confidence between 0.7-0.95 based on context quality
