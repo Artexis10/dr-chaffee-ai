@@ -6,16 +6,38 @@ Instead of digging through hundreds of hours of video, you can jump straight to 
 
 ---
 
-## 🔒 **IMPORTANT: First-Time Setup**
+## 🚀 **Quick Start**
 
-**After cloning, immediately run:**
+### Recommended: Docker (Simplest)
+
+**One-command setup:**
+```bash
+npm run docker:setup
+```
+
+Access at http://localhost:3000
+
+📖 **See [DOCKER_SETUP.md](DOCKER_SETUP.md) for complete Docker guide**
+
+### Alternative: Manual Setup
+
+```bash
+npm run setup
+npm start
+```
+
+📖 **See [QUICKSTART.md](QUICKSTART.md) for manual setup guide**
+
+---
+
+## 🔒 **Security: Git Hooks**
+
+**After cloning, run:**
 ```bash
 ./scripts/setup-hooks.sh
 ```
 
-This installs git hooks that **prevent accidentally committing secrets** (API keys, passwords, etc.).
-
-📖 **Full setup guide:** See [SETUP.md](SETUP.md)
+This prevents accidentally committing secrets (API keys, passwords, etc.).
 
 ---
 

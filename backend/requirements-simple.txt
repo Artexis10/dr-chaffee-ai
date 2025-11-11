@@ -1,0 +1,67 @@
+# Optimized requirements for Docker - includes all essential packages
+# Uses pre-built wheels where possible for faster installation
+
+# Core dependencies
+psycopg2-binary>=2.9.9
+alembic>=1.13.0
+sqlalchemy>=2.0.07
+python-dotenv==1.0.0
+numpy>=2.0.0
+tqdm==4.66.1
+
+# Web API
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+aiofiles==23.2.1
+celery==5.3.4
+redis==5.0.1
+
+# YouTube
+youtube-transcript-api==0.6.1
+yt-dlp>=2023.11.16
+google-api-python-client==2.108.0
+google-auth-httplib2==0.1.1
+google-auth-oauthlib==1.1.0
+
+# ML/AI - Core (pre-built wheels available)
+sentence-transformers>=2.7.0
+transformers>=4.41.0
+torch>=2.2.0,<2.3.0
+torchaudio>=2.2.0,<2.3.0
+
+# Audio transcription - ESSENTIAL
+faster-whisper>=1.0.2
+ctranslate2>=4.4.0
+
+# Audio processing
+psutil>=5.9.0
+soundfile>=0.13.1
+webvtt-py>=0.5.1
+
+# Speaker identification - IMPORTANT
+# Note: speechbrain requires compatible torchaudio version
+pyannote.audio>=3.0.0,<4.0.0
+speechbrain>=0.5.16
+
+# Utilities
+isodate==0.6.1
+asyncio-throttle==1.0.2
+apscheduler==3.10.4
+aiohttp==3.9.1
+aiohttp-socks==0.8.4
+
+# Development
+black==23.9.1
+ruff==0.0.292
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-mock>=3.11.1
+pytest-asyncio>=0.21.1
+pytest-timeout>=2.1.0
+freezegun>=1.2.2
+hypothesis>=6.82.0
