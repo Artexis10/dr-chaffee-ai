@@ -66,7 +66,8 @@ def upgrade() -> None:
             no_speech_prob FLOAT,
             temperature_used FLOAT,
             metadata JSONB,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+            UNIQUE (video_id, start_sec, end_sec, text)
         )
     """)
     

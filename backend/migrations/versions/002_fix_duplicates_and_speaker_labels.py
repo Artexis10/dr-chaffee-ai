@@ -48,18 +48,13 @@ def upgrade() -> None:
         WHERE speaker_label IS NULL
     """)
     
-    # Step 3: Add unique constraint to prevent future duplicates
-    # Note: This will fail if there are still duplicates, which is intentional
-    op.create_unique_constraint(
-        'uq_segments_video_text',
-        'segments',
-        ['video_id', 'text']
-    )
+    # Step 3: Unique constraint already added in migration 001
+    # (video_id, start_sec, end_sec, text) - more precise than just (video_id, text)
+    # Skipping duplicate constraint creation
 
 
 def downgrade() -> None:
-    # Remove unique constraint
-    op.drop_constraint('uq_segments_video_text', 'segments', type_='unique')
-    
+    # No constraint to remove (handled in migration 001)
     # Note: We cannot restore deleted duplicates or revert speaker label changes
     # This is acceptable as the upgrade fixes data quality issues
+    pass
