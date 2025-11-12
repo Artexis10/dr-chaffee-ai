@@ -33,11 +33,17 @@ from scripts.common.database_upsert import DatabaseUpserter
 from scripts.common.transcript_common import TranscriptSegment
 from scripts.common.embeddings import EmbeddingGenerator
 
+# Import tuning router
+from .tuning import router as tuning_router
+
 app = FastAPI(
     title="Ask Dr. Chaffee API",
     description="Multi-source transcript processing and LLM search",
     version="1.0.0"
 )
+
+# Include tuning API
+app.include_router(tuning_router)
 
 # CORS middleware
 app.add_middleware(
