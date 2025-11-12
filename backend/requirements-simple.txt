@@ -19,7 +19,7 @@ redis==5.0.1
 
 # YouTube
 youtube-transcript-api==0.6.1
-yt-dlp>=2024.11.01
+yt-dlp[default] @ git+https://github.com/yt-dlp/yt-dlp.git@master
 google-api-python-client==2.108.0
 google-auth-httplib2==0.1.1
 google-auth-oauthlib==1.1.0

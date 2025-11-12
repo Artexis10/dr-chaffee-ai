@@ -41,30 +41,34 @@ def upgrade() -> None:
         sa.Column('status', sa.String(50), nullable=False, server_default='pending', comment='pending, processing, completed, failed'),
         sa.Column('error_message', sa.Text(), nullable=True),
         sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),
-        sa.Column('last_updated', sa.DateTime(), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),
+        sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),
         sa.Column('processed_at', sa.DateTime(), nullable=True),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('source_type', 'source_id', name='unique_source')
     )
     
+    # Enable pgvector extension first
+    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    
     # Create segments table (transcript segments with speaker attribution)
-    op.create_table('segments',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('video_id', sa.String(255), nullable=False, comment='References source_id in sources table'),
-        sa.Column('start_sec', sa.Float(), nullable=False),
-        sa.Column('end_sec', sa.Float(), nullable=False),
-        sa.Column('text', sa.Text(), nullable=False),
-        sa.Column('speaker_label', sa.String(50), nullable=True, comment='Chaffee, GUEST, or NULL'),
-        sa.Column('speaker_confidence', sa.Float(), nullable=True, comment='Voice verification confidence [0-1]'),
-        sa.Column('embedding', postgresql.ARRAY(sa.Float(), dimensions=1), nullable=True, comment='1536-dim vector for semantic search'),
-        sa.Column('avg_logprob', sa.Float(), nullable=True, comment='Whisper confidence metric'),
-        sa.Column('compression_ratio', sa.Float(), nullable=True, comment='Whisper quality metric'),
-        sa.Column('no_speech_prob', sa.Float(), nullable=True, comment='Probability of no speech'),
-        sa.Column('temperature_used', sa.Float(), nullable=True, comment='Whisper temperature parameter'),
-        sa.Column('metadata', postgresql.JSONB(), nullable=True, comment='Additional segment metadata'),
-        sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),
-        sa.PrimaryKeyConstraint('id')
-    )
+    op.execute("""
+        CREATE TABLE segments (
+            id SERIAL PRIMARY KEY,
+            video_id VARCHAR(255) NOT NULL,
+            start_sec FLOAT NOT NULL,
+            end_sec FLOAT NOT NULL,
+            text TEXT NOT NULL,
+            speaker_label VARCHAR(50),
+            speaker_confidence FLOAT,
+            embedding vector(384),
+            avg_logprob FLOAT,
+            compression_ratio FLOAT,
+            no_speech_prob FLOAT,
+            temperature_used FLOAT,
+            metadata JSONB,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+        )
+    """)
     
     # Create api_cache table for YouTube Data API caching
     op.create_table('api_cache',
@@ -84,7 +88,7 @@ def upgrade() -> None:
     op.create_index('idx_segments_time', 'segments', ['video_id', 'start_sec'])
     op.create_index('idx_sources_lookup', 'sources', ['source_type', 'source_id'])
     op.create_index('idx_sources_status', 'sources', ['status'])
-    op.create_index('idx_sources_updated', 'sources', ['last_updated'])
+    op.create_index('idx_sources_updated', 'sources', ['updated_at'])
     
     # Create pgvector index for semantic search
     # Note: This requires data to be present for optimal performance
