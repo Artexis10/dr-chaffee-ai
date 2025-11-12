@@ -62,7 +62,9 @@ class DependencyChecker:
         try:
             __import__(module_name)
             return True
-        except ImportError:
+        except (ImportError, AttributeError) as e:
+            # AttributeError can occur with incompatible dependencies (e.g., speechbrain + torchaudio)
+            logger.debug(f"Import check failed for {module_name}: {e}")
             return False
     
     def check_all_dependencies(self) -> Tuple[List[str], List[str]]:
