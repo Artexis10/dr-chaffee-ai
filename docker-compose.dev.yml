@@ -72,8 +72,7 @@ services:
       retries: 3
       start_period: 40s
     # GPU support: requires WSL 2 backend + NVIDIA Container Toolkit
-    # Or use: docker run --gpus all ... on Windows with native Docker
-    # runtime: nvidia  # Uncomment if using Linux or WSL 2 with NVIDIA Container Toolkit
+    runtime: nvidia
     networks:
       - drchaffee-network
 
