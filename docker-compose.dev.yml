@@ -53,10 +53,10 @@ services:
       - FFMPEG_PATH=ffmpeg
       - WHISPER_CACHE_DIR=/tmp/whisper_cache
       - TEMP_AUDIO_DIR=/tmp/audio_downloads
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
       - EMBEDDING_DEVICE=cuda
       - CUDA_VISIBLE_DEVICES=0
+      - EMBEDDING_PROVIDER=nomic
+      - NOMIC_MODEL=nomic-embed-text-v1.5
     volumes:
       - whisper_cache:/tmp/whisper_cache
       - audio_temp:/tmp/audio_downloads
