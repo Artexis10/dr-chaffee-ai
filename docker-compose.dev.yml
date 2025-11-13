@@ -53,6 +53,8 @@ services:
       - FFMPEG_PATH=ffmpeg
       - WHISPER_CACHE_DIR=/tmp/whisper_cache
       - TEMP_AUDIO_DIR=/tmp/audio_downloads
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
     volumes:
       - whisper_cache:/tmp/whisper_cache
       - audio_temp:/tmp/audio_downloads
@@ -69,13 +71,7 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+    runtime: nvidia
     networks:
       - drchaffee-network
 
