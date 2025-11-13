@@ -54,12 +54,13 @@ RUN pip install --no-cache-dir \
     google-auth-httplib2 \
     google-auth-oauthlib
 
-# Stage 4: ML/AI (may take time but has wheels)
+# Stage 4: ML/AI with CUDA support (may take time but has wheels)
+# Install PyTorch with CUDA 12.1 support (matches NVIDIA CUDA 13.0 runtime)
 RUN pip install --no-cache-dir \
+    torch==2.1.2 torchvision==0.16.2 torchaudio==2.1.2 --index-url https://download.pytorch.org/whl/cu121 && \
+    pip install --no-cache-dir \
     sentence-transformers \
-    transformers \
-    torch \
-    torchaudio
+    transformers
 
 # Stage 5: Audio transcription (critical packages)
 RUN pip install --no-cache-dir \
