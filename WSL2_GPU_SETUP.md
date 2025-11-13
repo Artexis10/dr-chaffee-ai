@@ -76,6 +76,28 @@ sudo apt update
 sudo apt upgrade -y
 ```
 
+### 3.2b Install Docker in WSL 2 (if not already installed)
+
+Check if Docker is installed:
+```bash
+docker --version
+```
+
+If not found, install it:
+
+```bash
+# Install Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+
+# Add your user to docker group (optional, to avoid sudo)
+sudo usermod -aG docker $USER
+newgrp docker
+
+# Verify installation
+docker --version
+```
+
 ### 3.3 Install NVIDIA GPU Support
 
 **Option A: Using official NVIDIA repository (recommended)**
@@ -108,7 +130,17 @@ sudo apt install -f
 ### 3.4 Restart Docker Daemon
 
 ```bash
+# If Docker is running as systemd service
 sudo systemctl restart docker
+
+# If Docker is not running as service, restart it manually
+sudo service docker restart
+
+# Or simply exit WSL and restart
+exit
+# Then in PowerShell:
+# wsl --shutdown
+# wsl
 ```
 
 ## Step 4: Verify GPU Access
