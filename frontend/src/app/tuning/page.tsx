@@ -33,7 +33,8 @@ interface Stats {
 interface SearchResult {
   text: string;
   similarity: number;
-  video_id: string;
+  source_id: number;
+  youtube_id: string;
   start_sec: number;
   end_sec: number;
   speaker_label: string | null;
@@ -373,7 +374,7 @@ export default function TuningPage() {
                       Similarity: {(result.similarity * 100).toFixed(1)}%
                     </span>
                     <span className="text-xs text-slate-400">
-                      {result.video_id} @ {Math.floor(result.start_sec / 60)}:{String(Math.floor(result.start_sec % 60)).padStart(2, '0')}
+                      {result.youtube_id} @ {Math.floor(result.start_sec / 60)}:{String(Math.floor(result.start_sec % 60)).padStart(2, '0')}
                     </span>
                   </div>
                   <p className="text-sm">{result.text}</p>

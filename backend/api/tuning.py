@@ -61,7 +61,8 @@ class TestSearchResult(BaseModel):
     """Search result for testing"""
     text: str
     similarity: float
-    video_id: str
+    source_id: int
+    youtube_id: str
     start_sec: float
     end_sec: float
     speaker_label: Optional[str] = None
@@ -207,7 +208,7 @@ async def test_search(request: TestSearchRequest):
     Test search with current or specified model
     """
     from ..services.embeddings_service import EmbeddingsService
-    from ..database import get_db_connection
+    import psycopg2
     
     try:
         # Get active model or use override
@@ -221,20 +222,23 @@ async def test_search(request: TestSearchRequest):
         # Search database
         top_k = request.top_k or int(os.getenv("ANSWER_TOPK", "20"))
         
-        with get_db_connection() as conn:
+        conn = psycopg2.connect(os.getenv('DATABASE_URL'))
+        try:
             with conn.cursor() as cur:
-                # Use pgvector cosine similarity search
+                # Use pgvector cosine similarity search with JOIN to get YouTube ID
                 cur.execute("""
                     SELECT 
-                        text,
-                        1 - (embedding <=> %s::vector) as similarity,
-                        video_id,
-                        start_sec,
-                        end_sec,
-                        speaker_label
-                    FROM segments
-                    WHERE embedding IS NOT NULL
-                    ORDER BY embedding <=> %s::vector
+                        s.text,
+                        1 - (s.embedding <=> %s::vector) as similarity,
+                        s.source_id,
+                        src.source_id as youtube_id,
+                        s.start_sec,
+                        s.end_sec,
+                        s.speaker_label
+                    FROM segments s
+                    JOIN sources src ON s.source_id = src.id
+                    WHERE s.embedding IS NOT NULL
+                    ORDER BY s.embedding <=> %s::vector
                     LIMIT %s
                 """, (query_embedding.tolist(), query_embedding.tolist(), top_k))
                 
@@ -243,13 +247,16 @@ async def test_search(request: TestSearchRequest):
                     results.append(TestSearchResult(
                         text=row[0],
                         similarity=float(row[1]),
-                        video_id=row[2],
-                        start_sec=float(row[3]),
-                        end_sec=float(row[4]),
-                        speaker_label=row[5]
+                        source_id=row[2],
+                        youtube_id=row[3],
+                        start_sec=float(row[4]),
+                        end_sec=float(row[5]),
+                        speaker_label=row[6]
                     ))
                 
                 return results
+        finally:
+            conn.close()
                 
     except Exception as e:
         logger.error(f"Test search failed: {e}")
@@ -261,16 +268,17 @@ async def get_stats():
     """
     Get ingestion and embedding statistics
     """
-    from ..database import get_db_connection
+    import psycopg2
     
     try:
-        with get_db_connection() as conn:
+        conn = psycopg2.connect(os.getenv('DATABASE_URL'))
+        try:
             with conn.cursor() as cur:
                 # Get segment counts
                 cur.execute("""
                     SELECT 
                         COUNT(*) as total_segments,
-                        COUNT(DISTINCT video_id) as total_videos,
+                        COUNT(DISTINCT source_id) as total_videos,
                         COUNT(embedding) as segments_with_embeddings,
                         COUNT(DISTINCT speaker_label) as unique_speakers
                     FROM segments
@@ -295,6 +303,8 @@ async def get_stats():
                     "embedding_dimensions": dimensions,
                     "embedding_coverage": f"{(stats[2] / stats[0] * 100):.1f}%" if stats[0] > 0 else "0%"
                 }
+        finally:
+            conn.close()
                 
     except Exception as e:
         logger.error(f"Failed to get stats: {e}")
