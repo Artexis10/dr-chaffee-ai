@@ -55,6 +55,8 @@ services:
       - TEMP_AUDIO_DIR=/tmp/audio_downloads
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - EMBEDDING_DEVICE=cuda
+      - CUDA_VISIBLE_DEVICES=0
     volumes:
       - whisper_cache:/tmp/whisper_cache
       - audio_temp:/tmp/audio_downloads

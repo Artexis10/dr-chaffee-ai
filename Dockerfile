@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y \
     wget \
     curl \
     git \
-    postgresql-client-17 \
+    postgresql-client \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
