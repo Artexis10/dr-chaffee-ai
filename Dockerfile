@@ -1,8 +1,12 @@
 # Optimized multi-stage Docker build for Dr. Chaffee AI
-FROM python:3.11-slim
+# Use NVIDIA CUDA base image for GPU support
+FROM nvidia/cuda:13.0.0-runtime-ubuntu22.04
 
-# Install system dependencies
+# Install system dependencies and Python
 RUN apt-get update && apt-get install -y \
+    python3.11 \
+    python3.11-venv \
+    python3-pip \
     ffmpeg \
     wget \
     curl \
@@ -10,6 +14,10 @@ RUN apt-get update && apt-get install -y \
     postgresql-client-17 \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
+
+# Set Python 3.11 as default
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1 && \
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
 
 # Upgrade pip for better wheel support
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel
