@@ -148,17 +148,20 @@ exit
 ### 4.1 Test GPU in Container
 
 ```bash
-docker run --rm --gpus all nvidia/cuda:12.0.0-runtime-ubuntu22.04 nvidia-smi
+# Use latest CUDA 13 image (recommended)
+docker run --rm --gpus all nvidia/cuda:13.0.0-runtime-ubuntu22.04 nvidia-smi
 ```
 
 Expected output:
 ```
-+-----------------------------------------------------------------------------+
-| NVIDIA-SMI 550.XX.XX    Driver Version: 550.XX.XX    CUDA Version: 12.0     |
-|-------------------------------+----------------------+----------------------+
-| GPU  Name        Persistence-M| Bus-Id        Disp.A | Volatile Uncorr. ECC |
-| No   Running Processes                                                      |
-+-----------------------------------------------------------------------------+
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.XX.XX             Driver Version: 581.XX         CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|   0  NVIDIA GeForce RTX 5080        On  |   00000000:26:00.0  On |                  N/A |
+|  0%   51C    P5             23W /  360W |    3227MiB /  16303MiB |      2%      Default |
++-----------------------------------------------------------------------------------------+
 ```
 
 If you see your RTX 5080, GPU access is working! ✅
