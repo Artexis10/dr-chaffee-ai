@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Settings, Zap, DollarSign, Database, TrendingUp, Search } from 'lucide-react';
+import CustomInstructionsEditor from '@/components/CustomInstructionsEditor';
 
 interface EmbeddingModel {
   key: string;
@@ -206,6 +207,9 @@ export default function TuningPage() {
             </div>
           </div>
         )}
+
+        {/* Custom Instructions Editor */}
+        <CustomInstructionsEditor />
 
         {/* Embedding Models */}
         <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-xl p-6">

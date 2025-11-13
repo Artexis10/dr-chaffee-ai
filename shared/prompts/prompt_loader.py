@@ -2,12 +2,18 @@
 """
 Prompt Loading Utility for Emulated Dr. Chaffee AI
 Loads and formats prompts for consistent use across the application
+
+Supports layered instruction system:
+- Baseline: Core persona and safety rules (always included)
+- Custom: User-defined instructions from database (optional layer)
 """
 
 import os
 import json
 from typing import Dict, Any, List, Optional
 from pathlib import Path
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 
 class ChaffeePromptLoader:
@@ -20,14 +26,75 @@ class ChaffeePromptLoader:
         else:
             self.prompts_dir = Path(prompts_dir)
     
-    def load_system_prompt(self) -> str:
-        """Load the system prompt for Dr. Chaffee persona"""
+    def load_system_prompt(self, include_custom: bool = True) -> str:
+        """
+        Load the system prompt for Dr. Chaffee persona
+        
+        Args:
+            include_custom: If True, merge active custom instructions from database
+        
+        Returns:
+            Complete system prompt (baseline + custom if enabled)
+        """
         persona_file = self.prompts_dir / "chaffee_persona.md"
         try:
             with open(persona_file, 'r', encoding='utf-8') as f:
-                return f.read().strip()
+                baseline_prompt = f.read().strip()
         except FileNotFoundError:
             raise FileNotFoundError(f"System prompt not found at {persona_file}")
+        
+        # If custom instructions disabled, return baseline only
+        if not include_custom:
+            return baseline_prompt
+        
+        # Try to load custom instructions from database
+        try:
+            custom_instructions = self._load_custom_instructions()
+            if custom_instructions:
+                return f"{baseline_prompt}\n\n## Additional Custom Instructions\n\n{custom_instructions}"
+        except Exception as e:
+            # Log but don't fail - fallback to baseline
+            import logging
+            logging.warning(f"Failed to load custom instructions, using baseline only: {e}")
+        
+        return baseline_prompt
+    
+    def _load_custom_instructions(self) -> Optional[str]:
+        """
+        Load active custom instructions from database
+        
+        Returns:
+            Custom instructions text or None if not found/configured
+        """
+        database_url = os.getenv('DATABASE_URL')
+        if not database_url:
+            return None
+        
+        try:
+            conn = psycopg2.connect(database_url, cursor_factory=RealDictCursor)
+            cur = conn.cursor()
+            
+            cur.execute("""
+                SELECT instructions
+                FROM custom_instructions
+                WHERE is_active = true
+                LIMIT 1
+            """)
+            
+            result = cur.fetchone()
+            cur.close()
+            conn.close()
+            
+            if result and result['instructions'].strip():
+                return result['instructions'].strip()
+            
+            return None
+            
+        except Exception as e:
+            # Table might not exist yet (pre-migration)
+            import logging
+            logging.debug(f"Could not load custom instructions: {e}")
+            return None
     
     def load_response_schema(self) -> Dict[str, Any]:
         """Load the JSON schema for response structure"""

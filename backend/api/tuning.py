@@ -5,6 +5,7 @@ Allows real-time tuning of:
 - Embedding models (quality vs speed)
 - Search parameters
 - Reranking settings
+- Custom prompt instructions (layered on baseline)
 """
 
 import os
@@ -12,8 +13,11 @@ import json
 import logging
 from pathlib import Path
 from typing import Dict, List, Any, Optional
+from datetime import datetime
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +25,14 @@ router = APIRouter(prefix="/api/tuning", tags=["tuning"])
 
 # Path to embedding models config
 EMBEDDING_MODELS_PATH = Path(__file__).parent.parent / "config" / "embedding_models.json"
+
+
+def get_db_connection():
+    """Get database connection"""
+    return psycopg2.connect(
+        os.getenv('DATABASE_URL'),
+        cursor_factory=RealDictCursor
+    )
 
 
 class EmbeddingModelInfo(BaseModel):
@@ -308,4 +320,356 @@ async def get_stats():
                 
     except Exception as e:
         logger.error(f"Failed to get stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# CUSTOM INSTRUCTIONS API - Layered Prompt System
+# ============================================================================
+
+class CustomInstruction(BaseModel):
+    """Custom instruction set for AI tuning"""
+    id: Optional[int] = None
+    name: str = Field(..., max_length=255, description="Unique name for this instruction set")
+    instructions: str = Field(..., max_length=5000, description="Custom instructions (max 5000 chars)")
+    description: Optional[str] = Field(None, max_length=500, description="What these instructions do")
+    is_active: bool = Field(default=False, description="Whether this is the active instruction set")
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    version: Optional[int] = None
+
+
+class CustomInstructionHistory(BaseModel):
+    """Historical version of custom instructions"""
+    id: int
+    instruction_id: int
+    instructions: str
+    version: int
+    changed_at: datetime
+
+
+class InstructionPreview(BaseModel):
+    """Preview of how instructions will be merged"""
+    baseline_prompt: str
+    custom_instructions: str
+    merged_prompt: str
+    character_count: int
+    estimated_tokens: int
+
+
+@router.get("/instructions", response_model=List[CustomInstruction])
+async def list_instructions():
+    """
+    List all custom instruction sets
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id, name, instructions, description, is_active, 
+                   created_at, updated_at, version
+            FROM custom_instructions
+            ORDER BY is_active DESC, updated_at DESC
+        """)
+        
+        results = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return [CustomInstruction(**row) for row in results]
+        
+    except Exception as e:
+        logger.error(f"Failed to list instructions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/instructions/active", response_model=CustomInstruction)
+async def get_active_instructions():
+    """
+    Get the currently active instruction set
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id, name, instructions, description, is_active,
+                   created_at, updated_at, version
+            FROM custom_instructions
+            WHERE is_active = true
+            LIMIT 1
+        """)
+        
+        result = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not result:
+            raise HTTPException(status_code=404, detail="No active instruction set found")
+        
+        return CustomInstruction(**result)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get active instructions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/instructions", response_model=CustomInstruction)
+async def create_instructions(instruction: CustomInstruction):
+    """
+    Create a new custom instruction set
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # If this should be active, deactivate others first
+        if instruction.is_active:
+            cur.execute("UPDATE custom_instructions SET is_active = false")
+        
+        cur.execute("""
+            INSERT INTO custom_instructions (name, instructions, description, is_active)
+            VALUES (%s, %s, %s, %s)
+            RETURNING id, name, instructions, description, is_active,
+                      created_at, updated_at, version
+        """, (instruction.name, instruction.instructions, instruction.description, instruction.is_active))
+        
+        result = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        logger.info(f"Created custom instruction set: {instruction.name}")
+        return CustomInstruction(**result)
+        
+    except psycopg2.IntegrityError as e:
+        conn.rollback()
+        raise HTTPException(status_code=400, detail=f"Instruction set '{instruction.name}' already exists")
+    except Exception as e:
+        logger.error(f"Failed to create instructions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/instructions/{instruction_id}", response_model=CustomInstruction)
+async def update_instructions(instruction_id: int, instruction: CustomInstruction):
+    """
+    Update an existing custom instruction set
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # If this should be active, deactivate others first
+        if instruction.is_active:
+            cur.execute("UPDATE custom_instructions SET is_active = false WHERE id != %s", (instruction_id,))
+        
+        cur.execute("""
+            UPDATE custom_instructions
+            SET name = %s, instructions = %s, description = %s, is_active = %s
+            WHERE id = %s
+            RETURNING id, name, instructions, description, is_active,
+                      created_at, updated_at, version
+        """, (instruction.name, instruction.instructions, instruction.description, 
+              instruction.is_active, instruction_id))
+        
+        result = cur.fetchone()
+        
+        if not result:
+            cur.close()
+            conn.close()
+            raise HTTPException(status_code=404, detail="Instruction set not found")
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        logger.info(f"Updated custom instruction set: {instruction.name} (v{result['version']})")
+        return CustomInstruction(**result)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update instructions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/instructions/{instruction_id}")
+async def delete_instructions(instruction_id: int):
+    """
+    Delete a custom instruction set
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Don't allow deleting the default set
+        cur.execute("SELECT name FROM custom_instructions WHERE id = %s", (instruction_id,))
+        result = cur.fetchone()
+        
+        if not result:
+            raise HTTPException(status_code=404, detail="Instruction set not found")
+        
+        if result['name'] == 'default':
+            raise HTTPException(status_code=400, detail="Cannot delete default instruction set")
+        
+        cur.execute("DELETE FROM custom_instructions WHERE id = %s", (instruction_id,))
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        logger.info(f"Deleted custom instruction set: {result['name']}")
+        return {"success": True, "message": f"Deleted instruction set: {result['name']}"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete instructions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/instructions/{instruction_id}/activate")
+async def activate_instructions(instruction_id: int):
+    """
+    Activate a specific instruction set (deactivates all others)
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Deactivate all
+        cur.execute("UPDATE custom_instructions SET is_active = false")
+        
+        # Activate the specified one
+        cur.execute("""
+            UPDATE custom_instructions
+            SET is_active = true
+            WHERE id = %s
+            RETURNING name
+        """, (instruction_id,))
+        
+        result = cur.fetchone()
+        
+        if not result:
+            conn.rollback()
+            raise HTTPException(status_code=404, detail="Instruction set not found")
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        logger.info(f"Activated instruction set: {result['name']}")
+        return {"success": True, "message": f"Activated: {result['name']}"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to activate instructions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/instructions/{instruction_id}/history", response_model=List[CustomInstructionHistory])
+async def get_instruction_history(instruction_id: int):
+    """
+    Get version history for an instruction set
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id, instruction_id, instructions, version, changed_at
+            FROM custom_instructions_history
+            WHERE instruction_id = %s
+            ORDER BY version DESC
+        """, (instruction_id,))
+        
+        results = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return [CustomInstructionHistory(**row) for row in results]
+        
+    except Exception as e:
+        logger.error(f"Failed to get instruction history: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/instructions/{instruction_id}/rollback/{version}")
+async def rollback_instructions(instruction_id: int, version: int):
+    """
+    Rollback to a previous version of instructions
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Get the historical version
+        cur.execute("""
+            SELECT instructions
+            FROM custom_instructions_history
+            WHERE instruction_id = %s AND version = %s
+        """, (instruction_id, version))
+        
+        result = cur.fetchone()
+        
+        if not result:
+            raise HTTPException(status_code=404, detail=f"Version {version} not found")
+        
+        # Update current instructions (trigger will archive current version)
+        cur.execute("""
+            UPDATE custom_instructions
+            SET instructions = %s
+            WHERE id = %s
+        """, (result['instructions'], instruction_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        logger.info(f"Rolled back instruction set {instruction_id} to version {version}")
+        return {"success": True, "message": f"Rolled back to version {version}"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to rollback instructions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/instructions/preview", response_model=InstructionPreview)
+async def preview_instructions(instruction: CustomInstruction):
+    """
+    Preview how custom instructions will be merged with baseline
+    """
+    try:
+        # Load baseline prompt
+        from pathlib import Path
+        baseline_path = Path(__file__).parent.parent.parent / "shared" / "prompts" / "chaffee_persona.md"
+        
+        with open(baseline_path, 'r', encoding='utf-8') as f:
+            baseline_prompt = f.read().strip()
+        
+        # Merge prompts
+        if instruction.instructions.strip():
+            merged_prompt = f"{baseline_prompt}\n\n## Additional Custom Instructions\n\n{instruction.instructions}"
+        else:
+            merged_prompt = baseline_prompt
+        
+        # Estimate tokens (rough: 1 token ≈ 4 characters)
+        char_count = len(merged_prompt)
+        estimated_tokens = char_count // 4
+        
+        return InstructionPreview(
+            baseline_prompt=baseline_prompt,
+            custom_instructions=instruction.instructions,
+            merged_prompt=merged_prompt,
+            character_count=char_count,
+            estimated_tokens=estimated_tokens
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to preview instructions: {e}")
         raise HTTPException(status_code=500, detail=str(e))
