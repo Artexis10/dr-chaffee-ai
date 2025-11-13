@@ -78,18 +78,31 @@ sudo apt upgrade -y
 
 ### 3.3 Install NVIDIA GPU Support
 
+**Option A: Using official NVIDIA repository (recommended)**
+
 ```bash
-# Add NVIDIA package repository
-distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
-curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add -
-curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | \
-  sudo tee /etc/apt/sources.list.d/nvidia-docker.list
+# Add NVIDIA GPG key
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+
+# Add NVIDIA repository
+curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+  sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+  sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
 
 # Update package list
 sudo apt update
 
 # Install NVIDIA Container Toolkit
 sudo apt install -y nvidia-container-toolkit
+```
+
+**Option B: If Option A fails, use direct installation**
+
+```bash
+# Install from GitHub releases
+wget https://github.com/NVIDIA/nvidia-docker/releases/download/v2.13.0/nvidia-docker_2.13.0_amd64.deb
+sudo dpkg -i nvidia-docker_2.13.0_amd64.deb
+sudo apt install -f
 ```
 
 ### 3.4 Restart Docker Daemon
