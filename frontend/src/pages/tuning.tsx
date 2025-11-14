@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
+import CustomInstructionsEditor from '@/components/CustomInstructionsEditor';
 
 interface EmbeddingModel {
   key: string;
@@ -203,6 +204,9 @@ export default function TuningPage() {
             </div>
           </div>
         )}
+
+        {/* Custom Instructions Editor */}
+        <CustomInstructionsEditor />
 
         {/* Embedding Models */}
         <div className="section">
