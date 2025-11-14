@@ -331,7 +331,7 @@ class CustomInstruction(BaseModel):
     """Custom instruction set for AI tuning"""
     id: Optional[int] = None
     name: str = Field(..., max_length=255, description="Unique name for this instruction set")
-    instructions: str = Field(..., max_length=5000, description="Custom instructions (max 5000 chars)")
+    instructions: str = Field(..., max_length=10000, description="Custom instructions (max 10000 chars)")
     description: Optional[str] = Field(None, max_length=500, description="What these instructions do")
     is_active: bool = Field(default=False, description="Whether this is the active instruction set")
     created_at: Optional[datetime] = None

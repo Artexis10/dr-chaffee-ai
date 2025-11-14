@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y \
     git \
     postgresql-client \
     build-essential \
+    libcudnn9-dev-cuda-13 \
     && rm -rf /var/lib/apt/lists/*
 
 # Set Python 3.11 as default

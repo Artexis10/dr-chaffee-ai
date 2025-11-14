@@ -49,6 +49,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - YOUTUBE_API_KEY=${YOUTUBE_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - NOMIC_API_KEY=${NOMIC_API_KEY}
       - YT_DLP_PATH=yt-dlp
       - FFMPEG_PATH=ffmpeg
       - WHISPER_CACHE_DIR=/tmp/whisper_cache

@@ -1,6 +1,9 @@
 -- Fix segments table schema issues
 -- Migration 006: Fix embedding dimensions, speaker labels, and add source reference
 
+-- 0. Add missing video_id column (required by ingestion pipeline)
+ALTER TABLE segments ADD COLUMN IF NOT EXISTS video_id TEXT NOT NULL DEFAULT '';
+
 -- 1. Fix embedding dimension for GTE-Qwen2-1.5B-instruct (1536 dimensions)
 ALTER TABLE segments DROP COLUMN IF EXISTS embedding CASCADE;
 ALTER TABLE segments ADD COLUMN embedding VECTOR(1536);

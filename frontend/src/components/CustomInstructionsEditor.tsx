@@ -282,7 +282,7 @@ export default function CustomInstructionsEditor() {
 
           <div>
             <label className="block text-sm font-medium mb-2">
-              Custom Instructions ({formData.instructions.length}/5000 characters)
+              Custom Instructions ({formData.instructions.length}/10000 characters)
             </label>
             <textarea
               value={formData.instructions}
@@ -290,7 +290,7 @@ export default function CustomInstructionsEditor() {
               placeholder="Add your custom guidance here. Examples:&#10;- Emphasize specific topics&#10;- Adjust tone or depth&#10;- Add citation preferences&#10;- Focus on particular health conditions"
               className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 focus:border-blue-500 focus:outline-none font-mono text-sm"
               rows={12}
-              maxLength={5000}
+              maxLength={10000}
             />
             <p className="text-xs text-slate-400 mt-1">
               These will be layered on top of baseline safety rules (which remain protected)

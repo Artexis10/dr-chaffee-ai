@@ -83,7 +83,7 @@ class SegmentsDatabase:
                         age_check = """
                             SELECT created_at 
                             FROM sources 
-                            WHERE video_id = %s 
+                            WHERE source_id = %s 
                             AND created_at > NOW() - INTERVAL '%s days'
                         """
                         cur.execute(age_check, (video_id, max_age_days))
@@ -94,14 +94,22 @@ class SegmentsDatabase:
                         # Sources table might not exist or have different schema - skip age check
                         logger.debug(f"Skipping age check (sources table issue): {e}")
                 
-                # Retrieve cached embeddings
+                # Retrieve cached embeddings - use source_id FK
+                # First get source_id from video_id (YouTube ID)
+                cur.execute("SELECT id FROM sources WHERE source_id = %s", (video_id,))
+                result = cur.fetchone()
+                if not result:
+                    logger.debug(f"Source not found for video_id {video_id}")
+                    return {}
+                source_id = result[0]
+                
                 query = """
                     SELECT start_sec, end_sec, voice_embedding
                     FROM segments
-                    WHERE video_id = %s AND voice_embedding IS NOT NULL
+                    WHERE source_id = %s AND voice_embedding IS NOT NULL
                     ORDER BY start_sec
                 """
-                cur.execute(query, (video_id,))
+                cur.execute(query, (source_id,))
                 rows = cur.fetchall()
                 
                 if rows:
@@ -224,15 +232,23 @@ class SegmentsDatabase:
             inserted_count = 0
             
             with conn.cursor() as cur:
+                # Get source_id from video_id (YouTube ID)
+                cur.execute("SELECT id FROM sources WHERE source_id = %s", (video_id,))
+                result = cur.fetchone()
+                if not result:
+                    logger.error(f"Source not found for video_id {video_id}")
+                    return 0
+                source_id = result[0]
+                
                 # Prepare batch insert with ON CONFLICT UPDATE to handle reprocessing
                 insert_query = """
                     INSERT INTO segments (
-                        video_id, start_sec, end_sec, speaker_label, speaker_conf,
+                        source_id, start_sec, end_sec, speaker_label, speaker_conf,
                         text, avg_logprob, compression_ratio, no_speech_prob,
                         temperature_used, re_asr, is_overlap, needs_refinement,
                         embedding, voice_embedding
                     ) VALUES %s
-                    ON CONFLICT (video_id, start_sec, end_sec, text)
+                    ON CONFLICT (source_id, start_sec, end_sec, text)
                     DO UPDATE SET
                         speaker_label = EXCLUDED.speaker_label,
                         speaker_conf = EXCLUDED.speaker_conf,
@@ -295,7 +311,7 @@ class SegmentsDatabase:
                         speaker_conf = min(1.0, max(0.0, float(speaker_conf)))
                     
                     values.append((
-                        video_id,
+                        source_id,
                         safe_float(self._get_segment_value(segment, 'start', 0.0)),
                         safe_float(self._get_segment_value(segment, 'end', 0.0)),
                         self._get_segment_value(segment, 'speaker_label', 'Guest'),
@@ -354,6 +370,10 @@ class SegmentsDatabase:
                 if self._get_segment_value(seg, 'speaker_label')
             ]
             
+            # Initialize stats
+            num_speakers = 0
+            guest_pct = 0.0
+            
             if not speaker_labels:
                 video_type = 'monologue'  # Default
             else:
@@ -370,16 +390,22 @@ class SegmentsDatabase:
                 else:
                     video_type = 'monologue_with_clips'
             
-            # Update all segments for this video
+            # Update all segments for this video using source_id FK
             with conn.cursor() as cur:
-                cur.execute("""
-                    UPDATE segments 
-                    SET video_type = %s 
-                    WHERE video_id = %s
-                """, (video_type, video_id))
-                conn.commit()
-                
-            logger.info(f"Classified video {video_id} as '{video_type}' ({num_speakers} speaker(s), {guest_pct*100:.1f}% guest)")
+                # Get source_id from video_id (YouTube ID)
+                cur.execute("SELECT id FROM sources WHERE source_id = %s", (video_id,))
+                result = cur.fetchone()
+                if result:
+                    source_id = result[0]
+                    cur.execute("""
+                        UPDATE segments 
+                        SET video_type = %s 
+                        WHERE source_id = %s
+                    """, (video_type, source_id))
+                    conn.commit()
+                    logger.info(f"Classified video {video_id} as '{video_type}' ({num_speakers} speaker(s), {guest_pct*100:.1f}% guest)")
+                else:
+                    logger.warning(f"Source not found for video_id {video_id}, skipping video type classification")
             
         except Exception as e:
             logger.warning(f"Failed to classify video type for {video_id}: {e}")
@@ -402,10 +428,10 @@ class SegmentsDatabase:
                 
                 source_id = result[0]
                 
-                # Count existing segments
+                # Count existing segments using source_id FK
                 cur.execute(
-                    "SELECT COUNT(*) FROM segments WHERE video_id = %s",
-                    (video_id,)
+                    "SELECT COUNT(*) FROM segments WHERE source_id = %s",
+                    (source_id,)
                 )
                 segment_count = cur.fetchone()[0]
                 
@@ -427,7 +453,15 @@ class SegmentsDatabase:
         try:
             conn = self.get_connection()
             with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-                # Get segment statistics
+                # Get source_id from video_id (YouTube ID)
+                cur.execute("SELECT id FROM sources WHERE source_id = %s", (video_id,))
+                result = cur.fetchone()
+                if not result:
+                    logger.warning(f"Source not found for video_id {video_id}")
+                    return {}
+                source_id = result[0]
+                
+                # Get segment statistics using source_id FK
                 cur.execute("""
                     SELECT 
                         speaker_label,
@@ -437,9 +471,9 @@ class SegmentsDatabase:
                         COUNT(*) FILTER (WHERE re_asr = true) as refined_count,
                         COUNT(*) FILTER (WHERE embedding IS NOT NULL) as embedded_count
                     FROM segments 
-                    WHERE video_id = %s 
+                    WHERE source_id = %s 
                     GROUP BY speaker_label
-                """, (video_id,))
+                """, (source_id,))
                 
                 speaker_stats = {}
                 total_segments = 0
@@ -500,7 +534,15 @@ class SegmentsDatabase:
         try:
             conn = self.get_connection()
             with conn.cursor() as cur:
-                cur.execute("DELETE FROM segments WHERE video_id = %s", (video_id,))
+                # Get source_id from video_id (YouTube ID)
+                cur.execute("SELECT id FROM sources WHERE source_id = %s", (video_id,))
+                result = cur.fetchone()
+                if not result:
+                    logger.warning(f"Source not found for video_id {video_id}, nothing to cleanup")
+                    return
+                source_id = result[0]
+                
+                cur.execute("DELETE FROM segments WHERE source_id = %s", (source_id,))
                 deleted_count = cur.rowcount
                 conn.commit()
                 
