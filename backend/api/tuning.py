@@ -55,11 +55,19 @@ class SearchConfig(BaseModel):
     rerank_top_k: int = Field(default=200, ge=1, le=500, description="Candidates for reranking")
 
 
+class SummarizerConfig(BaseModel):
+    """Summarizer model configuration"""
+    model: str = Field(default="gpt-4-turbo", description="OpenAI model for summarization")
+    temperature: float = Field(default=0.1, ge=0.0, le=1.0, description="Temperature for summarization")
+    max_tokens: int = Field(default=2000, ge=500, le=4000, description="Max tokens for summary output")
+
+
 class TuningConfig(BaseModel):
     """Complete tuning configuration"""
     active_query_model: str
     active_ingestion_models: List[str]
     search_config: SearchConfig
+    summarizer_config: Optional[SummarizerConfig] = None
 
 
 class TestSearchRequest(BaseModel):
@@ -211,6 +219,104 @@ async def update_search_config(config: SearchConfig):
         "message": "Search configuration updated",
         "config": config.dict(),
         "note": "Changes are runtime-only. Update .env file for persistence."
+    }
+
+
+@router.get("/summarizer/config", response_model=SummarizerConfig)
+async def get_summarizer_config():
+    """
+    Get current summarizer configuration
+    """
+    return SummarizerConfig(
+        model=os.getenv("SUMMARIZER_MODEL", "gpt-4-turbo"),
+        temperature=float(os.getenv("SUMMARIZER_TEMPERATURE", "0.1")),
+        max_tokens=int(os.getenv("SUMMARIZER_MAX_TOKENS", "2000"))
+    )
+
+
+@router.post("/summarizer/config")
+async def update_summarizer_config(config: SummarizerConfig):
+    """
+    Update summarizer configuration
+    
+    Allowed models (cost-controlled whitelist):
+    - gpt-4-turbo: $0.01/1k input, $0.03/1k output (recommended)
+    - gpt-4: $0.03/1k input, $0.06/1k output (slower, more expensive)
+    - gpt-3.5-turbo: $0.0005/1k input, $0.0015/1k output (faster, cheaper)
+    
+    Note: This updates runtime config. For persistence, update .env file.
+    """
+    # Whitelist of approved models
+    allowed_models = {
+        "gpt-4-turbo": {"cost": "$0.01/$0.03", "quality": "highest", "speed": "fast"},
+        "gpt-4": {"cost": "$0.03/$0.06", "quality": "highest", "speed": "slow"},
+        "gpt-3.5-turbo": {"cost": "$0.0005/$0.0015", "quality": "good", "speed": "fastest"}
+    }
+    
+    if config.model not in allowed_models:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Model '{config.model}' not allowed. Allowed: {list(allowed_models.keys())}"
+        )
+    
+    # Update environment variables (runtime only)
+    os.environ["SUMMARIZER_MODEL"] = config.model
+    os.environ["SUMMARIZER_TEMPERATURE"] = str(config.temperature)
+    os.environ["SUMMARIZER_MAX_TOKENS"] = str(config.max_tokens)
+    
+    model_info = allowed_models[config.model]
+    
+    return {
+        "success": True,
+        "message": f"Summarizer model changed to {config.model}",
+        "config": config.dict(),
+        "model_info": model_info,
+        "note": "Changes are runtime-only. Update .env file for persistence.",
+        "warning": "Changing models will affect future ingestion/summarization tasks"
+    }
+
+
+@router.get("/summarizer/models")
+async def list_summarizer_models():
+    """
+    List available summarizer models with cost and quality info
+    """
+    models = {
+        "gpt-4-turbo": {
+            "name": "GPT-4 Turbo",
+            "cost_input": "$0.01/1k tokens",
+            "cost_output": "$0.03/1k tokens",
+            "quality": "highest",
+            "speed": "fast",
+            "recommended": True,
+            "description": "Best quality, balanced cost and speed. Recommended for production."
+        },
+        "gpt-4": {
+            "name": "GPT-4",
+            "cost_input": "$0.03/1k tokens",
+            "cost_output": "$0.06/1k tokens",
+            "quality": "highest",
+            "speed": "slow",
+            "recommended": False,
+            "description": "Highest quality but slower and more expensive. Use for critical summaries."
+        },
+        "gpt-3.5-turbo": {
+            "name": "GPT-3.5 Turbo",
+            "cost_input": "$0.0005/1k tokens",
+            "cost_output": "$0.0015/1k tokens",
+            "quality": "good",
+            "speed": "fastest",
+            "recommended": False,
+            "description": "Fastest and cheapest. Good for testing and non-critical summaries."
+        }
+    }
+    
+    current_model = os.getenv("SUMMARIZER_MODEL", "gpt-4-turbo")
+    
+    return {
+        "current_model": current_model,
+        "models": models,
+        "note": "Only models in this list are allowed for security and cost control"
     }
 
 
