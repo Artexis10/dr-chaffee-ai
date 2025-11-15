@@ -50,7 +50,7 @@ isodate==0.6.1
 # Async/concurrent processing
 asyncio-throttle==1.0.2
 apscheduler==3.10.4
-aiohttp==3.9.1
+aiohttp==3.12.14
 aiohttp-socks==0.8.4
 
 # Optional development tools
