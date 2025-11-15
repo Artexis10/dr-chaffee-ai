@@ -7,7 +7,7 @@ alembic>=1.13.0
 sqlalchemy>=2.0.07
 python-dotenv==1.0.0
 numpy>=2.0.0
-tqdm==4.66.1
+tqdm==4.66.3
 
 # Web API
 fastapi==0.104.1
