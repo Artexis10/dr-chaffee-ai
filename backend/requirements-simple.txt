@@ -27,7 +27,7 @@ google-auth-oauthlib==1.1.0
 # ML/AI - Core (pre-built wheels available)
 sentence-transformers>=2.7.0
 transformers>=4.41.0
-torch>=2.2.0,<2.3.0
+torch>=2.2.0,<2.9.0
 torchaudio>=2.2.0,<2.3.0
 
 # Audio transcription - ESSENTIAL
