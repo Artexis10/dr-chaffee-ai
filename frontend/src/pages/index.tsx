@@ -699,7 +699,7 @@ export default function Home() {
             <button 
               onClick={() => {
                 document.cookie = 'tuning_auth=; path=/tuning; max-age=0';
-                window.location.href = '/tuning/auth';
+                window.location.href = '/';
               }}
               className="tuning-link"
               style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.5rem 1rem', marginLeft: '0.5rem' }}
