@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Settings, BarChart3, Zap, Search, Home, LogOut } from 'lucide-react';
 
@@ -11,6 +11,34 @@ export default function TuningLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    // Check if user has tuning auth cookie
+    const hasCookie = document.cookie.split('; ').some(row => row.startsWith('tuning_auth='));
+    
+    if (!hasCookie) {
+      // Redirect to auth page
+      router.push('/tuning/auth');
+      return;
+    }
+    
+    setIsAuthenticated(true);
+    setChecking(false);
+  }, [router]);
+
+  if (checking) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#f3f4f6' }}>
+        <p style={{ color: '#6b7280' }}>Verifying access...</p>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return null;
+  }
   
   // Extract current tab from pathname
   const getCurrentTab = () => {
