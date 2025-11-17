@@ -144,87 +144,105 @@ export default function TuningPage() {
   const activeQueryModel = models.find(m => m.is_active_query);
 
   return (
-    <>
-      <style>{`
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-      `}</style>
-      <div className="flex min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-950">
+    <div style={{ display: 'flex', minHeight: '100vh', background: 'linear-gradient(to bottom right, #f8fafc, #f1f5f9)', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
       {/* Sidebar */}
-      <aside className="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col">
-        <div className="p-6 border-b border-slate-200 dark:border-slate-800">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg">
-              <Settings className="w-6 h-6 text-white" />
+      <aside style={{ width: '256px', background: 'white', borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '1.5rem', borderBottom: '1px solid #e2e8f0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{ padding: '0.5rem', background: 'linear-gradient(to bottom right, #3b82f6, #a855f7)', borderRadius: '0.5rem' }}>
+              <Settings style={{ width: '1.5rem', height: '1.5rem', color: 'white' }} />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-slate-900 dark:text-white">AI Tuning</h1>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Dashboard</p>
+              <h1 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#1f2937' }}>AI Tuning</h1>
+              <p style={{ fontSize: '0.75rem', color: '#6b7280' }}>Dashboard</p>
             </div>
           </div>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2">
-          <button
-            onClick={() => setActiveTab('overview')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-              activeTab === 'overview'
-                ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
-                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
-            }`}
-          >
-            <BarChart3 className="w-5 h-5" />
-            <span className="font-medium">Overview</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('models')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-              activeTab === 'models'
-                ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
-                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
-            }`}
-          >
-            <Zap className="w-5 h-5" />
-            <span className="font-medium">Models</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('search')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-              activeTab === 'search'
-                ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
-                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
-            }`}
-          >
-            <Search className="w-5 h-5" />
-            <span className="font-medium">Search Config</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('instructions')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-              activeTab === 'instructions'
-                ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
-                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
-            }`}
-          >
-            <Settings className="w-5 h-5" />
-            <span className="font-medium">Instructions</span>
-          </button>
+        <nav style={{ flex: 1, padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          {[
+            { id: 'overview', label: 'Overview', icon: BarChart3 },
+            { id: 'models', label: 'Models', icon: Zap },
+            { id: 'search', label: 'Search Config', icon: Search },
+            { id: 'instructions', label: 'Instructions', icon: Settings }
+          ].map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id)}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                padding: '0.75rem 1rem',
+                borderRadius: '0.5rem',
+                border: 'none',
+                background: activeTab === id ? '#eff6ff' : 'transparent',
+                color: activeTab === id ? '#2563eb' : '#4b5563',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                fontSize: '0.95rem',
+                fontWeight: activeTab === id ? 600 : 500
+              }}
+              onMouseEnter={(e) => {
+                if (activeTab !== id) e.currentTarget.style.background = '#f3f4f6';
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== id) e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              <Icon style={{ width: '1.25rem', height: '1.25rem' }} />
+              <span>{label}</span>
+            </button>
+          ))}
         </nav>
 
-        <div className="p-4 border-t border-slate-200 dark:border-slate-800 space-y-2">
+        <div style={{ padding: '1rem', borderTop: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
           <button
             onClick={() => window.location.href = '/'}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              padding: '0.75rem 1rem',
+              borderRadius: '0.5rem',
+              border: 'none',
+              background: 'transparent',
+              color: '#4b5563',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              fontSize: '0.95rem',
+              fontWeight: 500
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
           >
-            <Home className="w-5 h-5" />
-            <span className="font-medium">Back to App</span>
+            <Home style={{ width: '1.25rem', height: '1.25rem' }} />
+            <span>Back to App</span>
           </button>
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              padding: '0.75rem 1rem',
+              borderRadius: '0.5rem',
+              border: 'none',
+              background: 'transparent',
+              color: '#dc2626',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              fontSize: '0.95rem',
+              fontWeight: 500
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = '#fee2e2'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
           >
-            <LogOut className="w-5 h-5" />
-            <span className="font-medium">Logout</span>
+            <LogOut style={{ width: '1.25rem', height: '1.25rem' }} />
+            <span>Logout</span>
           </button>
         </div>
       </aside>
@@ -445,6 +463,5 @@ export default function TuningPage() {
         </div>
       </main>
     </div>
-    </>
   );
 }
