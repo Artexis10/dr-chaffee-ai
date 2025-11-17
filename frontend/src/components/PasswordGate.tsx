@@ -235,6 +235,46 @@ export function PasswordGate({ children }: PasswordGateProps) {
           </button>
         </form>
 
+        <div style={{
+          marginTop: '1.5rem',
+          paddingTop: '1.5rem',
+          borderTop: '1px solid #e2e8f0'
+        }}>
+          <p style={{
+            color: '#64748b',
+            fontSize: '0.9rem',
+            marginBottom: '1rem'
+          }}>
+            Admin Access:
+          </p>
+          <a
+            href="/tuning/auth"
+            style={{
+              display: 'inline-block',
+              padding: '0.75rem 1.5rem',
+              fontSize: '0.9rem',
+              fontWeight: 600,
+              color: '#667eea',
+              background: '#f0f4ff',
+              border: '2px solid #667eea',
+              borderRadius: '12px',
+              textDecoration: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = '#667eea';
+              e.currentTarget.style.color = 'white';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = '#f0f4ff';
+              e.currentTarget.style.color = '#667eea';
+            }}
+          >
+            Tuning Dashboard
+          </a>
+        </div>
+
         <p style={{
           marginTop: '2rem',
           color: '#94a3b8',
