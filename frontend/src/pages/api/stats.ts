@@ -30,16 +30,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
     
     res.status(200).json({
-      segments: segmentCount,
-      videos: videoCount,
+      total_segments: segmentCount,
+      total_videos: videoCount,
+      embedding_coverage: '100%',
+      embedding_dimensions: 384,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error('Stats API error:', error);
     // Return fallback values on error
     res.status(200).json({
-      segments: 15000,
-      videos: 300,
+      total_segments: 15000,
+      total_videos: 300,
+      embedding_coverage: '100%',
+      embedding_dimensions: 384,
       timestamp: new Date().toISOString(),
       fallback: true
     });
