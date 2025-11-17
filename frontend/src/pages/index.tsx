@@ -698,12 +698,12 @@ export default function Home() {
             </Link>
             <button 
               onClick={() => {
-                document.cookie = 'tuning_auth=; path=/tuning; max-age=0';
+                localStorage.removeItem('auth_token');
                 window.location.href = '/';
               }}
               className="tuning-link"
               style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.5rem 1rem', marginLeft: '0.5rem' }}
-              title="Logout from tuning dashboard"
+              title="Logout from application"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5m0 0l-5-5m5 5H9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
