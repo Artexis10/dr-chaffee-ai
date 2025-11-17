@@ -16,27 +16,17 @@ export default function TuningAuth() {
     setLoading(true);
     setError('');
 
-    try {
-      // Verify password via API (same as main app)
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password })
-      });
+    const tuningPassword = process.env.NEXT_PUBLIC_TUNING_PASSWORD;
 
-      if (response.ok) {
-        // Set auth cookie
-        document.cookie = 'tuning_auth=true; path=/tuning; max-age=86400';
-        
-        // Redirect to tuning dashboard
-        router.push('/tuning');
-        router.refresh();
-      } else {
-        setError('Incorrect password');
-        setPassword('');
-      }
-    } catch (err) {
-      setError('Authentication failed. Please try again.');
+    if (password === tuningPassword) {
+      // Set auth cookie
+      document.cookie = 'tuning_auth=true; path=/tuning; max-age=86400';
+      
+      // Redirect to tuning dashboard
+      router.push('/tuning');
+      router.refresh();
+    } else {
+      setError('Incorrect password');
       setPassword('');
     }
 
