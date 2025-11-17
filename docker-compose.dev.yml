@@ -63,6 +63,7 @@ services:
       - audio_temp:/tmp/audio_downloads
       - ./backend:/app
       - ./.env:/app/.env
+      - ./cookies.txt:/app/cookies.txt:ro
     depends_on:
       postgres:
         condition: service_healthy

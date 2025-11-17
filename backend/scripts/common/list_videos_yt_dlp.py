@@ -32,6 +32,13 @@ class VideoInfo:
     url: Optional[str] = None
     availability: Optional[str] = None  # e.g., 'public', 'subscriber_only', 'unlisted'
     
+    @property
+    def is_short(self) -> bool:
+        """Check if video is a short (<120 seconds)"""
+        if self.duration_s is None:
+            return False
+        return self.duration_s < 120
+    
     @classmethod
     def from_yt_dlp(cls, data: Dict[str, Any]) -> 'VideoInfo':
         """Create VideoInfo from yt-dlp JSON output"""
@@ -147,36 +154,87 @@ class YtDlpVideoLister:
         # Ensure output directory exists
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
-        # yt-dlp command for flat playlist extraction with latest anti-blocking fixes
+        # Get channel ID and convert to uploads playlist
+        # This bypasses YouTube's ~600 video limit on /videos tab
+        logger.info("Getting channel ID to access uploads playlist...")
+        cmd_id = [
+            self.yt_dlp_path,
+            "--dump-json",
+            "--playlist-items", "1",
+            "--no-warnings",
+            f"{channel_url}/videos"
+        ]
+        
+        try:
+            result_id = subprocess.run(cmd_id, capture_output=True, text=True, timeout=30)
+            if result_id.stdout:
+                import json
+                first_video = json.loads(result_id.stdout.strip().split('\n')[0])
+                channel_id = first_video.get('channel_id')
+                if channel_id:
+                    # Convert UC to UU for uploads playlist
+                    uploads_playlist_id = 'UU' + channel_id[2:]
+                    logger.info(f"Channel ID: {channel_id}")
+                    logger.info(f"Using uploads playlist: {uploads_playlist_id} (gets ALL videos)")
+                    playlist_url = f"https://www.youtube.com/playlist?list={uploads_playlist_id}"
+                else:
+                    logger.warning("Could not get channel ID, falling back to /videos tab")
+                    playlist_url = f"{channel_url}/videos"
+            else:
+                logger.warning("Could not get channel ID, falling back to /videos tab")
+                playlist_url = f"{channel_url}/videos"
+        except Exception as e:
+            logger.warning(f"Error getting channel ID: {e}, falling back to /videos tab")
+            playlist_url = f"{channel_url}/videos"
+        
+        # yt-dlp command for fast playlist extraction
         cmd = [
             self.yt_dlp_path,
             "--flat-playlist",
             "--dump-json",
             "--no-warnings",
             "--ignore-errors",
-            # Latest nightly anti-blocking fixes (2025.09.26):
-            '--extractor-args', 'youtube:player_client=web_safari',  # Use web_safari client (latest fix)
-            '--user-agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            '--referer', 'https://www.youtube.com/',
+            # Use android client to avoid bot detection
+            '--extractor-args', 'youtube:player_client=android,web;youtube:extract_flat=in_playlist',
             '-4',  # Force IPv4 (fixes many 403s)
-            '--sleep-requests', '2',  # Sleep between requests
-            f"{channel_url}/videos"
+            '--sleep-requests', '1',
+            playlist_url
         ]
         
+        # Add cookies if configured
+        import os
+        cookies_file = os.getenv("YTDLP_COOKIES", "").strip()
+        # Prioritize cookies file over browser extraction (browser extraction fails on Windows)
+        if cookies_file and Path(cookies_file).exists():
+            cmd.extend(['--cookies', cookies_file])
+            logger.info(f"Using cookies from file: {cookies_file}")
+        else:
+            cookies_from_browser = os.getenv("YTDLP_COOKIES_FROM_BROWSER", "").strip()
+            if cookies_from_browser:
+                cmd.extend(['--cookies-from-browser', cookies_from_browser])
+                logger.info(f"Using cookies from browser: {cookies_from_browser}")
+        
         try:
-            with open(output_path, 'w', encoding='utf-8') as f:
-                # Run yt-dlp and capture JSON output
-                result = subprocess.run(
-                    cmd,
-                    stdout=f,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    timeout=300  # 5 minute timeout
-                )
+            # Run yt-dlp and capture both stdout and stderr
+            result = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=300  # 5 minute timeout
+            )
             
             if result.returncode != 0:
-                error_msg = result.stderr.decode('utf-8') if result.stderr else "Unknown error"
+                # stderr is already a string when text=True
+                error_msg = result.stderr if result.stderr else "Unknown error"
+                logger.error(f"yt-dlp failed with exit code {result.returncode}")
+                logger.error(f"stderr: {error_msg}")
+                logger.error(f"stdout: {result.stdout}")
                 raise subprocess.CalledProcessError(result.returncode, cmd, error_msg)
+            
+            # Write stdout to file
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(result.stdout)
             
             logger.info(f"Successfully dumped channel to {output_path}")
             return output_path

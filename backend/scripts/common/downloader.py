@@ -65,9 +65,15 @@ class AudioDownloader:
         
         # Load configuration from environment
         self.proxy = os.getenv("YTDLP_PROXY", "").strip()
+        self.cookies_file = os.getenv("YTDLP_COOKIES", "").strip()
+        self.cookies_from_browser = os.getenv("YTDLP_COOKIES_FROM_BROWSER", "").strip()
         self.ytdlp_opts = self._parse_ytdlp_opts()
         
         logger.info(f"AudioDownloader initialized with proxy: {'***' if self.proxy else 'None'}")
+        if self.cookies_file:
+            logger.info(f"Using cookies from file: {self.cookies_file}")
+        if self.cookies_from_browser:
+            logger.info(f"Using cookies from browser: {self.cookies_from_browser}")
         logger.info(f"yt-dlp options: {' '.join(self.ytdlp_opts)}")
     
     def _parse_ytdlp_opts(self) -> List[str]:
@@ -113,15 +119,16 @@ class AudioDownloader:
             'writesubtitles': False,
             'writeautomaticsub': False,
             'ignoreerrors': False,  # Don't ignore errors - we need to see them to fix them properly
-            # Use android client to avoid SABR streaming issues
-            'extractor_args': {'youtube': {'player_client': ['android']}},
+            # Use android client (avoids bot detection, no JS runtime required)
+            # Falls back to web if android fails
+            'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
             # Anti-blocking recommendations (optimized for speed)
             'source_address': '0.0.0.0',  # Force IPv4 
             'sleep_requests': 0.5,  # Minimal sleep for maximum throughput
             'min_sleep_interval': 0.5,
             'max_sleep_interval': 2,  # Reduced for faster downloads
             'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Referer': 'https://www.youtube.com/',
             },
             'retries': 10,
@@ -137,11 +144,24 @@ class AudioDownloader:
             'nocheckcertificate': True,  # Skip SSL certificate verification
             'prefer_insecure': False,  # Use HTTPS when available
             'age_limit': None,  # No age restrictions
+            'allow_unplayable_formats': False,  # Don't download unplayable formats
         }
         
         # Add proxy if configured
         if self.proxy:
             config['proxy'] = self.proxy
+        
+        # Add cookies if configured (helps bypass bot verification)
+        # Priority: cookies_from_browser > cookies_file
+        if self.cookies_from_browser:
+            config['cookies_from_browser'] = self.cookies_from_browser
+            logger.info(f"✅ Using cookies from browser: {self.cookies_from_browser}")
+        elif self.cookies_file:
+            if os.path.exists(self.cookies_file):
+                config['cookiefile'] = self.cookies_file
+                logger.info(f"✅ Using cookies from file: {self.cookies_file}")
+            else:
+                logger.warning(f"⚠️ Cookies file not found: {self.cookies_file}")
         
         # Add ffmpeg path if specified
         if self.ffmpeg_path != "ffmpeg":

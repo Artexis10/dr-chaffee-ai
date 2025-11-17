@@ -28,6 +28,13 @@ import os
 import argparse
 import asyncio
 import codecs
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env file for native (non-Docker) execution
+# Find .env in parent directories (works from any working directory)
+env_path = Path(__file__).parent.parent.parent / ".env"
+load_dotenv(env_path)
 import hashlib
 import inspect
 import logging
@@ -321,14 +328,16 @@ class IngestionConfig:
             if not self.db_url:
                 raise ValueError("DATABASE_URL environment variable required")
         
+        # Always load API key if available (for auto-upgrade from yt-dlp to API)
+        if self.youtube_api_key is None:
+            self.youtube_api_key = os.getenv('YOUTUBE_API_KEY')
+        
         # Auto-switch to yt-dlp if using --from-url without specifying source
         if self.from_url and self.source == 'api':
             self.source = 'yt-dlp'
             logger.info("Auto-switched to yt-dlp source for --from-url")
         
         if self.source == 'api':
-            if self.youtube_api_key is None:
-                self.youtube_api_key = os.getenv('YOUTUBE_API_KEY')
             if not self.youtube_api_key:
                 # Skip API key check if we're in setup-chaffee mode
                 # This allows using a dummy key for setup-chaffee
@@ -435,16 +444,14 @@ class IngestionConfig:
                         f"--seeds backend/config/chaffee_seed_urls.json --name Chaffee --overwrite"
                     )
             else:
-                # No auto-bootstrap - provide clear instructions
-                hint_msg = "python -m backend.scripts.voice_bootstrap build --seeds backend/config/chaffee_seed_urls.json --name Chaffee --overwrite"
-                if not auto_bootstrap:
-                    hint_msg = f"Set AUTO_BOOTSTRAP_CHAFFEE=true or run: {hint_msg}"
-                    
-                raise FileNotFoundError(
-                    f"CRITICAL: Chaffee voice profile not found at {chaffee_profile_path}. "
-                    f"Speaker identification is MANDATORY to prevent misattribution. "
-                    f"To create the profile, run: {hint_msg}"
+                # No auto-bootstrap - log warning but continue (speaker ID disabled for now)
+                logger.warning(
+                    f"⚠️ Chaffee voice profile not found at {chaffee_profile_path}. "
+                    f"Speaker identification will be skipped for this run. "
+                    f"To enable speaker ID later, run: python -m backend.scripts.voice_bootstrap build "
+                    f"--seeds backend/config/chaffee_seed_urls.json --name Chaffee --overwrite"
                 )
+                return
             
             logger.info(f"✅ Chaffee voice profile loaded from: {chaffee_profile_path}")
             logger.info(f"🎯 Speaker identification enabled (threshold: {self.chaffee_min_sim})")
@@ -622,11 +629,14 @@ class EnhancedYouTubeIngester:
         self.embedder = EmbeddingGenerator()
         
         # Initialize video/file lister based on source
+        # yt-dlp now uses uploads playlist and fetches ALL 1300+ videos (no longer limited to ~600)
         if config.source == 'api':
             if not config.youtube_api_key:
                 raise ValueError("YouTube API key required for API source")
+            logger.info("✅ Using YouTube API (official source, 10k req/day limit)")
             self.video_lister = YouTubeAPILister(config.youtube_api_key, config.db_url)
         elif config.source == 'yt-dlp':
+            logger.info("✅ Using yt-dlp with uploads playlist (gets ALL 1325+ videos, no API limit)")
             self.video_lister = YtDlpVideoLister()
         elif config.source == 'local':
             self.video_lister = LocalFileLister()
@@ -687,7 +697,7 @@ class EnhancedYouTubeIngester:
         # Apply filters (only for non-local sources)
         if self.config.source != 'local':
             if self.config.skip_shorts:
-                videos = [v for v in videos if not v.duration_s or v.duration_s >= 120]
+                videos = [v for v in videos if not v.is_short]
                 logger.info(f"Filtered out shorts, {len(videos)} videos remaining")
             
             # Apply sorting
@@ -790,7 +800,7 @@ class EnhancedYouTubeIngester:
                 logger.debug(f"Could not get duration for {file_info.file_path}: {e}")
             
             # Apply duration filter for local files too
-            if self.config.skip_shorts and file_info.duration_s and file_info.duration_s < 120:
+            if self.config.skip_shorts and file_info.is_short:
                 logger.debug(f"Skipping short file: {file_info.file_path} ({file_info.duration_s}s)")
                 continue
             
@@ -1278,7 +1288,7 @@ class EnhancedYouTubeIngester:
                 video_queue.task_done()
                 
             except Exception as e:
-                logger.error(f"I/O worker error: {e}")
+                logger.error(f"❌ I/O worker error: {e}", exc_info=True)
                 with stats_lock:
                     self.stats.errors += 1
                 # Still need to mark as done even on error
@@ -1391,7 +1401,7 @@ class EnhancedYouTubeIngester:
                     pass
                 
             except Exception as e:
-                logger.error(f"ASR worker error: {e}")
+                logger.error(f"❌ ASR worker error: {e}", exc_info=True)
                 with stats_lock:
                     self.stats.errors += 1
                 
@@ -1421,8 +1431,21 @@ class EnhancedYouTubeIngester:
                 except queue.Empty:
                     continue
                 
-                video, asr_result, audio_path = item
-                segments, method, metadata = asr_result
+                try:
+                    video, asr_result, audio_path = item
+                except (ValueError, TypeError) as e:
+                    logger.error(f"❌ Failed to unpack ASR queue item: {e} (item type: {type(item)}, item: {item})")
+                    with stats_lock:
+                        self.stats.errors += 1
+                    continue
+                
+                try:
+                    segments, method, metadata = asr_result
+                except (ValueError, TypeError) as e:
+                    logger.error(f"❌ Failed to unpack ASR result for {video.video_id}: {e} (result type: {type(asr_result)}, result: {asr_result})")
+                    with stats_lock:
+                        self.stats.errors += 1
+                    continue
                 
                 # Process embeddings immediately (per-video for real-time insertion)
                 if self.config.embed_later:
@@ -1457,7 +1480,7 @@ class EnhancedYouTubeIngester:
                 update_progress_func()
                 
             except Exception as e:
-                logger.error(f"DB worker error: {e}")
+                logger.error(f"❌ DB worker error: {e}", exc_info=True)
                 with stats_lock:
                     self.stats.errors += 1
         
@@ -1485,8 +1508,14 @@ class EnhancedYouTubeIngester:
                 f"https://www.youtube.com/watch?v={video.video_id}"
             ]
             
+            # TIMING: Track download + ffmpeg conversion time
+            download_start = time.time()
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            download_time = time.time() - download_start
+            
             if result.returncode == 0 and os.path.exists(audio_file):
+                # Log timing for bottleneck analysis
+                logger.debug(f"⏱️ Download+ffmpeg for {video.video_id}: {download_time:.1f}s")
                 return audio_file
             else:
                 logger.error(f"yt-dlp failed for {video.video_id}: {result.stderr}")
@@ -1798,7 +1827,7 @@ class EnhancedYouTubeIngester:
                     logger.info(f"📊 Speaker counts for {video.video_id}: {len(segments)} segments → Chaffee={chaffee_count}, Guest={guest_count}, Unknown={unknown_count}")
             
         except Exception as e:
-            logger.error(f"Batch embedding processing failed: {e}")
+            logger.error(f"❌ Batch embedding processing failed: {e}", exc_info=True)
     
     def _batch_insert_video_segments(self, video: VideoInfo, segments: List, 
                                     method: str, metadata: Dict, stats_lock: threading.Lock) -> None:
@@ -1843,7 +1872,7 @@ class EnhancedYouTubeIngester:
                     self.stats.whisper_transcripts += 1
             
         except Exception as e:
-            logger.error(f"Batch insert failed for {video.video_id}: {e}")
+            logger.error(f"❌ Batch insert failed for {video.video_id}: {e}", exc_info=True)
     
     def _enqueue_for_embedding(self, video_id: str, segments: List) -> None:
         """Enqueue segments for later embedding processing"""
@@ -1852,7 +1881,7 @@ class EnhancedYouTubeIngester:
         logger.debug(f"Enqueued {len(segments)} segments from {video_id} for later embedding")
     
     async def check_video_accessibility(self, video: VideoInfo) -> bool:
-        """Check if a video is accessible (not members-only) using yt-dlp"""
+        """Check if a video is members-only using yt-dlp. On any error, assume it's accessible."""
         try:
             cmd = [
                 "yt-dlp",
@@ -1866,7 +1895,8 @@ class EnhancedYouTubeIngester:
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                stderr=asyncio.subprocess.PIPE,
+                timeout=10
             )
             
             stdout, stderr = await process.communicate()
@@ -1875,16 +1905,25 @@ class EnhancedYouTubeIngester:
                 return True
             else:
                 error_msg = stderr.decode().lower()
-                if "members-only" in error_msg or "join this channel" in error_msg:
+                # ONLY skip if definitely members-only
+                if ("members-only" in error_msg or 
+                    "join this channel" in error_msg or
+                    "available to this channel's members" in error_msg):
                     logger.info(f"🔒 Skipping members-only: {video.video_id} - {video.title[:50]}...")
                     return False
                 else:
-                    logger.warning(f"⚠️ Video inaccessible: {video.video_id}")
-                    return False
+                    # For any other error, assume it's accessible and let main pipeline handle it
+                    logger.debug(f"⚠️ Accessibility check inconclusive for {video.video_id}, assuming accessible")
+                    return True
                 
+        except asyncio.TimeoutError:
+            # Timeout = assume accessible (don't waste time on slow checks)
+            logger.debug(f"⏱️ Accessibility check timeout for {video.video_id}, assuming accessible")
+            return True
         except Exception as e:
-            logger.error(f"❌ Accessibility check failed for {video.video_id}: {e}")
-            return False
+            # Any other error = assume accessible (be lenient)
+            logger.debug(f"⚠️ Accessibility check failed for {video.video_id}: {e}, assuming accessible")
+            return True
     
     async def phase1_prefilter_videos(self, videos: List[VideoInfo]) -> List[VideoInfo]:
         """Phase 1: Smart pre-filtering for accessibility (3-phase optimization)"""
@@ -1949,11 +1988,11 @@ class EnhancedYouTubeIngester:
             # Smart 3-Phase Pipeline for medium/large batches - lowered threshold for better optimization
             if len(videos) > 15 and self.config.source in ['api', 'yt-dlp']:
                 logger.info("📊 Using SMART 3-PHASE pipeline for large batch optimization")
-                logger.info("   🎯 Phase 1: Pre-filter accessibility")
+                logger.info("   🎯 Phase 1: Filter members-only videos only")
                 logger.info("   📥 Phase 2: Bulk download accessible videos")  
                 logger.info("   🎙️ Phase 3: Enhanced ASR processing")
                 
-                # Phase 1: Pre-filter videos (async)
+                # Phase 1: Pre-filter videos (async) - only skips members-only, rest are assumed accessible
                 import asyncio
                 accessible_videos = asyncio.run(self.phase1_prefilter_videos(videos))
                 

@@ -535,11 +535,20 @@ class TranscriptFetcher:
                 metadata["error"] = "audio_download_failed"
                 return None, 'failed', metadata
             
-            # Transcribe with optimized faster-whisper directly (GPU batching)
-            whisper_segments, whisper_metadata = self.transcribe_with_faster_whisper(
-                Path(audio_path), 
-                model_name=self.whisper_model
-            )
+            # Transcribe with parallel Whisper models if enabled, otherwise use single model
+            num_models = int(os.getenv('WHISPER_PARALLEL_MODELS', '1'))
+            if num_models > 1:
+                logger.info(f"Using {num_models} parallel Whisper models for maximum throughput")
+                whisper_segments, whisper_metadata = self.transcribe_with_whisper_parallel(
+                    Path(audio_path), 
+                    model_name=self.whisper_model
+                )
+            else:
+                logger.info("Using single Whisper model")
+                whisper_segments, whisper_metadata = self.transcribe_with_faster_whisper(
+                    Path(audio_path), 
+                    model_name=self.whisper_model
+                )
             
             method = 'whisper'
             metadata.update(whisper_metadata)
@@ -559,12 +568,18 @@ class TranscriptFetcher:
                     logger.info(f"Quality issues detected ({quality_info['issues']}). "
                                f"Upgrading to {self.whisper_upgrade} for {video_id}")
                     
-                    # Try with upgraded model for quality upgrade
-                    upgrade_segments, upgrade_metadata = self.transcribe_with_faster_whisper(
-                        Path(audio_path),
-                        model_name=self.whisper_upgrade,
-                        enable_silence_removal=enable_silence_removal
-                    )
+                    # Try with upgraded model for quality upgrade (use parallel if enabled)
+                    if num_models > 1:
+                        upgrade_segments, upgrade_metadata = self.transcribe_with_whisper_parallel(
+                            Path(audio_path),
+                            model_name=self.whisper_upgrade
+                        )
+                    else:
+                        upgrade_segments, upgrade_metadata = self.transcribe_with_faster_whisper(
+                            Path(audio_path),
+                            model_name=self.whisper_upgrade,
+                            enable_silence_removal=enable_silence_removal
+                        )
                     
                     if upgrade_segments:
                         upgrade_quality = self._assess_transcript_quality(upgrade_segments)

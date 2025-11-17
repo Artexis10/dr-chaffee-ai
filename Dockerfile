@@ -14,6 +14,8 @@ RUN apt-get update && apt-get install -y \
     postgresql-client \
     build-essential \
     libcudnn9-dev-cuda-13 \
+    nodejs \
+    npm \
     && rm -rf /var/lib/apt/lists/*
 
 # Set Python 3.11 as default
@@ -51,9 +53,13 @@ RUN pip install --no-cache-dir \
 RUN pip install --no-cache-dir \
     youtube-transcript-api \
     yt-dlp \
+    yt-dlp-ejs \
     google-api-python-client \
     google-auth-httplib2 \
-    google-auth-oauthlib
+    google-auth-oauthlib \
+    pycryptodome \
+    brotli \
+    mutagen
 
 # Stage 4: ML/AI with CUDA support (may take time but has wheels)
 # Install PyTorch with CUDA 12.1 support (matches NVIDIA CUDA 13.0 runtime)
