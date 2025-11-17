@@ -162,7 +162,7 @@ export default function TuningPage() {
     <div className="min-h-screen bg-white dark:bg-slate-950 text-slate-900 dark:text-white">
       {/* Header */}
       <header className="sticky top-0 z-50 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
               <Settings className="w-6 h-6 text-blue-600 dark:text-blue-400" />
@@ -190,7 +190,7 @@ export default function TuningPage() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+      <main className="mx-auto px-6 py-12 space-y-8 max-w-6xl">
 
         {/* Stats Cards */}
         {stats && (

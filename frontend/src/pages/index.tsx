@@ -699,7 +699,20 @@ export default function Home() {
           </div>
           <div className="header-content">
             <div className="logo-container">
-              <div className="logo">
+              <div 
+                className="logo"
+                onClick={() => {
+                  const clicks = parseInt(sessionStorage.getItem('admin_clicks') || '0') + 1;
+                  sessionStorage.setItem('admin_clicks', clicks.toString());
+                  if (clicks === 3) {
+                    window.location.href = '/tuning/auth';
+                    sessionStorage.removeItem('admin_clicks');
+                  }
+                  setTimeout(() => sessionStorage.removeItem('admin_clicks'), 3000);
+                }}
+                style={{ cursor: 'pointer' }}
+                title="Admin access: Click 3 times"
+              >
                 <Image 
                   src="/dr-chaffee.jpg" 
                   alt="Dr. Anthony Chaffee" 
