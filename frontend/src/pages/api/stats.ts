@@ -15,16 +15,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Single optimized query to get all stats
+    // Single optimized query to get all stats including embedding coverage
     const result = await pool.query(`
       SELECT 
-        (SELECT COUNT(*) FROM segments) as total_segments,
-        (SELECT COUNT(DISTINCT source_id) FROM segments) as total_videos
+        COUNT(*) as total_segments,
+        COUNT(DISTINCT source_id) as total_videos,
+        COUNT(embedding) as segments_with_embeddings,
+        ROUND((COUNT(embedding)::float / COUNT(*)::float) * 100, 1) as embedding_coverage_pct
+      FROM segments
     `);
     
     const stats = result.rows[0];
     const segmentCount = parseInt(stats.total_segments || '0');
     const videoCount = parseInt(stats.total_videos || '0');
+    const embeddedCount = parseInt(stats.segments_with_embeddings || '0');
+    const coveragePct = parseFloat(stats.embedding_coverage_pct || '0');
+    const missingCount = segmentCount - embeddedCount;
     
     // Cache for 5 minutes (stats don't change often)
     res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
@@ -32,7 +38,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(200).json({
       total_segments: segmentCount,
       total_videos: videoCount,
-      embedding_coverage: '100%',
+      segments_with_embeddings: embeddedCount,
+      segments_missing_embeddings: missingCount,
+      embedding_coverage: `${coveragePct.toFixed(1)}%`,
       embedding_dimensions: 384,
       timestamp: new Date().toISOString()
     });
@@ -42,7 +50,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(200).json({
       total_segments: 15000,
       total_videos: 300,
-      embedding_coverage: '100%',
+      segments_with_embeddings: 15000,
+      segments_missing_embeddings: 0,
+      embedding_coverage: '100.0%',
       embedding_dimensions: 384,
       timestamp: new Date().toISOString(),
       fallback: true
