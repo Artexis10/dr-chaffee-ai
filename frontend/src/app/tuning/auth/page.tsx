@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Lock } from 'lucide-react';
+import Link from 'next/link';
+import { Lock, Home } from 'lucide-react';
 
 export default function TuningAuth() {
   const router = useRouter();
@@ -35,6 +36,15 @@ export default function TuningAuth() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
+        {/* Back to Home Link */}
+        <Link 
+          href="/" 
+          className="inline-flex items-center gap-2 mb-6 text-slate-400 hover:text-white transition-colors"
+        >
+          <Home className="w-4 h-4" />
+          <span className="text-sm">Back to Home</span>
+        </Link>
+
         <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-2xl p-8 shadow-2xl">
           <div className="flex justify-center mb-6">
             <div className="bg-blue-500/20 p-4 rounded-full">
@@ -49,6 +59,9 @@ export default function TuningAuth() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Password
+              </label>
               <input
                 type="password"
                 value={password}
@@ -75,8 +88,14 @@ export default function TuningAuth() {
             </button>
           </form>
 
-          <p className="text-slate-500 text-xs text-center mt-6">
-            Contact Hugo or Dr. Chaffee for access
+          <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+            <p className="text-slate-300 text-sm">
+              <strong>How to access:</strong> Click Dr. Chaffee's logo on the home page 3 times to reach this page.
+            </p>
+          </div>
+
+          <p className="text-slate-500 text-xs text-center mt-4">
+            Contact Hugo or Dr. Chaffee for the password
           </p>
         </div>
       </div>
