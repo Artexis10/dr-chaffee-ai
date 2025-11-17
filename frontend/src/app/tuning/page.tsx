@@ -68,8 +68,8 @@ export default function TuningPage() {
   const handleLogout = () => {
     // Clear auth cookie
     document.cookie = 'tuning_auth=; path=/tuning; max-age=0';
-    router.push('/tuning/auth');
-    router.refresh();
+    // Redirect to home page
+    window.location.href = '/';
   };
 
   const loadModels = async () => {
@@ -159,9 +159,9 @@ export default function TuningPage() {
   const activeQueryModel = models.find(m => m.is_active_query);
 
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-950 text-slate-900 dark:text-white">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
+      <header className="sticky top-0 z-50 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm">
         <div className="px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
@@ -238,7 +238,7 @@ export default function TuningPage() {
         <CustomInstructionsEditor />
 
         {/* Embedding Models */}
-        <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-8">
+        <section className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-8 shadow-sm">
           <h2 className="text-2xl font-bold mb-2 flex items-center gap-3 text-slate-900 dark:text-white">
             <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
               <Zap className="w-5 h-5 text-amber-600 dark:text-amber-400" />
@@ -297,7 +297,7 @@ export default function TuningPage() {
         </section>
 
         {/* Search Configuration */}
-        <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-8">
+        <section className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-8 shadow-sm">
           <h2 className="text-2xl font-bold mb-2 flex items-center gap-3 text-slate-900 dark:text-white">
             <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
               <Search className="w-5 h-5 text-green-600 dark:text-green-400" />
@@ -380,7 +380,7 @@ export default function TuningPage() {
         </section>
 
         {/* Test Search */}
-        <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-8">
+        <section className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-8 shadow-sm">
           <h2 className="text-2xl font-bold mb-2 flex items-center gap-3 text-slate-900 dark:text-white">
             <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
               <Search className="w-5 h-5 text-blue-600 dark:text-blue-400" />
