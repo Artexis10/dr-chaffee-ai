@@ -19,7 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const result = await pool.query(`
       SELECT 
         (SELECT COUNT(*) FROM segments) as total_segments,
-        (SELECT COUNT(DISTINCT video_id) FROM segments) as total_videos
+        (SELECT COUNT(DISTINCT source_id) FROM segments) as total_videos
     `);
     
     const stats = result.rows[0];

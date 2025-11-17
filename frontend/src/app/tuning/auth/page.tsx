@@ -2,8 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { Lock, Home } from 'lucide-react';
+import Image from 'next/image';
 
 export default function TuningAuth() {
   const router = useRouter();
@@ -19,10 +18,7 @@ export default function TuningAuth() {
     const tuningPassword = process.env.NEXT_PUBLIC_TUNING_PASSWORD;
 
     if (password === tuningPassword) {
-      // Set auth cookie
       document.cookie = 'tuning_auth=true; path=/tuning; max-age=86400';
-      
-      // Redirect to tuning dashboard
       router.push('/tuning');
       router.refresh();
     } else {
@@ -34,70 +30,188 @@ export default function TuningAuth() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Back to Home Link */}
-        <Link 
-          href="/" 
-          className="inline-flex items-center gap-2 mb-6 text-slate-400 hover:text-white transition-colors"
-        >
-          <Home className="w-4 h-4" />
-          <span className="text-sm">Back to Home</span>
-        </Link>
+    <div style={{
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      padding: '2rem'
+    }}>
+      <div style={{
+        background: 'white',
+        borderRadius: '20px',
+        padding: '3rem',
+        maxWidth: '450px',
+        width: '100%',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+        textAlign: 'center'
+      }}>
+        <div style={{
+          width: '120px',
+          height: '120px',
+          margin: '0 auto 1.5rem',
+          borderRadius: '50%',
+          overflow: 'hidden',
+          border: '4px solid #667eea',
+          boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)'
+        }}>
+          <Image 
+            src="/dr-chaffee.jpg" 
+            alt="Dr. Anthony Chaffee" 
+            width={120} 
+            height={120}
+            style={{ objectFit: 'cover' }}
+          />
+        </div>
 
-        <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-2xl p-8 shadow-2xl">
-          <div className="flex justify-center mb-6">
-            <div className="bg-blue-500/20 p-4 rounded-full">
-              <Lock className="w-8 h-8 text-blue-400" />
-            </div>
-          </div>
+        <h1 style={{
+          fontSize: '2rem',
+          fontWeight: 700,
+          background: 'linear-gradient(135deg, #667eea, #764ba2)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          marginBottom: '0.5rem'
+        }}>
+          Tuning Dashboard
+        </h1>
 
-          <h1 className="text-3xl font-bold text-white text-center mb-2">
-            Tuning Dashboard
-          </h1>
-          <p className="text-slate-400 text-center mb-8">QA & Admin Access Only</p>
+        <p style={{
+          color: '#64748b',
+          marginBottom: '2rem',
+          fontSize: '1rem'
+        }}>
+          QA & Admin Access Only
+        </p>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Password
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter password"
-                className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                autoFocus
-                disabled={loading}
-              />
-            </div>
-
-            {error && (
-              <div className="bg-red-500/20 border border-red-500 text-red-300 px-4 py-2 rounded-lg text-sm">
-                {error}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 text-white font-semibold py-3 rounded-lg transition-colors"
-            >
-              {loading ? 'Unlocking...' : 'Unlock Dashboard'}
-            </button>
-          </form>
-
-          <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-            <p className="text-slate-300 text-sm">
-              <strong>How to access:</strong> Click Dr. Chaffee's logo on the home page 3 times to reach this page.
-            </p>
-          </div>
-
-          <p className="text-slate-500 text-xs text-center mt-4">
-            Contact Hugo or Dr. Chaffee for the password
+        <div style={{
+          background: '#f8fafc',
+          padding: '1rem',
+          borderRadius: '12px',
+          marginBottom: '2rem',
+          border: '1px solid #e2e8f0'
+        }}>
+          <p style={{
+            color: '#475569',
+            fontSize: '0.9rem',
+            margin: 0
+          }}>
+            🔒 This dashboard is for privileged users only. Enter your admin password to continue.
           </p>
         </div>
+
+        <form onSubmit={handleSubmit}>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Enter admin password"
+            autoFocus
+            disabled={loading}
+            style={{
+              width: '100%',
+              padding: '1rem',
+              fontSize: '1rem',
+              border: error ? '2px solid #ef4444' : '2px solid #e2e8f0',
+              borderRadius: '12px',
+              marginBottom: '1rem',
+              outline: 'none',
+              transition: 'border-color 0.2s',
+              boxSizing: 'border-box'
+            }}
+            onFocus={(e) => {
+              if (!error) e.target.style.borderColor = '#667eea';
+            }}
+            onBlur={(e) => {
+              if (!error) e.target.style.borderColor = '#e2e8f0';
+            }}
+          />
+
+          {error && (
+            <div style={{
+              background: '#fee2e2',
+              color: '#dc2626',
+              padding: '0.75rem',
+              borderRadius: '8px',
+              marginBottom: '1rem',
+              fontSize: '0.9rem'
+            }}>
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              width: '100%',
+              padding: '1rem',
+              fontSize: '1rem',
+              fontWeight: 600,
+              color: 'white',
+              background: 'linear-gradient(135deg, #667eea, #764ba2)',
+              border: 'none',
+              borderRadius: '12px',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              transition: 'transform 0.2s, box-shadow 0.2s',
+              boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)',
+              opacity: loading ? 0.7 : 1
+            }}
+            onMouseEnter={(e) => {
+              if (!loading) {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(102, 126, 234, 0.5)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.4)';
+            }}
+          >
+            {loading ? 'Unlocking...' : 'Access Dashboard'}
+          </button>
+        </form>
+
+        <div style={{
+          marginTop: '1.5rem',
+          paddingTop: '1.5rem',
+          borderTop: '1px solid #e2e8f0'
+        }}>
+          <a
+            href="/"
+            style={{
+              display: 'inline-block',
+              padding: '0.75rem 1.5rem',
+              fontSize: '0.9rem',
+              fontWeight: 600,
+              color: '#667eea',
+              background: '#f0f4ff',
+              border: '2px solid #667eea',
+              borderRadius: '12px',
+              textDecoration: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = '#667eea';
+              e.currentTarget.style.color = 'white';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = '#f0f4ff';
+              e.currentTarget.style.color = '#667eea';
+            }}
+          >
+            Back to Main App
+          </a>
+        </div>
+
+        <p style={{
+          marginTop: '2rem',
+          color: '#94a3b8',
+          fontSize: '0.85rem'
+        }}>
+          For Dr. Chaffee & Hugo only
+        </p>
       </div>
     </div>
   );
