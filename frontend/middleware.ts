@@ -14,9 +14,33 @@ export function middleware(request: NextRequest) {
     }
   }
   
+  // Protect main app routes (all routes except /tuning/*, /tuning/auth, and API routes)
+  // Allow access to: /, /api/*, /tuning/auth
+  const isApiRoute = pathname.startsWith('/api/');
+  const isTuningAuth = pathname === '/tuning/auth';
+  const isTuningRoute = pathname.startsWith('/tuning');
+  
+  if (!isApiRoute && !isTuningAuth && !isTuningRoute) {
+    // Check if user has main app auth token
+    const authToken = request.cookies.get('auth_token');
+    
+    // If not authenticated, redirect to home (which shows password gate)
+    if (!authToken) {
+      return NextResponse.redirect(new URL('/', request.url));
+    }
+  }
+  
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ['/tuning/:path*'],
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     */
+    '/((?!_next/static|_next/image|favicon.ico).*)',
+  ],
 };
