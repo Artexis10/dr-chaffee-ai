@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Settings, Zap, DollarSign, Database, TrendingUp, Search } from 'lucide-react';
+import { Settings, Zap, DollarSign, Database, TrendingUp, Search, Lock, LogOut } from 'lucide-react';
 import CustomInstructionsEditor from '@/components/CustomInstructionsEditor';
+import { useRouter } from 'next/navigation';
 
 interface EmbeddingModel {
   key: string;
@@ -42,6 +43,11 @@ interface SearchResult {
 }
 
 export default function TuningPage() {
+  const router = useRouter();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [password, setPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  
   const [models, setModels] = useState<EmbeddingModel[]>([]);
   const [searchConfig, setSearchConfig] = useState<SearchConfig>({
     top_k: 20,
@@ -55,11 +61,41 @@ export default function TuningPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
+  // Check authentication on mount
   useEffect(() => {
-    loadModels();
-    loadConfig();
-    loadStats();
+    const auth = sessionStorage.getItem('tuning_auth');
+    if (auth === 'true') {
+      setIsAuthenticated(true);
+      loadModels();
+      loadConfig();
+      loadStats();
+    }
   }, []);
+
+  const handlePasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Simple password check - in production, this should be more secure
+    const correctPassword = process.env.NEXT_PUBLIC_TUNING_PASSWORD || 'chaffee2024';
+    
+    if (password === correctPassword) {
+      sessionStorage.setItem('tuning_auth', 'true');
+      setIsAuthenticated(true);
+      setPasswordError('');
+      setPassword('');
+      loadModels();
+      loadConfig();
+      loadStats();
+    } else {
+      setPasswordError('Incorrect password');
+      setPassword('');
+    }
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('tuning_auth');
+    setIsAuthenticated(false);
+    setPassword('');
+  };
 
   const loadModels = async () => {
     try {
@@ -147,6 +183,56 @@ export default function TuningPage() {
 
   const activeQueryModel = models.find(m => m.is_active_query);
 
+  // Password screen
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-2xl p-8 shadow-2xl">
+            <div className="flex justify-center mb-6">
+              <div className="bg-blue-500/20 p-4 rounded-full">
+                <Lock className="w-8 h-8 text-blue-400" />
+              </div>
+            </div>
+            
+            <h1 className="text-3xl font-bold text-white text-center mb-2">Tuning Dashboard</h1>
+            <p className="text-slate-400 text-center mb-8">QA & Admin Access Only</p>
+            
+            <form onSubmit={handlePasswordSubmit} className="space-y-4">
+              <div>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter password"
+                  className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  autoFocus
+                />
+              </div>
+              
+              {passwordError && (
+                <div className="bg-red-500/20 border border-red-500 text-red-300 px-4 py-2 rounded-lg text-sm">
+                  {passwordError}
+                </div>
+              )}
+              
+              <button
+                type="submit"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition-colors"
+              >
+                Unlock Dashboard
+              </button>
+            </form>
+            
+            <p className="text-slate-500 text-xs text-center mt-6">
+              Contact Hugo or Dr. Chaffee for access
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white p-8">
       <div className="max-w-7xl mx-auto space-y-8">
@@ -159,11 +245,20 @@ export default function TuningPage() {
             </h1>
             <p className="text-slate-400 mt-2">Configure embedding models and search parameters</p>
           </div>
-          {message && (
-            <div className="bg-green-500/20 border border-green-500 text-green-300 px-4 py-2 rounded-lg">
-              {message}
-            </div>
-          )}
+          <div className="flex items-center gap-4">
+            {message && (
+              <div className="bg-green-500/20 border border-green-500 text-green-300 px-4 py-2 rounded-lg">
+                {message}
+              </div>
+            )}
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+              Logout
+            </button>
+          </div>
         </div>
 
         {/* Stats Cards */}
