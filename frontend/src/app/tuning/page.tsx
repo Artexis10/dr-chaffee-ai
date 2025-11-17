@@ -159,70 +159,76 @@ export default function TuningPage() {
   const activeQueryModel = models.find(m => m.is_active_query);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white p-8">
-      <div className="max-w-7xl mx-auto space-y-8">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-4xl font-bold flex items-center gap-3">
-              <Settings className="w-10 h-10 text-blue-400" />
-              AI Tuning Dashboard
-            </h1>
-            <p className="text-slate-400 mt-2">Configure embedding models and search parameters</p>
+    <div className="min-h-screen bg-white dark:bg-slate-950 text-slate-900 dark:text-white">
+      {/* Header */}
+      <header className="sticky top-0 z-50 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+              <Settings className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold">AI Tuning Dashboard</h1>
+              <p className="text-sm text-slate-600 dark:text-slate-400">Manage AI behavior and search parameters</p>
+            </div>
           </div>
           <div className="flex items-center gap-4">
             {message && (
-              <div className="bg-green-500/20 border border-green-500 text-green-300 px-4 py-2 rounded-lg">
+              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 px-4 py-2 rounded-lg text-sm">
                 {message}
               </div>
             )}
             <button
               onClick={handleLogout}
-              className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg transition-colors"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-700 dark:text-slate-300"
             >
               <LogOut className="w-4 h-4" />
               Logout
             </button>
           </div>
         </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
 
         {/* Stats Cards */}
         {stats && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-xl p-6">
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-xl p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-slate-400 text-sm">Total Videos</p>
-                  <p className="text-3xl font-bold mt-1">{stats.total_videos.toLocaleString()}</p>
+                  <p className="text-blue-600 dark:text-blue-400 text-sm font-medium">Total Videos</p>
+                  <p className="text-3xl font-bold text-blue-900 dark:text-blue-100 mt-2">{stats.total_videos.toLocaleString()}</p>
                 </div>
-                <Database className="w-8 h-8 text-blue-400" />
+                <Database className="w-8 h-8 text-blue-400 dark:text-blue-300 opacity-50" />
               </div>
             </div>
-            <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-xl p-6">
+            <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-900/10 border border-green-200 dark:border-green-800 rounded-xl p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-slate-400 text-sm">Total Segments</p>
-                  <p className="text-3xl font-bold mt-1">{stats.total_segments.toLocaleString()}</p>
+                  <p className="text-green-600 dark:text-green-400 text-sm font-medium">Total Segments</p>
+                  <p className="text-3xl font-bold text-green-900 dark:text-green-100 mt-2">{stats.total_segments.toLocaleString()}</p>
                 </div>
-                <TrendingUp className="w-8 h-8 text-green-400" />
+                <TrendingUp className="w-8 h-8 text-green-400 dark:text-green-300 opacity-50" />
               </div>
             </div>
-            <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-xl p-6">
+            <div className="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-xl p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-slate-400 text-sm">Embedding Coverage</p>
-                  <p className="text-3xl font-bold mt-1">{stats.embedding_coverage}</p>
+                  <p className="text-amber-600 dark:text-amber-400 text-sm font-medium">Embedding Coverage</p>
+                  <p className="text-3xl font-bold text-amber-900 dark:text-amber-100 mt-2">{stats.embedding_coverage}</p>
                 </div>
-                <Zap className="w-8 h-8 text-yellow-400" />
+                <Zap className="w-8 h-8 text-amber-400 dark:text-amber-300 opacity-50" />
               </div>
             </div>
-            <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-xl p-6">
+            <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-900/10 border border-purple-200 dark:border-purple-800 rounded-xl p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-slate-400 text-sm">Dimensions</p>
-                  <p className="text-3xl font-bold mt-1">{stats.embedding_dimensions}</p>
+                  <p className="text-purple-600 dark:text-purple-400 text-sm font-medium">Dimensions</p>
+                  <p className="text-3xl font-bold text-purple-900 dark:text-purple-100 mt-2">{stats.embedding_dimensions}</p>
                 </div>
-                <Settings className="w-8 h-8 text-purple-400" />
+                <Settings className="w-8 h-8 text-purple-400 dark:text-purple-300 opacity-50" />
               </div>
             </div>
           </div>
@@ -232,45 +238,47 @@ export default function TuningPage() {
         <CustomInstructionsEditor />
 
         {/* Embedding Models */}
-        <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-xl p-6">
-          <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-            <Zap className="w-6 h-6 text-yellow-400" />
+        <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-8">
+          <h2 className="text-2xl font-bold mb-2 flex items-center gap-3 text-slate-900 dark:text-white">
+            <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+              <Zap className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+            </div>
             Embedding Models
           </h2>
-          <p className="text-slate-400 mb-6">
-            Switch models instantly if embeddings exist. Current: <span className="text-blue-400 font-semibold">{activeQueryModel?.key}</span>
+          <p className="text-slate-600 dark:text-slate-400 mb-6">
+            Switch models instantly if embeddings exist. Current: <span className="text-blue-600 dark:text-blue-400 font-semibold">{activeQueryModel?.key}</span>
           </p>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {models.map((model) => (
               <div
                 key={model.key}
-                className={`border rounded-lg p-4 transition-all ${
+                className={`border rounded-lg p-5 transition-all ${
                   model.is_active_query
-                    ? 'border-blue-500 bg-blue-500/10'
-                    : 'border-slate-600 bg-slate-800/30 hover:border-slate-500'
+                    ? 'border-blue-300 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/20'
+                    : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 hover:border-slate-300 dark:hover:border-slate-600'
                 }`}
               >
-                <div className="flex items-start justify-between mb-2">
+                <div className="flex items-start justify-between mb-3">
                   <div>
-                    <h3 className="font-semibold text-lg">{model.key}</h3>
-                    <p className="text-sm text-slate-400">{model.provider}</p>
+                    <h3 className="font-semibold text-lg text-slate-900 dark:text-white">{model.key}</h3>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">{model.provider}</p>
                   </div>
                   {model.is_active_query && (
-                    <span className="bg-blue-500 text-white text-xs px-2 py-1 rounded">Active</span>
+                    <span className="bg-blue-600 dark:bg-blue-500 text-white text-xs px-2 py-1 rounded-full font-medium">Active</span>
                   )}
                 </div>
                 
-                <p className="text-sm text-slate-300 mb-3">{model.description}</p>
+                <p className="text-sm text-slate-700 dark:text-slate-300 mb-4">{model.description}</p>
                 
-                <div className="flex items-center gap-4 text-sm mb-3">
-                  <div className="flex items-center gap-1">
-                    <Database className="w-4 h-4 text-purple-400" />
-                    <span>{model.dimensions}d</span>
+                <div className="flex items-center gap-4 text-sm mb-4 pb-4 border-t border-slate-200 dark:border-slate-700 pt-4">
+                  <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                    <Database className="w-4 h-4" />
+                    <span className="font-medium">{model.dimensions}d</span>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <DollarSign className="w-4 h-4 text-green-400" />
-                    <span>${model.cost_per_1k}/1k</span>
+                  <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                    <DollarSign className="w-4 h-4" />
+                    <span className="font-medium">${model.cost_per_1k}/1k</span>
                   </div>
                 </div>
                 
@@ -278,7 +286,7 @@ export default function TuningPage() {
                   <button
                     onClick={() => switchQueryModel(model.key)}
                     disabled={loading}
-                    className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 text-white px-4 py-2 rounded-lg transition-colors"
+                    className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 dark:disabled:bg-slate-600 text-white px-4 py-2 rounded-lg transition-colors font-medium"
                   >
                     Switch to this model
                   </button>
@@ -286,74 +294,78 @@ export default function TuningPage() {
               </div>
             ))}
           </div>
-        </div>
+        </section>
 
         {/* Search Configuration */}
-        <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-xl p-6">
-          <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-            <Search className="w-6 h-6 text-green-400" />
+        <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-8">
+          <h2 className="text-2xl font-bold mb-2 flex items-center gap-3 text-slate-900 dark:text-white">
+            <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+              <Search className="w-5 h-5 text-green-600 dark:text-green-400" />
+            </div>
             Search Configuration
           </h2>
+          <p className="text-slate-600 dark:text-slate-400 mb-6">Fine-tune search behavior and result quality</p>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div>
-              <label className="block text-sm font-medium mb-2">
+              <label className="block text-sm font-medium text-slate-900 dark:text-white mb-2">
                 Results to Return (top_k)
               </label>
               <input
                 type="number"
                 value={searchConfig.top_k}
                 onChange={(e) => setSearchConfig({ ...searchConfig, top_k: parseInt(e.target.value) })}
-                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 focus:border-blue-500 focus:outline-none"
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2 text-slate-900 dark:text-white focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 min="1"
                 max="100"
               />
-              <p className="text-xs text-slate-400 mt-1">Number of results to return (1-100)</p>
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Number of results to return (1-100)</p>
             </div>
             
             <div>
-              <label className="block text-sm font-medium mb-2">
+              <label className="block text-sm font-medium text-slate-900 dark:text-white mb-2">
                 Similarity Threshold
               </label>
               <input
                 type="number"
                 value={searchConfig.similarity_threshold}
                 onChange={(e) => setSearchConfig({ ...searchConfig, similarity_threshold: parseFloat(e.target.value) })}
-                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 focus:border-blue-500 focus:outline-none"
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2 text-slate-900 dark:text-white focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 min="0"
                 max="1"
                 step="0.1"
               />
-              <p className="text-xs text-slate-400 mt-1">Minimum similarity score (0.0-1.0)</p>
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Minimum similarity score (0.0-1.0)</p>
             </div>
             
-            <div>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={searchConfig.enable_reranker}
-                  onChange={(e) => setSearchConfig({ ...searchConfig, enable_reranker: e.target.checked })}
-                  className="w-4 h-4"
-                />
-                <span className="text-sm font-medium">Enable Reranker</span>
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="enable_reranker"
+                checked={searchConfig.enable_reranker}
+                onChange={(e) => setSearchConfig({ ...searchConfig, enable_reranker: e.target.checked })}
+                className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500"
+              />
+              <label htmlFor="enable_reranker" className="text-sm font-medium text-slate-900 dark:text-white cursor-pointer">
+                Enable Reranker
               </label>
-              <p className="text-xs text-slate-400 mt-1">Use cross-encoder for better quality (slower)</p>
+              <p className="text-xs text-slate-600 dark:text-slate-400">Use cross-encoder for better quality (slower)</p>
             </div>
             
             {searchConfig.enable_reranker && (
               <div>
-                <label className="block text-sm font-medium mb-2">
+                <label className="block text-sm font-medium text-slate-900 dark:text-white mb-2">
                   Rerank Candidates
                 </label>
                 <input
                   type="number"
                   value={searchConfig.rerank_top_k}
                   onChange={(e) => setSearchConfig({ ...searchConfig, rerank_top_k: parseInt(e.target.value) })}
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 focus:border-blue-500 focus:outline-none"
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2 text-slate-900 dark:text-white focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   min="1"
                   max="500"
                 />
-                <p className="text-xs text-slate-400 mt-1">Candidates to rerank (1-500)</p>
+                <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Candidates to rerank (1-500)</p>
               </div>
             )}
           </div>
@@ -361,15 +373,21 @@ export default function TuningPage() {
           <button
             onClick={updateSearchConfig}
             disabled={loading}
-            className="bg-green-600 hover:bg-green-700 disabled:bg-slate-600 text-white px-6 py-2 rounded-lg transition-colors"
+            className="bg-green-600 hover:bg-green-700 disabled:bg-slate-400 dark:disabled:bg-slate-600 text-white px-6 py-2 rounded-lg transition-colors font-medium"
           >
             Update Search Config
           </button>
-        </div>
+        </section>
 
         {/* Test Search */}
-        <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-xl p-6">
-          <h2 className="text-2xl font-bold mb-4">Test Search</h2>
+        <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-8">
+          <h2 className="text-2xl font-bold mb-2 flex items-center gap-3 text-slate-900 dark:text-white">
+            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+              <Search className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            Test Search
+          </h2>
+          <p className="text-slate-600 dark:text-slate-400 mb-6">Try a test query to see search results</p>
           
           <div className="flex gap-4 mb-6">
             <input
@@ -378,12 +396,12 @@ export default function TuningPage() {
               onChange={(e) => setTestQuery(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && testSearch()}
               placeholder="Enter a test query..."
-              className="flex-1 bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 focus:border-blue-500 focus:outline-none"
+              className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
             <button
               onClick={testSearch}
               disabled={loading || !testQuery.trim()}
-              className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 text-white px-6 py-2 rounded-lg transition-colors"
+              className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 dark:disabled:bg-slate-600 text-white px-6 py-2 rounded-lg transition-colors font-medium"
             >
               Search
             </button>
@@ -392,18 +410,18 @@ export default function TuningPage() {
           {testResults.length > 0 && (
             <div className="space-y-3">
               {testResults.map((result, idx) => (
-                <div key={idx} className="bg-slate-700/50 border border-slate-600 rounded-lg p-4">
+                <div key={idx} className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg p-4">
                   <div className="flex items-start justify-between mb-2">
-                    <span className="text-xs text-slate-400">
+                    <span className="text-xs text-slate-600 dark:text-slate-400 font-medium">
                       Similarity: {(result.similarity * 100).toFixed(1)}%
                     </span>
-                    <span className="text-xs text-slate-400">
+                    <span className="text-xs text-slate-600 dark:text-slate-400">
                       {result.youtube_id} @ {Math.floor(result.start_sec / 60)}:{String(Math.floor(result.start_sec % 60)).padStart(2, '0')}
                     </span>
                   </div>
-                  <p className="text-sm">{result.text}</p>
+                  <p className="text-sm text-slate-900 dark:text-slate-100">{result.text}</p>
                   {result.speaker_label && (
-                    <span className="inline-block mt-2 text-xs bg-blue-500/20 text-blue-300 px-2 py-1 rounded">
+                    <span className="inline-block mt-2 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-1 rounded">
                       {result.speaker_label}
                     </span>
                   )}
@@ -411,8 +429,8 @@ export default function TuningPage() {
               ))}
             </div>
           )}
-        </div>
-      </div>
+        </section>
+      </main>
     </div>
   );
 }
