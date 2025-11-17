@@ -144,7 +144,12 @@ export default function TuningPage() {
   const activeQueryModel = models.find(m => m.is_active_query);
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-950">
+    <>
+      <style>{`
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+      `}</style>
+      <div className="flex min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-950">
       {/* Sidebar */}
       <aside className="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col">
         <div className="p-6 border-b border-slate-200 dark:border-slate-800">
@@ -440,5 +445,6 @@ export default function TuningPage() {
         </div>
       </main>
     </div>
+    </>
   );
 }
