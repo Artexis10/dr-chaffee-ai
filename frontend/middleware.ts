@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 export function middleware(request: NextRequest) {
-  // Only protect the /tuning route
-  if (request.nextUrl.pathname === '/tuning') {
+  const pathname = request.nextUrl.pathname;
+  
+  // Protect all /tuning routes EXCEPT /tuning/auth
+  if (pathname.startsWith('/tuning') && pathname !== '/tuning/auth') {
     // Check if user has auth cookie
     const auth = request.cookies.get('tuning_auth');
     
