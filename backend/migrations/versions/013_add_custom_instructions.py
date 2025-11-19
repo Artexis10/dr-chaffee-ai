@@ -20,6 +20,15 @@ def upgrade() -> None:
     """Create custom_instructions and custom_instructions_history tables"""
     
     conn = op.get_bind()
+    
+    # Clean up orphaned migration entry from failed deployment
+    try:
+        conn.execute(sa.text(
+            "DELETE FROM alembic_version WHERE version_num = '012_custom_instructions'"
+        ))
+    except Exception:
+        pass  # Table might not exist or entry might not be there
+    
     inspector = sa.inspect(conn)
     
     # Only create if tables don't exist
