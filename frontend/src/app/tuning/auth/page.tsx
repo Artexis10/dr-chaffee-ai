@@ -15,15 +15,27 @@ export default function TuningAuth() {
     setLoading(true);
     setError('');
 
-    const tuningPassword = process.env.NEXT_PUBLIC_TUNING_PASSWORD;
+    try {
+      // Validate password on backend (never expose password in frontend)
+      const response = await fetch('/api/tuning/auth/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      });
 
-    if (password === tuningPassword) {
-      document.cookie = 'tuning_auth=true; path=/tuning; max-age=86400';
-      router.push('/tuning');
-      router.refresh();
-    } else {
-      setError('Incorrect password');
-      setPassword('');
+      if (response.ok) {
+        // Set secure httpOnly cookie (set by backend)
+        router.push('/tuning');
+        router.refresh();
+      } else if (response.status === 401) {
+        setError('Incorrect password');
+        setPassword('');
+      } else {
+        setError('Authentication failed');
+      }
+    } catch (err) {
+      setError('Connection error');
+      console.error(err);
     }
 
     setLoading(false);

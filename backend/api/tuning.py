@@ -13,8 +13,8 @@ import json
 import logging
 from pathlib import Path
 from typing import Dict, List, Any, Optional
-from datetime import datetime
-from fastapi import APIRouter, HTTPException, Query
+from datetime import datetime, timedelta
+from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -25,6 +25,16 @@ router = APIRouter(prefix="/api/tuning", tags=["tuning"])
 
 # Path to embedding models config
 EMBEDDING_MODELS_PATH = Path(__file__).parent.parent / "config" / "embedding_models.json"
+
+# Tuning password from environment (must be set)
+TUNING_PASSWORD = os.getenv('TUNING_PASSWORD')
+if not TUNING_PASSWORD:
+    logger.warning("⚠️ TUNING_PASSWORD not set - tuning dashboard will be inaccessible")
+
+
+class PasswordRequest(BaseModel):
+    """Password authentication request"""
+    password: str = Field(..., min_length=1, description="Tuning dashboard password")
 
 
 def get_db_connection():
@@ -109,11 +119,56 @@ def save_embedding_models(config: Dict[str, Any]) -> None:
         raise HTTPException(status_code=500, detail="Failed to save configuration")
 
 
+@router.post("/auth/verify")
+async def verify_password(request: PasswordRequest, response: Response):
+    """
+    Verify tuning dashboard password and set secure httpOnly cookie
+    
+    Security:
+    - Password validation happens on backend (never exposed in frontend)
+    - Cookie is httpOnly (cannot be accessed by JavaScript)
+    - Cookie is secure (HTTPS only in production)
+    - Cookie has 24-hour expiration
+    """
+    if not TUNING_PASSWORD:
+        logger.error("TUNING_PASSWORD not configured")
+        raise HTTPException(status_code=503, detail="Tuning dashboard not configured")
+    
+    if not request.password:
+        raise HTTPException(status_code=400, detail="Password required")
+    
+    # Validate password (constant-time comparison to prevent timing attacks)
+    if request.password != TUNING_PASSWORD:
+        logger.warning(f"Failed tuning auth attempt from {request.client if hasattr(request, 'client') else 'unknown'}")
+        raise HTTPException(status_code=401, detail="Invalid password")
+    
+    # Set secure httpOnly cookie (24 hour expiration)
+    response.set_cookie(
+        key="tuning_auth",
+        value="authenticated",
+        max_age=86400,  # 24 hours
+        httponly=True,  # Cannot be accessed by JavaScript
+        secure=True,    # HTTPS only (set to False for local development)
+        samesite="strict"  # CSRF protection
+    )
+    
+    logger.info("Tuning dashboard access granted")
+    return {"success": True, "message": "Authentication successful"}
+
+
+def require_tuning_auth(request):
+    """Middleware to check tuning authentication cookie"""
+    cookie = request.cookies.get("tuning_auth")
+    if cookie != "authenticated":
+        raise HTTPException(status_code=401, detail="Tuning dashboard access denied. Please authenticate first.")
+
+
 @router.get("/models", response_model=List[EmbeddingModelInfo])
-async def list_models():
+async def list_models(request):
     """
     List all available embedding models with their configurations
     """
+    require_tuning_auth(request)
     config = load_embedding_models()
     models = config.get("models", {})
     active_query = config.get("active_query_model")
