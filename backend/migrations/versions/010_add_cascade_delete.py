@@ -34,23 +34,27 @@ def upgrade() -> None:
     """))
     total_count = result.scalar() or 0
     
-    # Process in batches
-    for offset in range(0, total_count, batch_size):
-        op.execute(text("""
-            UPDATE segments s
-            SET source_id = src.id
-            FROM sources src
-            WHERE s.video_id = src.source_id
-            AND s.source_id IS NULL
-            AND s.id IN (
-                SELECT id FROM segments 
-                WHERE video_id IS NOT NULL AND source_id IS NULL
-                LIMIT :batch_size OFFSET :offset
-            )
-        """).bindparams(batch_size=batch_size, offset=offset))
-    
-    # Make source_id NOT NULL after populating
-    op.alter_column('segments', 'source_id', nullable=False)
+    # Process in batches only if there are segments to update
+    if total_count > 0:
+        for offset in range(0, total_count, batch_size):
+            op.execute(text("""
+                UPDATE segments s
+                SET source_id = src.id
+                FROM sources src
+                WHERE s.video_id = src.source_id
+                AND s.source_id IS NULL
+                AND s.id IN (
+                    SELECT id FROM segments 
+                    WHERE video_id IS NOT NULL AND source_id IS NULL
+                    LIMIT :batch_size OFFSET :offset
+                )
+            """).bindparams(batch_size=batch_size, offset=offset))
+        
+        # Make source_id NOT NULL after populating
+        op.alter_column('segments', 'source_id', nullable=False)
+    else:
+        # If no segments exist yet, just make the column NOT NULL with a default
+        op.alter_column('segments', 'source_id', nullable=False, server_default='1')
     
     # Add foreign key constraint with cascade delete
     op.create_foreign_key(
