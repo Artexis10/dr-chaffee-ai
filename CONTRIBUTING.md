@@ -1,6 +1,6 @@
-# Contributing Guide
+# Development Workflow Guide
 
-Welcome! This guide explains how to contribute to the Dr. Chaffee AI project.
+This guide explains the development workflow for the Dr. Chaffee AI project.
 
 ## Quick Start
 
@@ -35,17 +35,17 @@ git push origin feature/your-feature-name
 # Description: Explain what and why
 ```
 
-### 4. Wait for Checks
+### 4. Automated Checks Run
 
-GitHub Actions will automatically run:
-- ✅ Branch name validation
-- ✅ Commit message validation
-- ✅ Code quality checks
+GitHub Actions automatically validates:
+- ✅ Branch name format
+- ✅ Commit message format
+- ✅ Code quality
 - ✅ Unit tests
 - ✅ Integration tests
 - ✅ Security scan
 
-All must pass before merge.
+All checks must pass before merging to main.
 
 ## Branch Naming
 
@@ -403,19 +403,12 @@ git rebase --continue
 git push origin feature/my-feature --force-with-lease
 ```
 
-## Getting Help
+## Notes
 
-- **Questions?** Open a discussion on GitHub
-- **Found a bug?** Open an issue with details
-- **Have an idea?** Open an issue to discuss
-- **Need help?** Ask in the PR comments
-
-## Code of Conduct
-
-- Be respectful
-- Be constructive
-- Be inclusive
-- Report issues appropriately
+- **Solo development** - No PR approvals needed, just ensure checks pass
+- **Production safety** - Main branch is protected, all changes via branches
+- **Automated validation** - GitHub Actions catches issues before merge
+- **Easy rollback** - If something breaks, revert the commit
 
 ## Resources
 
@@ -426,4 +419,4 @@ git push origin feature/my-feature --force-with-lease
 
 ---
 
-**Thank you for contributing!** 🎉
+**Happy coding!** 🚀

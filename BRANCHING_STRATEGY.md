@@ -2,7 +2,7 @@
 
 ## Overview
 
-This project uses a **feature-branch workflow** with protected `main` branch. All changes go through pull requests with automated checks before merging.
+This project uses a **feature-branch workflow** with a protected `main` branch. All changes go through pull requests with automated checks before merging. This ensures production stability even in solo development.
 
 ## Branch Types
 
@@ -168,14 +168,14 @@ GitHub Actions will automatically run:
 
 **All checks must pass** before merging.
 
-### 5. Code Review
+### 5. Self-Review
 
-- At least 1 approval required (configurable)
-- Reviewers check:
-  - Code quality & style
-  - Test coverage
-  - Security implications
-  - Documentation
+Before merging, verify:
+- ✅ All automated checks pass
+- ✅ Tests pass locally
+- ✅ Code quality is good
+- ✅ Security scan passes
+- ✅ Documentation updated
 
 ### 6. Merge to Main
 
@@ -208,16 +208,15 @@ git pull origin main
 
 Configured in GitHub repository settings:
 
-- ✅ Require pull request reviews (1 approval)
+- ✅ Require pull request (no direct pushes)
 - ✅ Require status checks to pass:
-  - PR Validation
+  - Branch name validation
+  - Commit message validation
   - Code Quality
   - Unit Tests
   - Security Scan
-- ✅ Require branches to be up to date
-- ✅ Require code review before merge
-- ✅ Dismiss stale PR approvals
-- ✅ Require conversation resolution before merge
+- ✅ Require branches to be up to date before merge
+- ✅ Prevent accidental main-to-main PRs
 
 ## Release Process
 
@@ -390,9 +389,18 @@ Check deployment status in PR:
 - Red X = deployment failed
 - Click "Details" to see logs
 
-## Questions?
+## Why This Matters (Solo Dev)
 
-Refer to:
+Even working alone, this workflow provides:
+
+1. **Production Safety** - Main branch is always stable
+2. **Easy Rollback** - If something breaks, revert the commit
+3. **Clean History** - Conventional commits make it easy to find changes
+4. **Automated Checks** - Catch bugs before they reach production
+5. **Documentation** - Clear record of what changed and why
+
+## Resources
+
 - [Conventional Commits](https://www.conventionalcommits.org/)
 - [GitHub Flow](https://guides.github.com/introduction/flow/)
 - [Semantic Versioning](https://semver.org/)
