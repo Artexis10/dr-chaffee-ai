@@ -9,6 +9,7 @@ This migration adds a proper foreign key constraint with ON DELETE CASCADE.
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import text
 
 # revision identifiers, used by Alembic.
 revision = '010'
@@ -23,12 +24,30 @@ def upgrade() -> None:
     
     # Populate source_id from existing video_id references
     # This matches segments to their source records
-    op.execute("""
-        UPDATE segments s
-        SET source_id = src.id
-        FROM sources src
-        WHERE s.video_id = src.source_id
-    """)
+    # Split into smaller batches to avoid timeout on managed PostgreSQL
+    batch_size = 10000
+    
+    # Get total count of segments to update
+    result = op.get_bind().execute(text("""
+        SELECT COUNT(*) as cnt FROM segments s
+        WHERE s.video_id IS NOT NULL AND s.source_id IS NULL
+    """))
+    total_count = result.scalar() or 0
+    
+    # Process in batches
+    for offset in range(0, total_count, batch_size):
+        op.execute(text("""
+            UPDATE segments s
+            SET source_id = src.id
+            FROM sources src
+            WHERE s.video_id = src.source_id
+            AND s.source_id IS NULL
+            AND s.id IN (
+                SELECT id FROM segments 
+                WHERE video_id IS NOT NULL AND source_id IS NULL
+                LIMIT :batch_size OFFSET :offset
+            )
+        """).bindparams(batch_size=batch_size, offset=offset))
     
     # Make source_id NOT NULL after populating
     op.alter_column('segments', 'source_id', nullable=False)
