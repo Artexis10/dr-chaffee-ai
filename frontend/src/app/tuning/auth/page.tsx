@@ -217,13 +217,6 @@ export default function TuningAuth() {
           </a>
         </div>
 
-        <p style={{
-          marginTop: '2rem',
-          color: '#94a3b8',
-          fontSize: '0.85rem'
-        }}>
-          For Dr. Chaffee & Hugo only
-        </p>
       </div>
     </div>
   );
