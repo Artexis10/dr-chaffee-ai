@@ -47,7 +47,7 @@ jobs:
           PYTHONPATH: ${{ github.workspace }};${{ github.workspace }}/backend
       
       - name: Upload coverage HTML report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: coverage-report
           path: htmlcov/
@@ -89,7 +89,7 @@ jobs:
           pip-audit --desc
       
       - name: Upload audit report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: dependency-audit
           path: audit-report.json
