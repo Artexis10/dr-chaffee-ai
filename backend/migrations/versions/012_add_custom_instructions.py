@@ -1,6 +1,6 @@
 """Add custom instructions for AI tuning
 
-Revision ID: 012_custom_instructions
+Revision ID: 012
 Revises: 011
 Create Date: 2025-11-14 20:30:00.000000
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '012_custom_instructions'
+revision = '012'
 down_revision = '011'
 branch_labels = None
 depends_on = None

@@ -1,7 +1,7 @@
 """Placeholder migration after custom instructions
 
 Revision ID: 013
-Revises: 012_custom_instructions
+Revises: 012
 Create Date: 2025-11-19 21:40:00
 
 This migration serves as a placeholder to establish the migration chain after
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '013'
-down_revision = '012_custom_instructions'
+down_revision = '012'
 branch_labels = None
 depends_on = None
 
