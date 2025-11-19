@@ -10,7 +10,7 @@ python-dotenv==1.0.0
 # Web API (minimal for cron)
 fastapi==0.104.1
 uvicorn==0.24.0
-python-multipart==0.0.6
+python-multipart==0.0.18
 
 # Database and async
 asyncio-throttle==1.0.2
@@ -24,7 +24,7 @@ google-auth-oauthlib==1.1.0
 # ML dependencies - EXACT VERSIONS
 torch==2.5.0
 torchaudio==2.5.0
-transformers==4.41.0
+transformers==4.47.0
 sentence-transformers==2.7.0
 
 # Whisper (lightweight, CPU-optimized)

@@ -94,8 +94,52 @@ If you discover a security vulnerability or an exposed API key:
 4. **Audit usage** to detect any unauthorized access
 5. **Document the incident** and improve processes
 
+## Reporting Security Vulnerabilities
+
+If you discover a security vulnerability, please report it responsibly:
+
+1. **DO NOT** create a public GitHub issue
+2. **Email** the maintainers directly (see repository for contact)
+3. **Include** detailed steps to reproduce the vulnerability
+4. **Wait** for acknowledgment before public disclosure
+
+We aim to respond to security reports within 48 hours.
+
+## Automated Security Measures
+
+This project uses several automated security tools:
+
+1. **Dependabot**: Automated dependency updates for security patches
+   - Configuration: `.github/dependabot.yml`
+   - Runs weekly on Mondays
+
+2. **GitHub Actions Security Scan**: Automated security scanning
+   - Workflow: `.github/workflows/security-scan.yml`
+   - Runs on every push, PR, and weekly schedule
+   - Includes:
+     - `pip-audit` for Python dependencies
+     - Gitleaks for secret scanning
+     - `npm audit` for JavaScript dependencies
+     - CodeQL static analysis
+
+3. **Pre-commit Hooks**: Local validation before commits
+   - Secret detection
+   - Private key detection
+   - Install: `pre-commit install`
+
+## Security Audit History
+
+- **November 19, 2025**: Comprehensive security audit completed
+  - Fixed `python-multipart` ReDos vulnerability (0.0.6 → 0.0.18)
+  - Fixed `transformers` deserialization vulnerability (4.41.0 → 4.47.0)
+  - Verified no secrets in repository
+  - Added automated security scanning
+  - See: `SECURITY_AUDIT_2025.md` and `SECURITY_FIXES_APPLIED.md`
+
 ## Additional Resources
 
 - [Google API Key Best Practices](https://cloud.google.com/docs/authentication/api-keys)
 - [OWASP Secrets Management Guide](https://owasp.org/www-project-cheat-sheets/cheatsheets/Secrets_Management_Cheat_Sheet.html)
 - [GitHub Security Best Practices](https://docs.github.com/en/code-security/secret-scanning/about-secret-scanning)
+- [pip-audit Documentation](https://pypi.org/project/pip-audit/)
+- [Dependabot Documentation](https://docs.github.com/en/code-security/dependabot)

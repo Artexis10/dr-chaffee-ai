@@ -12,7 +12,7 @@ alembic>=1.13.0  # Database migrations (required for pre-deploy)
 # Web API (FastAPI + ASGI server)
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
-python-multipart==0.0.6  # Required for file upload endpoints
+python-multipart==0.0.18  # Required for file upload endpoints (updated for security)
 
 # HTTP client for Nomic API calls
 requests>=2.31.0
