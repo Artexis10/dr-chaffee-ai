@@ -1,19 +1,21 @@
-"""Fix alembic_version table to use numeric revision IDs
+"""Fix alembic_version table and create custom_instructions tables
 
 Revision ID: 014
-Revises: 012_custom_instructions
+Revises: 011
 Create Date: 2025-11-19 21:54:00
 
-The database has '012_custom_instructions' recorded in alembic_version.
-This migration chains from that revision and updates the version number
-to '014' while creating the custom_instructions tables.
+The database has '012_custom_instructions' recorded in alembic_version from a failed deployment.
+This migration:
+1. Deletes the orphaned '012_custom_instructions' entry
+2. Creates custom_instructions tables if they don't exist
+3. Establishes a clean migration chain: 011 -> 014
 """
 from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '014'
-down_revision = '012_custom_instructions'
+down_revision = '011'
 branch_labels = None
 depends_on = None
 
