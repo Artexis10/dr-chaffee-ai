@@ -19,16 +19,19 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Check if the old revision ID exists in alembic_version
+    # The database has '012_custom_instructions' in alembic_version from a previous
+    # failed deployment. We need to handle this gracefully.
     conn = op.get_bind()
+    
+    # Check if the problematic revision exists
     result = conn.execute(sa.text(
         "SELECT version_num FROM alembic_version WHERE version_num = '012_custom_instructions'"
     ))
     
     if result.fetchone():
-        # Update the old revision ID to the new numeric one
+        # Delete it so Alembic can continue - the tables were already created
         conn.execute(sa.text(
-            "UPDATE alembic_version SET version_num = '012' WHERE version_num = '012_custom_instructions'"
+            "DELETE FROM alembic_version WHERE version_num = '012_custom_instructions'"
         ))
     
     # Now apply migration 012's changes if they haven't been applied yet
