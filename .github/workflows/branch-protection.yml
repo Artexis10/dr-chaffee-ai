@@ -1,0 +1,220 @@
+name: Branch Protection & Validation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+  push:
+    branches:
+      - main
+      - develop
+
+jobs:
+  validate-branch-name:
+    name: Validate Branch Name
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Check branch naming convention
+        run: |
+          BRANCH_NAME="${{ github.head_ref }}"
+          
+          # Valid branch patterns
+          if [[ "$BRANCH_NAME" =~ ^(feature|feat|fix|bugfix|hotfix|docs|refactor|test|chore|perf)\/[a-z0-9\-]+$ ]]; then
+            echo "✅ Branch name '$BRANCH_NAME' follows convention"
+            exit 0
+          fi
+          
+          echo "❌ Branch name '$BRANCH_NAME' does not follow naming convention"
+          echo ""
+          echo "Valid patterns:"
+          echo "  - feature/feature-name"
+          echo "  - feat/feature-name"
+          echo "  - fix/bug-name"
+          echo "  - bugfix/bug-name"
+          echo "  - hotfix/issue-name"
+          echo "  - docs/doc-name"
+          echo "  - refactor/refactor-name"
+          echo "  - test/test-name"
+          echo "  - chore/chore-name"
+          echo "  - perf/perf-name"
+          echo ""
+          echo "Examples:"
+          echo "  ✅ feature/custom-instructions"
+          echo "  ✅ fix/numpy-compatibility"
+          echo "  ✅ docs/deployment-guide"
+          echo "  ❌ update-stuff"
+          echo "  ❌ WIP"
+          echo "  ❌ main (cannot PR to main from main)"
+          exit 1
+
+  validate-commit-messages:
+    name: Validate Commit Messages
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Check conventional commit format
+        run: |
+          # Get all commits in PR
+          COMMITS=$(git log origin/${{ github.base_ref }}...HEAD --pretty=format:"%H %s")
+          
+          VALID=true
+          while IFS= read -r COMMIT; do
+            HASH=$(echo "$COMMIT" | awk '{print $1}')
+            MESSAGE=$(echo "$COMMIT" | cut -d' ' -f2-)
+            
+            # Check conventional commit format
+            if [[ ! "$MESSAGE" =~ ^(feat|fix|docs|style|refactor|test|chore|perf)(\(.+\))?:\ .+ ]]; then
+              echo "❌ Invalid commit message: $MESSAGE"
+              echo "   Hash: $HASH"
+              VALID=false
+            fi
+          done <<< "$COMMITS"
+          
+          if [ "$VALID" = false ]; then
+            echo ""
+            echo "Commit messages must follow Conventional Commits format:"
+            echo "  <type>(<scope>): <subject>"
+            echo ""
+            echo "Valid types:"
+            echo "  - feat: A new feature"
+            echo "  - fix: A bug fix"
+            echo "  - docs: Documentation only changes"
+            echo "  - style: Changes that don't affect code meaning"
+            echo "  - refactor: Code change that neither fixes a bug nor adds a feature"
+            echo "  - test: Adding missing tests or correcting existing tests"
+            echo "  - chore: Changes to build process, dependencies, tooling"
+            echo "  - perf: Code change that improves performance"
+            echo ""
+            echo "Examples:"
+            echo "  ✅ feat: add custom instructions for AI tuning"
+            echo "  ✅ fix(ingestion): resolve segment insertion error"
+            echo "  ✅ docs: update README with setup instructions"
+            echo "  ✅ test: add unit tests for embeddings"
+            exit 1
+          fi
+          
+          echo "✅ All commit messages follow Conventional Commits format"
+
+  prevent-main-to-main:
+    name: Prevent Main → Main PR
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Check PR target
+        run: |
+          if [[ "${{ github.base_ref }}" == "main" && "${{ github.head_ref }}" == "main" ]]; then
+            echo "❌ Cannot create PR from main to main"
+            exit 1
+          fi
+          
+          echo "✅ PR target is valid"
+
+  check-protected-files:
+    name: Check Protected Files
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Check for changes to protected files
+        run: |
+          # Files that should only be changed via specific PRs
+          PROTECTED_FILES=(
+            "SECURITY.md"
+            ".github/workflows/deploy-*.yml"
+            "docker-compose.prod.yml"
+            "Dockerfile"
+          )
+          
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+          
+          WARNING=false
+          for FILE in "${PROTECTED_FILES[@]}"; do
+            if echo "$CHANGED_FILES" | grep -q "^$FILE$"; then
+              echo "⚠️ Warning: Protected file changed: $FILE"
+              echo "   Please ensure this change is intentional and well-tested"
+              WARNING=true
+            fi
+          done
+          
+          if [ "$WARNING" = true ]; then
+            echo ""
+            echo "Protected files require extra scrutiny during review"
+          fi
+
+  prevent-direct-main-push:
+    name: Prevent Direct Push to Main
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Check push source
+        run: |
+          # This job will fail if someone tries to push directly to main
+          # (bypassing branch protection)
+          echo "❌ Direct push to main detected!"
+          echo "All changes to main must go through pull requests"
+          exit 1
+
+  enforce-pr-checks:
+    name: Enforce PR Checks
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    needs: [validate-branch-name, validate-commit-messages, prevent-main-to-main, check-protected-files]
+    
+    steps:
+      - name: All checks passed
+        run: |
+          echo "✅ All branch protection checks passed"
+          echo ""
+          echo "Summary:"
+          echo "  ✅ Branch name follows convention"
+          echo "  ✅ Commit messages follow Conventional Commits"
+          echo "  ✅ PR target is valid"
+          echo "  ✅ Protected files checked"
+          echo ""
+          echo "Next steps:"
+          echo "  1. Wait for code quality checks"
+          echo "  2. Wait for tests to pass"
+          echo "  3. Wait for security scan"
+          echo "  4. Request review from team members"
+          echo "  5. Merge when all checks pass and approved"
+
+  pr-summary:
+    name: Generate PR Summary
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Create PR summary
+        run: |
+          echo "## 🔍 PR Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** \`${{ github.head_ref }}\` → \`${{ github.base_ref }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Author:** @${{ github.event.pull_request.user.login }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Title:** ${{ github.event.pull_request.title }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Changes" >> $GITHUB_STEP_SUMMARY
+          git diff --stat origin/${{ github.base_ref }}...HEAD >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📝 Commits" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          git log --oneline origin/${{ github.base_ref }}...HEAD >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
