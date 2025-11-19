@@ -30,6 +30,21 @@ npm start
 
 ---
 
+## 🎥 **YouTube Ingestion Setup**
+
+**Critical:** YouTube requires authentication to download videos. Follow this guide:
+
+📖 **See [YOUTUBE_BOT_DETECTION_GUIDE.md](YOUTUBE_BOT_DETECTION_GUIDE.md) for setup**
+
+**Quick setup (recommended):**
+```bash
+pip install bgutil-ytdlp-pot-provider
+cd backend
+py -3.11 scripts\ingest_youtube.py --source yt-dlp --limit 100 --newest-first
+```
+
+---
+
 ## 🔒 **Security: Git Hooks**
 
 **After cloning, run:**

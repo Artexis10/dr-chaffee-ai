@@ -384,7 +384,16 @@ class VoiceEnrollment:
                         logger.debug(f"✅ Batch {batch_num}/{total_batches}: Processed {len(batch_segments)} segments")
                             
                 except Exception as batch_error:
+                    import traceback
                     logger.error(f"❌ Batch processing failed, falling back to sequential: {batch_error}")
+                    logger.debug(f"Full traceback:\n{traceback.format_exc()}")
+                    
+                    # Log CUDA-specific errors with more context
+                    if 'CUDA' in str(batch_error):
+                        logger.warning(f"⚠️  CUDA error detected: {batch_error}")
+                        logger.warning(f"⚠️  Device: {self._device}, Batch size: {batch_size}, Batch num: {batch_num}")
+                        if torch.cuda.is_available():
+                            logger.warning(f"⚠️  GPU memory: {torch.cuda.memory_allocated() / 1e9:.1f}GB / {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f}GB")
                     
                     # Fallback to sequential processing for this batch
                     for segment in batch_segments:
@@ -945,7 +954,15 @@ class VoiceEnrollment:
                     del batch_embeddings
                 
                 except Exception as e:
+                    import traceback
                     logger.error(f"Batch embedding extraction failed: {e}")
+                    logger.debug(f"Full traceback:\n{traceback.format_exc()}")
+                    
+                    # Log CUDA-specific errors with more context
+                    if 'CUDA' in str(e):
+                        logger.warning(f"⚠️  CUDA error in batch extraction: {e}")
+                        if torch.cuda.is_available():
+                            logger.warning(f"⚠️  GPU memory: {torch.cuda.memory_allocated() / 1e9:.1f}GB / {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f}GB")
                     continue
             
             logger.info(f"Extracted {sum(1 for e in embeddings_result if e is not None)}/{len(time_segments)} embeddings from batch")

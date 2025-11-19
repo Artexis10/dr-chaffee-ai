@@ -463,6 +463,7 @@ class ProcessingStats:
     processed: int = 0
     skipped: int = 0
     errors: int = 0
+    no_audio: int = 0  # Videos with no audio track (video-only streams)
     youtube_transcripts: int = 0
     whisper_transcripts: int = 0
     segments_created: int = 0
@@ -506,6 +507,7 @@ class ProcessingStats:
         logger.info(f"Total videos: {self.total}")
         logger.info(f"Processed: {self.processed}")
         logger.info(f"Skipped: {self.skipped}")
+        logger.info(f"No audio (video-only): {self.no_audio}")
         logger.info(f"Errors: {self.errors}")
         logger.info(f"YouTube transcripts: {self.youtube_transcripts}")
         logger.info(f"Whisper transcripts: {self.whisper_transcripts}")
@@ -871,6 +873,12 @@ class EnhancedYouTubeIngester:
                     cleanup_audio=self.config.cleanup_audio,
                     enable_silence_removal=False  # Conservative default
                 )
+            
+            # Check for "NO_AUDIO" marker (video-only stream with no audio track)
+            if isinstance(segments, tuple) and segments[0] == "NO_AUDIO":
+                logger.warning(f"⏭️  Skipping {video_id}: video-only stream (no audio track)")
+                self.stats.no_audio += 1
+                return False
             
             if not segments:
                 error_msg = metadata.get('error', 'Failed to fetch transcript')
@@ -1367,6 +1375,14 @@ class EnhancedYouTubeIngester:
                 )
                 asr_end_time = time.time()
                 
+                # Check for "NO_AUDIO" marker (video-only stream)
+                if isinstance(segments, tuple) and segments[0] == "NO_AUDIO":
+                    logger.warning(f"⏭️  Skipping {video.video_id}: video-only stream (no audio track)")
+                    with stats_lock:
+                        self.stats.no_audio += 1
+                    update_progress_func()
+                    continue
+                
                 if segments:
                     # Track ASR processing time for RTF calculation
                     asr_processing_time = asr_end_time - asr_start_time
@@ -1445,6 +1461,19 @@ class EnhancedYouTubeIngester:
                     logger.error(f"❌ Failed to unpack ASR result for {video.video_id}: {e} (result type: {type(asr_result)}, result: {asr_result})")
                     with stats_lock:
                         self.stats.errors += 1
+                    continue
+                
+                # Check for "NO_AUDIO" marker (video-only stream)
+                if isinstance(segments, tuple) and segments[0] == "NO_AUDIO":
+                    logger.warning(f"⏭️  Skipping {video.video_id}: video-only stream (no audio track)")
+                    with stats_lock:
+                        self.stats.no_audio += 1
+                    # Clean up audio if needed
+                    if self.config.cleanup_audio and audio_path and os.path.exists(audio_path):
+                        try:
+                            os.unlink(audio_path)
+                        except:
+                            pass
                     continue
                 
                 # Process embeddings immediately (per-video for real-time insertion)

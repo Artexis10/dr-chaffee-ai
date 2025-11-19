@@ -167,7 +167,10 @@ class EnhancedTranscriptFetcher(BaseTranscriptFetcher):
             
             # DIAGNOSTIC: Check voice embedding coverage
             voice_emb_count = sum(1 for s in segments if s.voice_embedding is not None)
-            logger.info(f"📊 Voice embedding coverage: {voice_emb_count}/{len(segments)} segments ({voice_emb_count/len(segments)*100:.1f}%)")
+            if len(segments) > 0:
+                logger.info(f"📊 Voice embedding coverage: {voice_emb_count}/{len(segments)} segments ({voice_emb_count/len(segments)*100:.1f}%)")
+            else:
+                logger.warning("No segments to check voice embedding coverage")
             
             # Add enhanced ASR metadata
             metadata.update({
@@ -327,6 +330,13 @@ class EnhancedTranscriptFetcher(BaseTranscriptFetcher):
                 elif len(video_id_or_path) == 11 and video_id_or_path.replace('-', '').replace('_', '').isalnum():
                     # YouTube video ID - need to download audio first
                     audio_path = self._download_audio_for_enhanced_asr(video_id_or_path)
+                    
+                    # Check for "NO_AUDIO" marker (video-only stream)
+                    if isinstance(audio_path, tuple) and audio_path[0] == "NO_AUDIO":
+                        logger.warning(f"⏭️  Skipping {video_id_or_path}: video-only stream (no audio track)")
+                        metadata['error'] = 'Video-only stream with no audio track'
+                        return ("NO_AUDIO", video_id_or_path), 'no_audio', metadata
+                    
                     if not audio_path:
                         logger.error("Failed to download audio for Enhanced ASR")
                         return self._fallback_to_standard_whisper(video_id_or_path, metadata)
@@ -404,94 +414,130 @@ class EnhancedTranscriptFetcher(BaseTranscriptFetcher):
             )
     
     def _download_audio_for_enhanced_asr(self, video_id: str) -> Optional[str]:
-        """Download audio file for Enhanced ASR processing"""
-        try:
-            import tempfile
-            import subprocess
-            
-            # Create temporary directory for download
-            temp_dir = tempfile.mkdtemp()
-            output_template = os.path.join(temp_dir, f'{video_id}.%(ext)s')
-            
-            # Use yt-dlp with android client to avoid SABR streaming issues
-            cmd = [
-                self.yt_dlp_path,
-                '--format', 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best',  # Prioritize best quality, prefer lossless formats
-                '--no-playlist', 
-                '--ignore-errors',
-                # Use android client to avoid SABR streaming (web_safari causes errors)
-                '--extractor-args', 'youtube:player_client=android',
-                '-4',  # Force IPv4 (fixes many 403s)
-                '--retry-sleep', '2',  # Pause between retries  
-                '--retries', '10',  # More retries
-                '--fragment-retries', '10',
-                '--sleep-requests', '1',  # Reduced sleep for faster downloads
-                '--min-sleep-interval', '1',  # Min sleep time
-                '--max-sleep-interval', '3',  # Max sleep time (reduced for speed)
-                '--socket-timeout', '30',  # Reduced timeout
-                '--user-agent', 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-                '--referer', 'https://www.youtube.com/',
-                '-o', output_template,
-                f'https://www.youtube.com/watch?v={video_id}'
-            ]
-            
-            # Add GPT-5's browser cookie solution (Firefox most reliable)
-            # Check for cookies.txt file first (manual export)
-            cookies_file = os.path.join(os.path.dirname(output_template), 'cookies.txt')
-            if os.path.exists('cookies.txt'):
-                cmd.extend(['--cookies', 'cookies.txt'])
-                logger.info("Using manual cookies.txt file")
-            else:
-                # Try Firefox browser cookies (GPT-5 recommendation: most reliable)
-                cmd.extend(['--cookies-from-browser', 'firefox'])
-                logger.info("Attempting to use Firefox cookies (GPT-5 recommended)")
-            
-            if self.ffmpeg_path:
-                cmd.extend(['--ffmpeg-location', self.ffmpeg_path])
-            
-            if self.proxies:
-                if isinstance(self.proxies, dict) and 'http' in self.proxies:
-                    cmd.extend(['--proxy', self.proxies['http']])
-                elif isinstance(self.proxies, str):
-                    cmd.extend(['--proxy', self.proxies])
-            
-            logger.info(f"Running yt-dlp command: {' '.join(cmd)}")
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
-            
-            logger.info(f"yt-dlp stdout: {result.stdout}")
-            if result.stderr:
-                logger.warning(f"yt-dlp stderr: {result.stderr}")
-            
-            if result.returncode == 0:
-                # Find the actual output file (various audio formats)
-                for ext in ['.webm', '.mp4', '.m4a', '.mp3', '.wav', '.opus']:
-                    potential_path = os.path.join(temp_dir, f"{video_id}{ext}")
-                    if os.path.exists(potential_path):
-                        logger.info(f"Audio downloaded successfully: {potential_path}")
-                        return potential_path
+        """Download audio file for Enhanced ASR processing with fallback chain"""
+        import tempfile
+        import subprocess
+        import shutil
+        
+        # Create temporary directory for download
+        temp_dir = tempfile.mkdtemp()
+        output_template = os.path.join(temp_dir, f'{video_id}.%(ext)s')
+        
+        # Fallback chain: web -> android -> default (no client specification)
+        client_strategies = [
+            ('web', 'youtube:player_client=web'),
+            ('android', 'youtube:player_client=android'),
+            ('default', None)  # No client specification
+        ]
+        
+        for strategy_name, client_arg in client_strategies:
+            try:
+                logger.info(f"🔄 Attempting download with {strategy_name} client for {video_id}")
                 
-                # List all files in temp directory for debugging
-                files_in_dir = os.listdir(temp_dir)
-                logger.error(f"Audio download succeeded but file not found. Files in {temp_dir}: {files_in_dir}")
+                # Build base command
+                cmd = [
+                    self.yt_dlp_path,
+                    '--format', 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best',
+                    '--no-playlist', 
+                    '--ignore-errors',
+                ]
                 
-                # Clean up temp directory
-                import shutil
-                shutil.rmtree(temp_dir, ignore_errors=True)
-                return None
-            else:
-                logger.error(f"Audio download failed: {result.stderr}")
-                # Clean up temp directory
-                import shutil
-                shutil.rmtree(temp_dir, ignore_errors=True)
-                return None
+                # Add client-specific args
+                if client_arg:
+                    cmd.extend(['--extractor-args', client_arg])
                 
-        except Exception as e:
-            logger.error(f"Failed to download audio for Enhanced ASR: {e}")
-            # Clean up temp directory if it exists
-            if 'temp_dir' in locals():
-                import shutil
-                shutil.rmtree(temp_dir, ignore_errors=True)
-            return None
+                # Add common args
+                cmd.extend([
+                    '-4',  # Force IPv4 (fixes many 403s)
+                    '--retry-sleep', '5',
+                    '--retries', '15',
+                    '--fragment-retries', '15',
+                    '--sleep-requests', '3',
+                    '--min-sleep-interval', '2',
+                    '--max-sleep-interval', '5',
+                    '--socket-timeout', '30',
+                    '--user-agent', 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+                    '--referer', 'https://www.youtube.com/',
+                    '-o', output_template,
+                    f'https://www.youtube.com/watch?v={video_id}'
+                ])
+                
+                # Add cookies if available
+                if os.path.exists('cookies.txt'):
+                    cmd.extend(['--cookies', 'cookies.txt'])
+                    logger.debug("Using manual cookies.txt file")
+                
+                if self.ffmpeg_path:
+                    cmd.extend(['--ffmpeg-location', self.ffmpeg_path])
+                
+                if self.proxies:
+                    if isinstance(self.proxies, dict) and 'http' in self.proxies:
+                        cmd.extend(['--proxy', self.proxies['http']])
+                    elif isinstance(self.proxies, str):
+                        cmd.extend(['--proxy', self.proxies])
+                
+                logger.debug(f"Running yt-dlp command: {' '.join(cmd)}")
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+                
+                logger.debug(f"yt-dlp stdout: {result.stdout}")
+                if result.stderr:
+                    logger.debug(f"yt-dlp stderr: {result.stderr}")
+                
+                if result.returncode == 0:
+                    # Find the actual output file
+                    for ext in ['.webm', '.mp4', '.m4a', '.mp3', '.wav', '.opus']:
+                        potential_path = os.path.join(temp_dir, f"{video_id}{ext}")
+                        if os.path.exists(potential_path):
+                            file_size = os.path.getsize(potential_path)
+                            
+                            # Validate file size (reject stub files < 50 KiB)
+                            if file_size < 50 * 1024:
+                                logger.warning(f"⚠️  Downloaded file too small ({file_size/1024:.1f} KiB) with {strategy_name} client - likely a stub/partial file")
+                                os.unlink(potential_path)
+                                break  # Try next strategy
+                            
+                            # Validate audio codec for MP4/WebM (reject video-only files)
+                            if ext in ['.mp4', '.webm', '.m4a']:
+                                try:
+                                    import subprocess as sp
+                                    probe_cmd = [
+                                        'ffprobe', '-v', 'error',
+                                        '-select_streams', 'a:0',
+                                        '-show_entries', 'stream=codec_type',
+                                        '-of', 'default=noprint_wrappers=1:nokey=1:noinvalidchars=1',
+                                        potential_path
+                                    ]
+                                    probe_result = sp.run(probe_cmd, capture_output=True, text=True, timeout=10)
+                                    has_audio = 'audio' in probe_result.stdout.lower()
+                                    
+                                    if not has_audio:
+                                        logger.warning(f"⚠️  Downloaded file has no audio track with {strategy_name} client - likely video-only")
+                                        os.unlink(potential_path)
+                                        break  # Try next strategy
+                                except Exception as probe_error:
+                                    logger.debug(f"Could not probe audio codec: {probe_error}")
+                                    # Continue anyway - ffprobe might not be available
+                            
+                            logger.info(f"✅ Audio downloaded successfully with {strategy_name} client: {potential_path} ({file_size/1024:.1f} KiB)")
+                            return potential_path
+                    
+                    # File not found or too small
+                    logger.warning(f"❌ Download with {strategy_name} client failed: file not found or too small")
+                else:
+                    logger.warning(f"❌ Download with {strategy_name} client failed: return code {result.returncode}")
+                
+            except subprocess.TimeoutExpired:
+                logger.warning(f"⏱️  Download with {strategy_name} client timed out after 600s")
+            except Exception as e:
+                logger.warning(f"❌ Download with {strategy_name} client failed: {e}")
+        
+        # All strategies failed
+        logger.error(f"🚫 All download strategies failed for {video_id}")
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        
+        # Return special marker if all files had no audio (not a download error)
+        # This will be checked by the caller to distinguish "no audio" from "download failed"
+        return ("NO_AUDIO", video_id)
     
     def _store_audio_permanently(self, temp_audio_path: str, video_id: str) -> Optional[Path]:
         """Store downloaded audio file permanently using parent class method"""
