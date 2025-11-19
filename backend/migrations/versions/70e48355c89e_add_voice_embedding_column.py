@@ -5,7 +5,7 @@ voice embeddings used for speaker identification. This is separate from the exis
 embedding column which stores 1536-dim text embeddings for semantic search.
 
 Revision ID: 70e48355c89e
-Revises: 011
+Revises: 003
 Create Date: 2025-10-06 21:08:52.218738
 
 """
@@ -16,7 +16,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = '70e48355c89e'
-down_revision = '011'
+down_revision = '003'
 branch_labels = None
 depends_on = None
 
