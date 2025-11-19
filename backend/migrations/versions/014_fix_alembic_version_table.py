@@ -1,19 +1,19 @@
 """Fix alembic_version table to use numeric revision IDs
 
 Revision ID: 014
-Revises: 011
+Revises: 012_custom_instructions
 Create Date: 2025-11-19 21:54:00
 
-The database has '012_custom_instructions' recorded in alembic_version,
-but the migration file now uses '012'. This migration updates the
-alembic_version table to use the correct numeric ID.
+The database has '012_custom_instructions' recorded in alembic_version.
+This migration chains from that revision and updates the version number
+to '014' while creating the custom_instructions tables.
 """
 from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '014'
-down_revision = '011'
+down_revision = '012_custom_instructions'
 branch_labels = None
 depends_on = None
 
