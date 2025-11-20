@@ -126,9 +126,27 @@
   --shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.7), 0 4px 8px rgba(255, 255, 255, 0.04);
 }
 
-* {
-  margin: 0;
-  padding: 0;
+html.dark-mode {
+  /* Neutral colors - Dark Mode (Rich) */
+  --color-background: #0a0a0a;
+  --color-card: #141414;
+  --color-text: #fafafa;
+  --color-text-light: #b0b0b0;
+  --color-text-muted: #808080;
+  --color-border: #2a2a2a;
+  --color-border-light: #1a1a1a;
+  
+  /* Color system - Dark Mode adjustments */
+  --color-primary: #ffffff;
+  --color-primary-dark: #fafafa;
+  --color-primary-light: #d0d0d0;
+  --color-secondary: #a0a0a0;
+  --color-secondary-dark: #c0c0c0;
+  
+  /* Shadows - Dark Mode (Subtle highlights) */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(255, 255, 255, 0.02);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.6), 0 2px 4px rgba(255, 255, 255, 0.03);
+  --shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.7), 0 4px 8px rgba(255, 255, 255, 0.04);
   box-sizing: border-box;
 }
 
