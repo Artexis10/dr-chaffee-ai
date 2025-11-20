@@ -57,6 +57,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Startup event to warm up embedding model
+@app.on_event("startup")
+async def startup_event():
+    """Warm up embedding model on startup to avoid slow first request"""
+    try:
+        logger.info("🚀 Warming up embedding model on startup...")
+        generator = get_embedding_generator()
+        # Generate a dummy embedding to load the model
+        _ = generator.generate_embeddings(["warmup"])
+        logger.info("✅ Embedding model warmed up successfully")
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to warm up embedding model: {e}")
+
 # Security
 security = HTTPBearer()
 ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "admin-secret-key")
