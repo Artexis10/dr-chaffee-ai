@@ -57,36 +57,42 @@ export const DarkModeToggle: React.FC = () => {
       <style jsx>{`
         .dark-mode-toggle {
           position: fixed;
-          bottom: 20px;
-          right: 20px;
-          width: 48px;
-          height: 48px;
+          bottom: 24px;
+          right: 24px;
+          width: 52px;
+          height: 52px;
           border-radius: 50%;
-          background: var(--color-card);
-          border: 1px solid var(--color-border);
-          color: var(--color-text);
+          background: ${isDarkMode ? '#1a1a1a' : '#ffffff'};
+          border: 2px solid ${isDarkMode ? '#2a2a2a' : '#e0e0e0'};
+          color: ${isDarkMode ? '#fafafa' : '#0a0a0a'};
           display: flex;
           align-items: center;
           justify-content: center;
           cursor: pointer;
-          z-index: 100;
-          box-shadow: var(--shadow-md);
-          transition: all var(--transition-normal);
+          z-index: 1000;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, ${isDarkMode ? '0.6' : '0.15'}), 
+                      0 2px 4px rgba(0, 0, 0, ${isDarkMode ? '0.4' : '0.1'});
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          backdrop-filter: blur(10px);
         }
         
         .dark-mode-toggle:hover {
-          transform: translateY(-3px);
-          box-shadow: var(--shadow-lg);
-          background: ${isDarkMode ? 'var(--color-primary)' : 'var(--color-accent)'};
-          color: white;
+          transform: translateY(-2px) scale(1.05);
+          box-shadow: 0 8px 20px rgba(0, 0, 0, ${isDarkMode ? '0.7' : '0.2'}), 
+                      0 4px 8px rgba(0, 0, 0, ${isDarkMode ? '0.5' : '0.15'});
+          border-color: ${isDarkMode ? '#ffffff' : '#000000'};
+        }
+        
+        .dark-mode-toggle:active {
+          transform: translateY(0) scale(0.98);
         }
         
         @media (max-width: 768px) {
           .dark-mode-toggle {
-            width: 40px;
-            height: 40px;
-            bottom: 15px;
-            right: 15px;
+            width: 44px;
+            height: 44px;
+            bottom: 16px;
+            right: 16px;
           }
         }
       `}</style>
