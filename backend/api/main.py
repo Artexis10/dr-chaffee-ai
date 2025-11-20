@@ -437,7 +437,7 @@ async def semantic_search(request: SearchRequest):
             search_query = f"""
                 SELECT 
                     seg.id,
-                    seg.video_id,
+                    s.source_id as video_id,
                     s.title,
                     seg.text,
                     seg.start_sec as start_time_seconds,
@@ -448,7 +448,7 @@ async def semantic_search(request: SearchRequest):
                     1 - (se.embedding <=> %s::vector({expected_dim})) as similarity
                 FROM segments seg
                 JOIN segment_embeddings se ON seg.id = se.segment_id
-                JOIN sources s ON seg.video_id = s.source_id
+                JOIN sources s ON seg.source_id = s.id
                 WHERE seg.speaker_label = 'Chaffee'
                   AND se.model_key = %s
                   AND se.embedding IS NOT NULL
@@ -464,11 +464,11 @@ async def semantic_search(request: SearchRequest):
                 request.top_k
             ]
         else:
-            # Fallback to old embedding column
+            # Fallback to legacy embedding column
             search_query = """
                 SELECT 
                     seg.id,
-                    seg.video_id,
+                    s.source_id as video_id,
                     s.title,
                     seg.text,
                     seg.start_sec as start_time_seconds,
@@ -478,7 +478,7 @@ async def semantic_search(request: SearchRequest):
                     s.url,
                     1 - (seg.embedding <=> %s::vector) as similarity
                 FROM segments seg
-                JOIN sources s ON seg.video_id = s.source_id
+                JOIN sources s ON seg.source_id = s.id
                 WHERE seg.speaker_label = 'Chaffee'
                   AND seg.embedding IS NOT NULL
                   AND 1 - (seg.embedding <=> %s::vector) >= %s
