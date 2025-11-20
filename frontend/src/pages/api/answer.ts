@@ -904,21 +904,13 @@ export default async function handler(
     let searchQuery: string;
     let queryParams: any[];
     
+    // Use legacy embedding column (segments.embedding)
     if (queryEmbedding.length > 0) {
-      // Determine which model to use based on embedding dimensions
-      let modelKey = 'nomic-v1.5';
-      if (queryEmbedding.length === 384) {
-        modelKey = 'all-minilm-l6-v2';
-      } else if (queryEmbedding.length === 1536) {
-        modelKey = 'gte-qwen2-1.5b';
-      }
+      console.log(`[Answer API] Using semantic search (${queryEmbedding.length} dims)`);
       
-      console.log(`[Answer API] Using model: ${modelKey} (${queryEmbedding.length} dims)`);
-      
-      // Try segment_embeddings table first (normalized storage)
       searchQuery = `
         SELECT 
-          se.segment_id as id,
+          seg.id,
           s.id as source_id,
           s.source_id as video_id,
           s.title,
@@ -927,18 +919,18 @@ export default async function handler(
           seg.end_sec as end_time_seconds,
           s.published_at,
           s.source_type,
-          1 - (se.embedding <=> $1::vector) as similarity
-        FROM segment_embeddings se
-        JOIN segments seg ON se.segment_id = seg.id
+          1 - (seg.embedding <=> $1::vector) as similarity
+        FROM segments seg
         JOIN sources s ON seg.source_id = s.id
-        WHERE se.embedding IS NOT NULL 
-          AND se.model_key = $3
-        ORDER BY se.embedding <=> $1::vector
+        WHERE seg.embedding IS NOT NULL
+        ORDER BY seg.embedding <=> $1::vector
         LIMIT $2
       `;
-      queryParams = [JSON.stringify(queryEmbedding), maxContext, modelKey];
+      queryParams = [JSON.stringify(queryEmbedding), maxContext];
     } else {
       // Fallback to simple text search for reliability
+      console.log(`[Answer API] Using text search fallback`);
+      
       searchQuery = `
         SELECT 
           seg.id,
@@ -964,48 +956,9 @@ export default async function handler(
       queryParams = [`%${query}%`, maxContext];
     }
 
-    let searchResult;
-    let chunks: ChunkResult[] = [];
-    
-    try {
-      searchResult = await pool.query(searchQuery, queryParams);
-      chunks = searchResult.rows;
-      console.log(`[Answer API] Initial retrieval: ${chunks.length} chunks`);
-    } catch (error: any) {
-      // If segment_embeddings table doesn't exist, fall back to legacy
-      if (error.message?.includes('segment_embeddings') && error.message?.includes('does not exist')) {
-        console.log(`[Answer API] segment_embeddings table does not exist, falling back to legacy...`);
-        chunks = [];
-      } else {
-        throw error; // Re-throw if it's a different error
-      }
-    }
-    
-    // Fallback: If segment_embeddings returned no results or doesn't exist, try legacy segments.embedding column
-    if (chunks.length === 0 && queryEmbedding.length > 0) {
-      console.log(`[Answer API] Trying legacy segments.embedding...`);
-      searchQuery = `
-        SELECT 
-          seg.id,
-          s.id as source_id,
-          s.source_id as video_id,
-          s.title,
-          seg.text,
-          seg.start_sec as start_time_seconds,
-          seg.end_sec as end_time_seconds,
-          s.published_at,
-          s.source_type,
-          1 - (seg.embedding <=> $1::vector) as similarity
-        FROM segments seg
-        JOIN sources s ON seg.source_id = s.id
-        WHERE seg.embedding IS NOT NULL
-        ORDER BY seg.embedding <=> $1::vector
-        LIMIT $2
-      `;
-      searchResult = await pool.query(searchQuery, [JSON.stringify(queryEmbedding), maxContext]);
-      chunks = searchResult.rows;
-      console.log(`[Answer API] Legacy retrieval: ${chunks.length} chunks`);
-    }
+    let searchResult = await pool.query(searchQuery, queryParams);
+    let chunks: ChunkResult[] = searchResult.rows;
+    console.log(`[Answer API] Retrieved: ${chunks.length} chunks`);
     
     if (chunks.length < 1) {
       return res.status(200).json({ 

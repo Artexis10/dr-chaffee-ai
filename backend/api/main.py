@@ -131,27 +131,10 @@ def get_active_model_key():
         logger.warning(f"Failed to load embedding config: {e}")
         return 'gte-qwen2-1.5b'
 
-def use_normalized_embeddings():
-    """Check if we should use the normalized segment_embeddings table"""
-    # Check if table exists
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT EXISTS (
-                SELECT 1 FROM information_schema.tables 
-                WHERE table_name = 'segment_embeddings'
-            )
-        """)
-        exists = cur.fetchone()[0]
-        cur.close()
-        conn.close()
-        return exists
-    except:
-        return False
+# Removed: use_normalized_embeddings() - using legacy storage only
 
 def get_available_embedding_models():
-    """Get list of embedding models that have data in the database"""
+    """Get list of embedding models from legacy segments.embedding column"""
     import logging
     logger = logging.getLogger(__name__)
     
@@ -159,48 +142,11 @@ def get_available_embedding_models():
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Check if normalized table exists and has data
-        cur.execute("""
-            SELECT EXISTS (
-                SELECT 1 FROM information_schema.tables 
-                WHERE table_name = 'segment_embeddings'
-            ) as exists
-        """)
-        result = cur.fetchone()
-        has_normalized_table = result['exists'] if result else False
-        
-        if has_normalized_table:
-            # Check if it has any data
-            cur.execute("""
-                SELECT COUNT(*) as count FROM segment_embeddings WHERE embedding IS NOT NULL
-            """)
-            normalized_count = cur.fetchone()['count']
-            
-            if normalized_count > 0:
-                # Use normalized table
-                cur.execute("""
-                    SELECT DISTINCT model_key, dimensions, COUNT(*) as count
-                    FROM segment_embeddings
-                    WHERE embedding IS NOT NULL
-                    GROUP BY model_key, dimensions
-                    ORDER BY count DESC
-                """)
-                results = cur.fetchall()
-                
-                if results:
-                    models = [{"model_key": r['model_key'], "dimensions": r['dimensions'], "count": r['count'], "storage_type": "normalized"} for r in results]
-                    logger.info(f"Available embedding models (normalized): {models}")
-                    cur.close()
-                    conn.close()
-                    return models
-        
-        # Fallback to old segments table (or if normalized table is empty)
         logger.info("Checking legacy segments table for embeddings...")
         cur.execute("""
             SELECT COUNT(*) as count
             FROM segments
             WHERE embedding IS NOT NULL
-            LIMIT 1
         """)
         legacy_result = cur.fetchone()
         
@@ -259,10 +205,9 @@ def get_available_embedding_models():
                     model = {
                         "model_key": model_key, 
                         "dimensions": dimensions, 
-                        "count": result['count'],
-                        "storage_type": "legacy"
+                        "count": result['count']
                     }
-                    logger.info(f"Available embedding model (legacy): {model}")
+                    logger.info(f"Available embedding model: {model}")
                     return [model]
         
         cur.close()
@@ -448,68 +393,32 @@ async def semantic_search(request: SearchRequest):
         
         logger.info(f"Searching with model: {model_key} ({expected_dim} dims)")
         
-        # Check storage type to determine which table to query
-        use_normalized = db_model.get('storage_type') == 'normalized'
-        
-        if use_normalized:
-            # Use segment_embeddings table with explicit vector dimensions
-            search_query = f"""
-                SELECT 
-                    seg.id,
-                    s.source_id as video_id,
-                    s.title,
-                    seg.text,
-                    seg.start_sec as start_time_seconds,
-                    seg.end_sec as end_time_seconds,
-                    s.published_at,
-                    s.source_type,
-                    s.url,
-                    1 - (se.embedding <=> %s::vector({expected_dim})) as similarity
-                FROM segments seg
-                JOIN segment_embeddings se ON seg.id = se.segment_id
-                JOIN sources s ON seg.source_id = s.id
-                WHERE seg.speaker_label = 'Chaffee'
-                  AND se.model_key = %s
-                  AND se.embedding IS NOT NULL
-                  AND 1 - (se.embedding <=> %s::vector({expected_dim})) >= %s
-                ORDER BY similarity DESC
-                LIMIT %s
-            """
-            query_params = [
-                str(embedding_list),
-                model_key,
-                str(embedding_list),
-                request.min_similarity,
-                request.top_k
-            ]
-        else:
-            # Fallback to legacy embedding column
-            search_query = """
-                SELECT 
-                    seg.id,
-                    s.source_id as video_id,
-                    s.title,
-                    seg.text,
-                    seg.start_sec as start_time_seconds,
-                    seg.end_sec as end_time_seconds,
-                    s.published_at,
-                    s.source_type,
-                    s.url,
-                    1 - (seg.embedding <=> %s::vector) as similarity
-                FROM segments seg
-                JOIN sources s ON seg.source_id = s.id
-                WHERE seg.speaker_label = 'Chaffee'
-                  AND seg.embedding IS NOT NULL
-                  AND 1 - (seg.embedding <=> %s::vector) >= %s
-                ORDER BY similarity DESC
-                LIMIT %s
-            """
-            query_params = [
-                str(embedding_list),
-                str(embedding_list),
-                request.min_similarity,
-                request.top_k
-            ]
+        # Use legacy embedding column (segments.embedding)
+        search_query = """
+            SELECT 
+                seg.id,
+                s.source_id as video_id,
+                s.title,
+                seg.text,
+                seg.start_sec as start_time_seconds,
+                seg.end_sec as end_time_seconds,
+                s.published_at,
+                s.source_type,
+                s.url,
+                1 - (seg.embedding <=> %s::vector) as similarity
+            FROM segments seg
+            JOIN sources s ON seg.source_id = s.id
+            WHERE seg.embedding IS NOT NULL
+              AND 1 - (seg.embedding <=> %s::vector) >= %s
+            ORDER BY similarity DESC
+            LIMIT %s
+        """
+        query_params = [
+            str(embedding_list),
+            str(embedding_list),
+            request.min_similarity,
+            request.top_k
+        ]
         
         # Execute query with appropriate parameters
         cur.execute(search_query, query_params)

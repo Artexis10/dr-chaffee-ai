@@ -1,8 +1,14 @@
 # Embedding Storage Architecture Guide
 
+## Current Status (Nov 21, 2025)
+
+**Using Legacy Storage Only** - Simplified architecture for production stability.
+
+The normalized storage code path has been removed to eliminate bugs and complexity. See "Restoration" section if you need to restore it.
+
 ## Overview
 
-This document explains the two embedding storage approaches in the Ask Dr. Chaffee system and when to use each one.
+This document explains the embedding storage approach in the Ask Dr. Chaffee system.
 
 ## Current Implementation: Legacy Storage
 
@@ -257,6 +263,112 @@ if use_normalized:
 - **Database Schema:** `db/schema.sql`
 - **Migrations:** `backend/migrations/`
 - **Tests:** `tests/api/test_answer_endpoint.py`
+
+---
+
+## Restoration: How to Restore Normalized Storage
+
+If you need to restore the normalized storage code path (e.g., for multi-model A/B testing):
+
+### Option 1: Restore from Git History (Recommended)
+
+1. **Find the commit before removal:**
+   ```bash
+   git log --oneline | grep -i "segment_embeddings\|normalized"
+   ```
+
+2. **Restore specific files from that commit:**
+   ```bash
+   # Get the commit hash (e.g., abc1234)
+   git show abc1234:backend/api/main.py > backend/api/main.py
+   git show abc1234:frontend/src/pages/api/answer.ts > frontend/src/pages/api/answer.ts
+   ```
+
+3. **Restore the migration:**
+   ```bash
+   # Find the migration that created segment_embeddings
+   ls -la backend/migrations/versions/ | grep segment_embeddings
+   # Restore it from git
+   git checkout abc1234 -- backend/migrations/versions/XXX_create_segment_embeddings.py
+   ```
+
+4. **Run migrations:**
+   ```bash
+   cd backend
+   alembic upgrade head
+   ```
+
+5. **Backfill embeddings:**
+   ```bash
+   # Copy embeddings from segments.embedding to segment_embeddings
+   python scripts/backfill_embeddings_parallel.py --workers 4
+   ```
+
+### Option 2: Manual Restoration
+
+If you prefer to manually recreate the table:
+
+1. **Create the table:**
+   ```sql
+   CREATE TABLE segment_embeddings (
+       id BIGSERIAL PRIMARY KEY,
+       segment_id BIGINT NOT NULL REFERENCES segments(id) ON DELETE CASCADE,
+       model_key VARCHAR(255) NOT NULL,
+       embedding vector(384),
+       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+       UNIQUE(segment_id, model_key)
+   );
+   
+   CREATE INDEX idx_segment_embeddings_model_key ON segment_embeddings(model_key);
+   CREATE INDEX idx_segment_embeddings_embedding ON segment_embeddings USING ivfflat (embedding vector_cosine_ops);
+   ```
+
+2. **Backfill from legacy storage:**
+   ```sql
+   INSERT INTO segment_embeddings (segment_id, model_key, embedding, created_at)
+   SELECT id, 'bge-small-en-v1.5', embedding, CURRENT_TIMESTAMP
+   FROM segments
+   WHERE embedding IS NOT NULL
+   ON CONFLICT (segment_id, model_key) DO NOTHING;
+   ```
+
+3. **Verify:**
+   ```sql
+   SELECT COUNT(*) FROM segment_embeddings;  -- Should be 514,391
+   ```
+
+4. **Restore code from git:**
+   ```bash
+   # Get the files from before removal commit
+   git show COMMIT_HASH:backend/api/main.py > backend/api/main.py
+   git show COMMIT_HASH:frontend/src/pages/api/answer.ts > frontend/src/pages/api/answer.ts
+   ```
+
+5. **Test thoroughly:**
+   - Run unit tests: `pytest tests/api/test_answer_endpoint.py`
+   - Test search endpoint: `curl -X POST http://localhost:8001/search -d '{"query": "test"}'`
+   - Test answer endpoint: `curl -X POST http://localhost:3000/api/answer -d '{"query": "test"}'`
+
+### Why We Removed It
+
+- **Complexity:** Multiple code paths caused bugs and maintenance overhead
+- **Bugs:** "table doesn't exist" errors when normalized table was empty
+- **Simplicity:** Legacy storage works perfectly for single-model deployments
+- **Performance:** No measurable benefit for current use case
+
+### When to Restore
+
+- ✅ A/B testing different embedding models
+- ✅ Gradual migration to new embedding model
+- ✅ Compliance/audit trail requirements
+- ✅ Multi-model search capabilities
+
+### When NOT to Restore
+
+- ❌ Single model deployment (current state)
+- ❌ Performance is critical
+- ❌ Simplicity is preferred
+- ❌ No need for model comparison
 
 ---
 
