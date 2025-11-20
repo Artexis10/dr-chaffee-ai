@@ -13,29 +13,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     // Get tuning config from backend
-    const response = await fetch(`${BACKEND_API_URL}/tuning/config`, {
+    const response = await fetch(`${BACKEND_API_URL}/api/tuning/models`, {
       headers: {
         'Content-Type': 'application/json',
       },
+      credentials: 'include',
     });
 
     if (!response.ok) {
       throw new Error(`Backend returned ${response.status}`);
     }
 
-    const config = await response.json();
+    const models = await response.json();
     
     // Transform backend config to frontend format
-    const models = Object.entries(config.models || {}).map(([key, model]: [string, any]) => ({
-      key,
+    const transformedModels = models.map((model: any) => ({
+      key: model.key,
       provider: model.provider || 'unknown',
       dimensions: model.dimensions || 0,
       cost_per_1k: model.cost_per_1k || 0,
       description: model.description || '',
-      is_active_query: key === config.active_query_model,
+      is_active_query: model.key === models.find((m: any) => m.is_active)?.key,
     }));
 
-    return res.status(200).json(models);
+    return res.status(200).json(transformedModels);
   } catch (error) {
     console.error('Error fetching embedding models:', error);
     return res.status(500).json({ error: 'Failed to fetch embedding models' });
