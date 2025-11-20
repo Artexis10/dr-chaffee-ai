@@ -55,9 +55,17 @@
       "dimensions": 768,
       "cost_per_1k": 0.0,
       "description": "Nomic embeddings - 10M free tokens/month, exact local/API parity"
+    },
+    "bge-small-en-v1.5": {
+      "key": "bge-small-en-v1.5",
+      "provider": "sentence-transformers",
+      "model_name": "BAAI/bge-small-en-v1.5",
+      "dimensions": 384,
+      "cost_per_1k": 0.0,
+      "description": "BGE-small model - lightweight, 384 dims, fast inference"
     }
   },
-  "active_query_model": "nomic-v1.5",
+  "active_query_model": "bge-small-en-v1.5",
   "active_ingestion_models": ["nomic-v1.5"],
   "recommended_model": "nomic-v1.5",
   "storage_strategy": "normalized",
