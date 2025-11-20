@@ -83,9 +83,9 @@ export function PasswordGate({ children }: PasswordGateProps) {
         justifyContent: 'center',
         alignItems: 'center',
         minHeight: '100vh',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+        background: '#fafafa'
       }}>
-        <div style={{ color: 'white', fontSize: '1.2rem' }}>Loading...</div>
+        <div style={{ color: '#000000', fontSize: '1.2rem', fontWeight: 500 }}>Loading...</div>
       </div>
     );
   }
@@ -102,16 +102,17 @@ export function PasswordGate({ children }: PasswordGateProps) {
       justifyContent: 'center',
       alignItems: 'center',
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      background: '#fafafa',
       padding: '2rem'
     }}>
       <div style={{
-        background: 'white',
+        background: '#ffffff',
         borderRadius: '20px',
         padding: '3rem',
         maxWidth: '450px',
         width: '100%',
-        boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08)',
+        border: '1px solid #e5e7eb',
         textAlign: 'center'
       }}>
         {/* Dr. Chaffee Photo */}
@@ -121,8 +122,8 @@ export function PasswordGate({ children }: PasswordGateProps) {
           margin: '0 auto 1.5rem',
           borderRadius: '50%',
           overflow: 'hidden',
-          border: '4px solid #667eea',
-          boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)'
+          border: '4px solid #000000',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
         }}>
           <Image 
             src="/dr-chaffee.jpg" 
@@ -136,9 +137,7 @@ export function PasswordGate({ children }: PasswordGateProps) {
         <h1 style={{
           fontSize: '2.2rem',
           fontWeight: 700,
-          background: 'linear-gradient(135deg, #667eea, #764ba2)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
+          color: '#000000',
           marginBottom: '0.5rem',
           letterSpacing: '-0.02em'
         }}>
@@ -188,7 +187,7 @@ export function PasswordGate({ children }: PasswordGateProps) {
               boxSizing: 'border-box'
             }}
             onFocus={(e) => {
-              if (!error) e.target.style.borderColor = '#667eea';
+              if (!error) e.target.style.borderColor = '#000000';
             }}
             onBlur={(e) => {
               if (!error) e.target.style.borderColor = '#e2e8f0';
@@ -216,20 +215,20 @@ export function PasswordGate({ children }: PasswordGateProps) {
               fontSize: '1rem',
               fontWeight: 600,
               color: 'white',
-              background: 'linear-gradient(135deg, #667eea, #764ba2)',
+              background: 'linear-gradient(180deg, #1a1a1a 0%, #000000 100%)',
               border: 'none',
               borderRadius: '12px',
               cursor: 'pointer',
               transition: 'transform 0.2s, box-shadow 0.2s',
-              boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)'
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 6px 20px rgba(102, 126, 234, 0.5)';
+              e.currentTarget.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.4)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.4)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)';
             }}
           >
             Access Application
@@ -256,21 +255,21 @@ export function PasswordGate({ children }: PasswordGateProps) {
               padding: '0.75rem 1.5rem',
               fontSize: '0.9rem',
               fontWeight: 600,
-              color: '#667eea',
-              background: '#f0f4ff',
-              border: '2px solid #667eea',
+              color: '#000000',
+              background: '#f5f5f5',
+              border: '2px solid #000000',
               borderRadius: '12px',
               textDecoration: 'none',
               cursor: 'pointer',
               transition: 'all 0.2s'
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#667eea';
+              e.currentTarget.style.background = '#000000';
               e.currentTarget.style.color = 'white';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = '#f0f4ff';
-              e.currentTarget.style.color = '#667eea';
+              e.currentTarget.style.background = '#f5f5f5';
+              e.currentTarget.style.color = '#000000';
             }}
           >
             Tuning Dashboard
