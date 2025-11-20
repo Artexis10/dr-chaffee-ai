@@ -250,23 +250,23 @@ function extractKeywords(query: string): string[] {
 
 // Generate embeddings for the query
 async function generateQueryEmbedding(query: string): Promise<number[]> {
-  const EMBEDDING_SERVICE_URL = process.env.EMBEDDING_SERVICE_URL || 'http://localhost:8001';
+  const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:8000';
   
   try {
-    console.log('Calling embedding service for query:', query);
+    console.log('Calling backend API for query embedding:', query);
     
-    const response = await fetch(`${EMBEDDING_SERVICE_URL}/embed`, {
+    const response = await fetch(`${BACKEND_API_URL}/embed`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ text: query }),
-      signal: AbortSignal.timeout(30000), // 30 second timeout (first request loads model on Render Starter)
+      signal: AbortSignal.timeout(60000), // 1 minute timeout
     });
 
     if (!response.ok) {
-      console.error('Embedding service error:', response.status);
-      return [];
+      console.error('Backend API error:', response.status, response.statusText);
+      throw new Error(`Backend API failed: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
