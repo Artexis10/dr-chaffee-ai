@@ -27,9 +27,11 @@ export const DarkModeToggle: React.FC = () => {
   const toggleDarkMode = () => {
     if (isDarkMode) {
       document.documentElement.classList.remove('dark-mode');
+      document.documentElement.classList.add('light-mode'); // Add this line
       localStorage.setItem('theme', 'light');
     } else {
       document.documentElement.classList.add('dark-mode');
+      document.documentElement.classList.remove('light-mode'); // Add this line
       localStorage.setItem('theme', 'dark');
     }
     
