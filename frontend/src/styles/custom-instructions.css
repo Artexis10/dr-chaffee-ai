@@ -1,0 +1,162 @@
+/* Override Tailwind classes for Custom Instructions Editor */
+
+/* Main container */
+.bg-slate-800\/50 {
+  background: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 0.75rem !important;
+  padding: 1.5rem !important;
+}
+
+/* Text colors */
+.text-slate-400 {
+  color: #6b7280 !important;
+}
+
+.text-slate-300 {
+  color: #d1d5db !important;
+}
+
+.text-blue-400 {
+  color: #000000 !important;
+}
+
+.text-purple-400 {
+  color: #000000 !important;
+}
+
+/* Backgrounds */
+.bg-slate-700 {
+  background: #ffffff !important;
+  border: 1px solid #d1d5db !important;
+}
+
+.bg-slate-900\/50 {
+  background: #f9fafb !important;
+}
+
+.bg-slate-950 {
+  background: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
+}
+
+.bg-blue-600 {
+  background: #000000 !important;
+}
+
+.bg-blue-600:hover {
+  background: #333333 !important;
+}
+
+.bg-green-600 {
+  background: #000000 !important;
+}
+
+.bg-green-600:hover {
+  background: #333333 !important;
+}
+
+.bg-purple-600 {
+  background: #333333 !important;
+}
+
+.bg-purple-600:hover {
+  background: #555555 !important;
+}
+
+.bg-slate-600 {
+  background: #e5e5e5 !important;
+  color: #000000 !important;
+}
+
+.bg-slate-600:hover {
+  background: #d0d0d0 !important;
+}
+
+.bg-green-500\/10 {
+  background: #ecfdf5 !important;
+}
+
+.bg-slate-800\/30 {
+  background: #f9fafb !important;
+}
+
+.bg-green-500 {
+  background: #10b981 !important;
+}
+
+/* Borders */
+.border-slate-600 {
+  border-color: #e5e7eb !important;
+}
+
+.border-slate-700 {
+  border-color: #e5e7eb !important;
+}
+
+.border-green-500 {
+  border-color: #10b981 !important;
+}
+
+/* Text sizes and weights */
+.text-2xl {
+  font-size: 1.5rem !important;
+}
+
+.text-xl {
+  font-size: 1.25rem !important;
+}
+
+.text-lg {
+  font-size: 1.125rem !important;
+}
+
+.text-sm {
+  font-size: 0.875rem !important;
+}
+
+.text-xs {
+  font-size: 0.75rem !important;
+}
+
+.font-bold {
+  font-weight: 700 !important;
+}
+
+.font-semibold {
+  font-weight: 600 !important;
+}
+
+.font-medium {
+  font-weight: 500 !important;
+}
+
+/* Buttons */
+button:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
+
+/* Inputs */
+input[type="text"],
+input[type="checkbox"],
+textarea {
+  font-size: 1rem !important;
+}
+
+textarea {
+  font-family: monospace !important;
+  resize: vertical !important;
+}
+
+/* Modals */
+.fixed {
+  background: rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Pre-formatted text */
+pre {
+  font-family: monospace !important;
+  white-space: pre-wrap !important;
+  word-wrap: break-word !important;
+}
