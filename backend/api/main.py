@@ -186,15 +186,15 @@ def get_available_embedding_models():
                     ORDER BY count DESC
                 """)
                 results = cur.fetchall()
-                cur.close()
-                conn.close()
                 
                 if results:
                     models = [{"model_key": r['model_key'], "dimensions": r['dimensions'], "count": r['count'], "storage_type": "normalized"} for r in results]
                     logger.info(f"Available embedding models (normalized): {models}")
+                    cur.close()
+                    conn.close()
                     return models
         
-        # Fallback to old segments table
+        # Fallback to old segments table (or if normalized table is empty)
         logger.info("Checking legacy segments table for embeddings...")
         cur.execute("""
             SELECT COUNT(*) as count
