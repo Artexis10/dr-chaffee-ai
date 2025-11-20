@@ -7,6 +7,7 @@ Create Date: 2025-11-21 00:48:00.000000
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import text
 
 
 # revision identifiers, used by Alembic.
@@ -25,7 +26,7 @@ def upgrade() -> None:
     # Drop the table only if it exists
     # Check if table exists in information_schema
     conn = op.get_bind()
-    inspector = conn.dialect.inspector
+    inspector = sa.inspect(conn)
     if inspector.has_table('segment_embeddings'):
         op.drop_table('segment_embeddings')
 
