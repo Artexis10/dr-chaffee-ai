@@ -3,9 +3,13 @@
 /* Main container */
 .bg-slate-800\/50 {
   background: #ffffff !important;
-  border: 1px solid #e5e7eb !important;
+  border: 1px solid #d1d5db !important;
   border-radius: 0.75rem !important;
   padding: 1.5rem !important;
+}
+
+.bg-slate-900\/50 {
+  background: #f9fafb !important;
 }
 
 /* Text colors */
@@ -25,14 +29,14 @@
   color: #000000 !important;
 }
 
+.text-white {
+  color: #ffffff !important;
+}
+
 /* Backgrounds */
 .bg-slate-700 {
   background: #ffffff !important;
   border: 1px solid #d1d5db !important;
-}
-
-.bg-slate-900\/50 {
-  background: #f9fafb !important;
 }
 
 .bg-slate-950 {
