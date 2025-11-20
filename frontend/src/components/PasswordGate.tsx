@@ -257,9 +257,9 @@ export function PasswordGate({ children }: PasswordGateProps) {
               padding: '0.75rem 1.5rem',
               fontSize: '0.9rem',
               fontWeight: 600,
-              color: '#ffffff',
-              background: '#f5f5f5',
-              border: '2px solid #000000',
+              color: 'white',
+              background: '#000000',
+              border: '2px solid white',
               borderRadius: '12px',
               textDecoration: 'none',
               cursor: 'pointer',
@@ -270,8 +270,8 @@ export function PasswordGate({ children }: PasswordGateProps) {
               e.currentTarget.style.color = 'white';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = '#f5f5f5';
-              e.currentTarget.style.color = '#000000';
+              e.currentTarget.style.background = '#000000';
+              e.currentTarget.style.color = 'white';
             }}
           >
             Tuning Dashboard
