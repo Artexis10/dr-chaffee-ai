@@ -106,13 +106,13 @@ export function PasswordGate({ children }: PasswordGateProps) {
       padding: '2rem'
     }}>
       <div style={{
-        background: '#333333',
+        background: '#1a1a1a', // Darken card background
         borderRadius: '20px',
         padding: '3rem',
         maxWidth: '450px',
         width: '100%',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2)',
-        border: '1px solid #333333',
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.4)',
+        border: '1px solid #444444',
         textAlign: 'center'
       }}>
         {/* Dr. Chaffee Photo */}
