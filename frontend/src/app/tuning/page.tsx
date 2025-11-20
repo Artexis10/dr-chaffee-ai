@@ -67,11 +67,12 @@ export default function OverviewPage() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
         {/* Total Videos */}
         <div style={{
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          background: '#1a1a1a',
           borderRadius: '1rem',
           padding: '1.5rem',
           color: 'white',
-          boxShadow: '0 4px 12px rgba(102, 126, 234, 0.2)'
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+          border: '1px solid #2a2a2a'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
             <Database style={{ width: '1.5rem', height: '1.5rem', opacity: 0.8 }} />
@@ -85,11 +86,12 @@ export default function OverviewPage() {
 
         {/* Total Segments */}
         <div style={{
-          background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+          background: '#2a2a2a',
           borderRadius: '1rem',
           padding: '1.5rem',
           color: 'white',
-          boxShadow: '0 4px 12px rgba(245, 87, 108, 0.2)'
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+          border: '1px solid #3a3a3a'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
             <TrendingUp style={{ width: '1.5rem', height: '1.5rem', opacity: 0.8 }} />
@@ -103,13 +105,12 @@ export default function OverviewPage() {
 
         {/* Embedding Coverage */}
         <div style={{
-          background: isCoverageGood 
-            ? 'linear-gradient(135deg, #4ade80 0%, #22c55e 100%)'
-            : 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
+          background: '#0a0a0a',
           borderRadius: '1rem',
           padding: '1.5rem',
           color: 'white',
-          boxShadow: `0 4px 12px rgba(${isCoverageGood ? '34, 197, 94' : '245, 158, 11'}, 0.2)`
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
+          border: '1px solid #1a1a1a'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
             {isCoverageGood ? (
@@ -131,22 +132,22 @@ export default function OverviewPage() {
       {/* Missing Embeddings Alert */}
       {stats.segments_missing_embeddings > 0 && (
         <div style={{
-          background: '#fef3c7',
-          border: '1px solid #fcd34d',
+          background: '#f5f5f5',
+          border: '1px solid #e0e0e0',
           borderRadius: '0.75rem',
           padding: '1.5rem',
           marginBottom: '2rem'
         }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem' }}>
-            <AlertCircle style={{ width: '1.5rem', height: '1.5rem', color: '#d97706', marginTop: '0.25rem', flexShrink: 0 }} />
+            <AlertCircle style={{ width: '1.5rem', height: '1.5rem', color: '#666666', marginTop: '0.25rem', flexShrink: 0 }} />
             <div>
-              <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#92400e', marginBottom: '0.5rem' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#1a1a1a', marginBottom: '0.5rem' }}>
                 Missing Embeddings
               </h3>
-              <p style={{ color: '#b45309', marginBottom: '0.75rem' }}>
+              <p style={{ color: '#4a4a4a', marginBottom: '0.75rem' }}>
                 {stats.segments_missing_embeddings.toLocaleString()} segments don't have embeddings yet and won't be searchable.
               </p>
-              <p style={{ color: '#b45309', fontSize: '0.875rem' }}>
+              <p style={{ color: '#4a4a4a', fontSize: '0.875rem' }}>
                 Run the embedding pipeline to process these segments and improve search coverage.
               </p>
             </div>
@@ -197,7 +198,7 @@ export default function OverviewPage() {
               style={{
                 display: 'inline-block',
                 padding: '0.75rem 1rem',
-                background: '#3b82f6',
+                background: '#000000',
                 color: 'white',
                 borderRadius: '0.5rem',
                 textDecoration: 'none',
@@ -207,8 +208,8 @@ export default function OverviewPage() {
                 cursor: 'pointer',
                 transition: 'background 0.2s'
               }}
-              onMouseEnter={(e) => e.currentTarget.style.background = '#2563eb'}
-              onMouseLeave={(e) => e.currentTarget.style.background = '#3b82f6'}
+              onMouseEnter={(e) => e.currentTarget.style.background = '#333333'}
+              onMouseLeave={(e) => e.currentTarget.style.background = '#000000'}
             >
               View Embedding Models
             </a>
@@ -217,7 +218,7 @@ export default function OverviewPage() {
               style={{
                 display: 'inline-block',
                 padding: '0.75rem 1rem',
-                background: '#10b981',
+                background: '#333333',
                 color: 'white',
                 borderRadius: '0.5rem',
                 textDecoration: 'none',
@@ -227,8 +228,8 @@ export default function OverviewPage() {
                 cursor: 'pointer',
                 transition: 'background 0.2s'
               }}
-              onMouseEnter={(e) => e.currentTarget.style.background = '#059669'}
-              onMouseLeave={(e) => e.currentTarget.style.background = '#10b981'}
+              onMouseEnter={(e) => e.currentTarget.style.background = '#555555'}
+              onMouseLeave={(e) => e.currentTarget.style.background = '#333333'}
             >
               Configure Search
             </a>
