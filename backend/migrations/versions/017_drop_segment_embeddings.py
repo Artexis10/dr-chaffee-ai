@@ -1,7 +1,7 @@
 """Drop segment_embeddings table - using legacy storage only
 
-Revision ID: 016_drop_segment_embeddings
-Revises: 015_fix_embedding_dimensions
+Revision ID: 017_drop_segment_embeddings
+Revises: 016_adaptive_embedding_index
 Create Date: 2025-11-21 00:48:00.000000
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '016_drop_segment_embeddings'
-down_revision = '015_fix_embedding_dimensions'
+revision = '017_drop_segment_embeddings'
+down_revision = '016_adaptive_embedding_index'
 branch_labels = None
 depends_on = None
 
