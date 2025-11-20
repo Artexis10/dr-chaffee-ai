@@ -66,8 +66,8 @@
     }
   },
   "active_query_model": "bge-small-en-v1.5",
-  "active_ingestion_models": ["nomic-v1.5"],
-  "recommended_model": "nomic-v1.5",
+  "active_ingestion_models": ["bge-small-en-v1.5"],
+  "recommended_model": "bge-small-en-v1.5",
   "storage_strategy": "normalized",
   "notes": [
     "Normalized storage: segment_embeddings table stores all models",
