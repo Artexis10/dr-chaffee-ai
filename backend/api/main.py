@@ -215,14 +215,14 @@ def get_available_embedding_models():
                 conn.close()
                 
                 if result and result['count'] > 0:
-                    # Map dimensions to model name
+                    # Map dimensions to model key (must match keys in embedding_models.json)
                     # 384 = BGE-small, 768 = Nomic, 1536 = OpenAI/GTE-Qwen2
                     dimension_to_model = {
-                        384: 'BAAI/bge-small-en-v1.5',
-                        768: 'nomic-ai/nomic-embed-text-v1.5',
-                        1536: 'gte-Qwen2-1.5B'
+                        384: 'bge-small-en-v1.5',
+                        768: 'nomic-v1.5',
+                        1536: 'gte-qwen2-1.5b'
                     }
-                    model_key = dimension_to_model.get(dimensions, 'gte-Qwen2-1.5B')
+                    model_key = dimension_to_model.get(dimensions, 'gte-qwen2-1.5b')
                     
                     model = {
                         "model_key": model_key, 
