@@ -121,12 +121,12 @@ export default function SearchPage() {
       {/* Message */}
       {message && (
         <div style={{
-          background: message.includes('success') ? '#d1fae5' : '#fee2e2',
-          color: message.includes('success') ? '#065f46' : '#991b1b',
+          background: message.includes('success') ? '#f0fdf4' : '#fef2f2',
+          color: message.includes('success') ? '#166534' : '#7f1d1d',
           padding: '1rem',
           borderRadius: '0.5rem',
           marginBottom: '1.5rem',
-          border: `1px solid ${message.includes('success') ? '#a7f3d0' : '#fecaca'}`
+          border: `1px solid ${message.includes('success') ? '#dcfce7' : '#fee2e2'}`
         }}>
           {message}
         </div>
@@ -261,7 +261,7 @@ export default function SearchPage() {
               onClick={handleSave}
               style={{
                 padding: '0.75rem 1.5rem',
-                background: '#10b981',
+                background: '#000000',
                 color: 'white',
                 border: 'none',
                 borderRadius: '0.5rem',
@@ -270,8 +270,8 @@ export default function SearchPage() {
                 transition: 'background 0.2s',
                 marginTop: '1rem'
               }}
-              onMouseEnter={(e) => e.currentTarget.style.background = '#059669'}
-              onMouseLeave={(e) => e.currentTarget.style.background = '#10b981'}
+              onMouseEnter={(e) => e.currentTarget.style.background = '#333333'}
+              onMouseLeave={(e) => e.currentTarget.style.background = '#000000'}
             >
               Save Configuration
             </button>
@@ -314,7 +314,7 @@ export default function SearchPage() {
               disabled={testing}
               style={{
                 padding: '0.75rem 1.5rem',
-                background: '#3b82f6',
+                background: '#333333',
                 color: 'white',
                 border: 'none',
                 borderRadius: '0.5rem',
@@ -324,10 +324,10 @@ export default function SearchPage() {
                 opacity: testing ? 0.7 : 1
               }}
               onMouseEnter={(e) => {
-                if (!testing) e.currentTarget.style.background = '#2563eb';
+                if (!testing) e.currentTarget.style.background = '#555555';
               }}
               onMouseLeave={(e) => {
-                if (!testing) e.currentTarget.style.background = '#3b82f6';
+                if (!testing) e.currentTarget.style.background = '#333333';
               }}
             >
               {testing ? 'Testing...' : 'Test Search'}
@@ -349,7 +349,7 @@ export default function SearchPage() {
                       background: 'white',
                       padding: '0.75rem',
                       borderRadius: '0.375rem',
-                      borderLeft: '3px solid #3b82f6'
+                      borderLeft: '3px solid #000000'
                     }}>
                       <p style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>
                         Score: {result.score?.toFixed(3)}
