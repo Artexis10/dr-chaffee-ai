@@ -964,14 +964,26 @@ export default async function handler(
       queryParams = [`%${query}%`, maxContext];
     }
 
-    let searchResult = await pool.query(searchQuery, queryParams);
-    let chunks: ChunkResult[] = searchResult.rows;
+    let searchResult;
+    let chunks: ChunkResult[] = [];
     
-    console.log(`[Answer API] Initial retrieval: ${chunks.length} chunks`);
+    try {
+      searchResult = await pool.query(searchQuery, queryParams);
+      chunks = searchResult.rows;
+      console.log(`[Answer API] Initial retrieval: ${chunks.length} chunks`);
+    } catch (error: any) {
+      // If segment_embeddings table doesn't exist, fall back to legacy
+      if (error.message?.includes('segment_embeddings') && error.message?.includes('does not exist')) {
+        console.log(`[Answer API] segment_embeddings table does not exist, falling back to legacy...`);
+        chunks = [];
+      } else {
+        throw error; // Re-throw if it's a different error
+      }
+    }
     
-    // Fallback: If segment_embeddings returned no results, try legacy segments.embedding column
+    // Fallback: If segment_embeddings returned no results or doesn't exist, try legacy segments.embedding column
     if (chunks.length === 0 && queryEmbedding.length > 0) {
-      console.log(`[Answer API] No results from segment_embeddings, trying legacy segments.embedding...`);
+      console.log(`[Answer API] Trying legacy segments.embedding...`);
       searchQuery = `
         SELECT 
           seg.id,
