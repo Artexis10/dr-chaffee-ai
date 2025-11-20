@@ -193,10 +193,8 @@ async def list_models(request):
 @router.get("/config", response_model=TuningConfig)
 async def get_config():
     """
-    Get current tuning configuration
+    Get current tuning configuration from .env (single source of truth)
     """
-    config = load_embedding_models()
-    
     # Get search config from environment
     search_config = SearchConfig(
         top_k=int(os.getenv("ANSWER_TOPK", "20")),
@@ -205,9 +203,15 @@ async def get_config():
         rerank_top_k=int(os.getenv("RERANK_TOP_K", "200"))
     )
     
+    # Get active models from .env (single source of truth)
+    # Format: EMBEDDING_MODEL=BAAI/bge-small-en-v1.5 -> key is bge-small-en-v1.5
+    embedding_model = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
+    # Extract model key from full model name (last part after /)
+    active_query_model = embedding_model.split('/')[-1] if '/' in embedding_model else embedding_model
+    
     return TuningConfig(
-        active_query_model=config.get("active_query_model", "nomic-v1.5"),
-        active_ingestion_models=config.get("active_ingestion_models", ["nomic-v1.5"]),
+        active_query_model=active_query_model,
+        active_ingestion_models=[active_query_model],  # Use same model for ingestion
         search_config=search_config
     )
 
@@ -216,6 +220,7 @@ async def get_config():
 async def set_query_model(model_key: str):
     """
     Set the active query model (instant switch if embeddings exist)
+    Updates .env file to persist change
     """
     config = load_embedding_models()
     models = config.get("models", {})
@@ -223,20 +228,53 @@ async def set_query_model(model_key: str):
     if model_key not in models:
         raise HTTPException(status_code=404, detail=f"Model '{model_key}' not found")
     
-    config["active_query_model"] = model_key
-    save_embedding_models(config)
+    model_info = models[model_key]
+    full_model_name = model_info.get("model_name", model_key)
     
-    return {
-        "success": True,
-        "message": f"Query model switched to '{model_key}'",
-        "model": models[model_key]
-    }
+    # Update .env file
+    try:
+        env_path = Path(__file__).parent.parent.parent / ".env"
+        env_content = env_path.read_text()
+        
+        # Replace EMBEDDING_MODEL line
+        import re
+        env_content = re.sub(
+            r'EMBEDDING_MODEL=.*',
+            f'EMBEDDING_MODEL={full_model_name}',
+            env_content
+        )
+        
+        # Replace EMBEDDING_DIMENSIONS line
+        env_content = re.sub(
+            r'EMBEDDING_DIMENSIONS=.*',
+            f'EMBEDDING_DIMENSIONS={model_info.get("dimensions", 384)}',
+            env_content
+        )
+        
+        env_path.write_text(env_content)
+        
+        # Update runtime environment
+        os.environ["EMBEDDING_MODEL"] = full_model_name
+        os.environ["EMBEDDING_DIMENSIONS"] = str(model_info.get("dimensions", 384))
+        
+        logger.info(f"Query model switched to '{model_key}' ({full_model_name})")
+        
+        return {
+            "success": True,
+            "message": f"Query model switched to '{model_key}'",
+            "model": model_info,
+            "note": "Changes persisted to .env. Restart application to apply."
+        }
+    except Exception as e:
+        logger.error(f"Failed to update .env: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update configuration: {e}")
 
 
 @router.post("/models/ingestion")
 async def set_ingestion_models(model_keys: List[str]):
     """
     Set the active ingestion models (requires re-ingestion to generate embeddings)
+    Updates .env file to persist change
     """
     config = load_embedding_models()
     models = config.get("models", {})
@@ -246,14 +284,52 @@ async def set_ingestion_models(model_keys: List[str]):
         if key not in models:
             raise HTTPException(status_code=404, detail=f"Model '{key}' not found")
     
-    config["active_ingestion_models"] = model_keys
-    save_embedding_models(config)
+    # For now, we only support single ingestion model (same as query model)
+    # This keeps things simple and consistent
+    if len(model_keys) > 1:
+        logger.warning(f"Multiple ingestion models requested: {model_keys}. Using first: {model_keys[0]}")
     
-    return {
-        "success": True,
-        "message": f"Ingestion models set to: {', '.join(model_keys)}",
-        "note": "Run ingestion to generate embeddings for new models"
-    }
+    primary_model_key = model_keys[0]
+    model_info = models[primary_model_key]
+    full_model_name = model_info.get("model_name", primary_model_key)
+    
+    # Update .env file
+    try:
+        env_path = Path(__file__).parent.parent.parent / ".env"
+        env_content = env_path.read_text()
+        
+        # Replace EMBEDDING_MODEL line
+        import re
+        env_content = re.sub(
+            r'EMBEDDING_MODEL=.*',
+            f'EMBEDDING_MODEL={full_model_name}',
+            env_content
+        )
+        
+        # Replace EMBEDDING_DIMENSIONS line
+        env_content = re.sub(
+            r'EMBEDDING_DIMENSIONS=.*',
+            f'EMBEDDING_DIMENSIONS={model_info.get("dimensions", 384)}',
+            env_content
+        )
+        
+        env_path.write_text(env_content)
+        
+        # Update runtime environment
+        os.environ["EMBEDDING_MODEL"] = full_model_name
+        os.environ["EMBEDDING_DIMENSIONS"] = str(model_info.get("dimensions", 384))
+        
+        logger.info(f"Ingestion model set to '{primary_model_key}' ({full_model_name})")
+        
+        return {
+            "success": True,
+            "message": f"Ingestion model set to: {primary_model_key}",
+            "model": model_info,
+            "note": "Changes persisted to .env. Run ingestion to generate embeddings."
+        }
+    except Exception as e:
+        logger.error(f"Failed to update .env: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update configuration: {e}")
 
 
 @router.post("/search/config")
