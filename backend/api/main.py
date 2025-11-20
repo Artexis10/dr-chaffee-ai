@@ -67,23 +67,15 @@ _embedding_generator = None
 def get_embedding_generator():
     global _embedding_generator
     if _embedding_generator is None:
-        # Priority: Nomic (free API, exact local parity) > OpenAI > Local fallback
-        if os.getenv('NOMIC_API_KEY'):
-            _embedding_generator = EmbeddingGenerator(
-                embedding_provider='nomic',
-                model_name='nomic-embed-text-v1.5'
-            )
-        elif os.getenv('OPENAI_API_KEY'):
-            _embedding_generator = EmbeddingGenerator(
-                embedding_provider='openai',
-                model_name='text-embedding-3-large'
-            )
-        else:
-            # Fallback to local Nomic model
-            _embedding_generator = EmbeddingGenerator(
-                embedding_provider='local',
-                model_name='nomic-ai/nomic-embed-text-v1.5'
-            )
+        # Read from .env (single source of truth)
+        provider = os.getenv('EMBEDDING_PROVIDER', 'sentence-transformers')
+        model = os.getenv('EMBEDDING_MODEL', 'BAAI/bge-small-en-v1.5')
+        
+        _embedding_generator = EmbeddingGenerator(
+            embedding_provider=provider,
+            model_name=model
+        )
+        logger.info(f"Initialized embedding generator: {provider} / {model}")
     return _embedding_generator
 
 def get_active_model_key():
