@@ -5,13 +5,13 @@
 # Core database
 psycopg2-binary>=2.9.9
 sqlalchemy>=2.0.07
-python-dotenv==1.0.0
+python-dotenv==1.2.1
 alembic>=1.13.0  # Database migrations (required for pre-deploy)
 
 # Web API (FastAPI + ASGI server)
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-python-multipart==0.0.18  # Required for file upload endpoints (updated for security)
+fastapi==0.121.3
+uvicorn[standard]==0.38.0
+python-multipart==0.0.20  # Required for file upload endpoints (updated for security)
 
 # Embeddings (BGE-small for search queries)
 # Use CPU-only PyTorch to avoid 2.5GB of CUDA dependencies (Render has no GPU)
