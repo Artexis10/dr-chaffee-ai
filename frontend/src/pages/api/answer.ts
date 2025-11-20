@@ -930,7 +930,7 @@ export default async function handler(
           1 - (se.embedding <=> $1::vector) as similarity
         FROM segment_embeddings se
         JOIN segments seg ON se.segment_id = seg.id
-        JOIN sources s ON seg.video_id = s.source_id
+        JOIN sources s ON seg.source_id = s.id
         WHERE se.embedding IS NOT NULL 
           AND se.model_key = $3
           AND seg.speaker_label = 'Chaffee'
@@ -953,7 +953,7 @@ export default async function handler(
           s.source_type,
           0.5 as similarity
         FROM segments seg
-        JOIN sources s ON seg.video_id = s.source_id
+        JOIN sources s ON seg.source_id = s.id
         WHERE seg.text ILIKE $1 AND seg.speaker_label = 'Chaffee'
         ORDER BY 
           CASE WHEN seg.text ILIKE $1 THEN 1 ELSE 2 END,
@@ -986,7 +986,7 @@ export default async function handler(
           s.source_type,
           1 - (seg.embedding <=> $1::vector) as similarity
         FROM segments seg
-        JOIN sources s ON seg.video_id = s.source_id
+        JOIN sources s ON seg.source_id = s.id
         WHERE seg.embedding IS NOT NULL 
           AND seg.speaker_label = 'Chaffee'
         ORDER BY seg.embedding <=> $1::vector
