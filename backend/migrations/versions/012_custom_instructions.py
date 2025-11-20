@@ -61,7 +61,7 @@ def upgrade() -> None:
         
         op.execute("""
             CREATE OR REPLACE FUNCTION update_custom_instructions_timestamp()
-            RETURNS TRIGGER AS EOF
+            RETURNS TRIGGER AS $$
             BEGIN
                 NEW.updated_at = CURRENT_TIMESTAMP;
                 NEW.version = OLD.version + 1;
@@ -69,7 +69,7 @@ def upgrade() -> None:
                 VALUES (OLD.id, OLD.instructions, OLD.version, CURRENT_TIMESTAMP);
                 RETURN NEW;
             END;
-            EOF LANGUAGE plpgsql;
+            $$ LANGUAGE plpgsql;
         """)
         
         op.execute("""
