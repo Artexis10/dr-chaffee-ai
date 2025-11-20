@@ -83,9 +83,9 @@ export function PasswordGate({ children }: PasswordGateProps) {
         justifyContent: 'center',
         alignItems: 'center',
         minHeight: '100vh',
-        background: '#fafafa'
+        background: '#0a0a0a'
       }}>
-        <div style={{ color: '#000000', fontSize: '1.2rem', fontWeight: 500 }}>Loading...</div>
+        <div style={{ color: '#ffffff', fontSize: '1.2rem', fontWeight: 500 }}>Loading...</div>
       </div>
     );
   }
@@ -102,17 +102,17 @@ export function PasswordGate({ children }: PasswordGateProps) {
       justifyContent: 'center',
       alignItems: 'center',
       minHeight: '100vh',
-      background: '#fafafa',
+      background: '#0a0a0a',
       padding: '2rem'
     }}>
       <div style={{
-        background: '#ffffff',
+        background: '#333333',
         borderRadius: '20px',
         padding: '3rem',
         maxWidth: '450px',
         width: '100%',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08)',
-        border: '1px solid #e5e7eb',
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2)',
+        border: '1px solid #333333',
         textAlign: 'center'
       }}>
         {/* Dr. Chaffee Photo */}
@@ -137,7 +137,7 @@ export function PasswordGate({ children }: PasswordGateProps) {
         <h1 style={{
           fontSize: '2.2rem',
           fontWeight: 700,
-          color: '#000000',
+          color: '#ffffff',
           marginBottom: '0.5rem',
           letterSpacing: '-0.02em'
         }}>
@@ -145,7 +145,7 @@ export function PasswordGate({ children }: PasswordGateProps) {
         </h1>
 
         <p style={{
-          color: '#64748b',
+          color: '#b0b0b0',
           marginBottom: '2rem',
           fontSize: '1rem'
         }}>
@@ -153,14 +153,14 @@ export function PasswordGate({ children }: PasswordGateProps) {
         </p>
 
         <div style={{
-          background: '#f8fafc',
+          background: '#1a1a1a',
           padding: '1rem',
           borderRadius: '12px',
           marginBottom: '2rem',
-          border: '1px solid #e2e8f0'
+          border: '1px solid #333333'
         }}>
           <p style={{
-            color: '#475569',
+            color: '#b0b0b0',
             fontSize: '0.9rem',
             margin: 0
           }}>
@@ -184,7 +184,9 @@ export function PasswordGate({ children }: PasswordGateProps) {
               marginBottom: '1rem',
               outline: 'none',
               transition: 'border-color 0.2s',
-              boxSizing: 'border-box'
+              boxSizing: 'border-box',
+              backgroundColor: 'white',
+              color: '#333333'
             }}
             onFocus={(e) => {
               if (!error) e.target.style.borderColor = '#000000';
@@ -255,7 +257,7 @@ export function PasswordGate({ children }: PasswordGateProps) {
               padding: '0.75rem 1.5rem',
               fontSize: '0.9rem',
               fontWeight: 600,
-              color: '#000000',
+              color: '#ffffff',
               background: '#f5f5f5',
               border: '2px solid #000000',
               borderRadius: '12px',
