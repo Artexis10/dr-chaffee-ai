@@ -1,13 +1,15 @@
 from logging.config import fileConfig
 import os
 import sys
+from pathlib import Path
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 from alembic import context
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from project root
+env_path = Path(__file__).parent.parent.parent / ".env"
+load_dotenv(env_path)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
