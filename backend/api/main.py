@@ -171,7 +171,7 @@ def get_available_embedding_models():
                 conn.close()
                 
                 if results:
-                    models = [{"model_key": r['model_key'], "dimensions": r['dimensions'], "count": r['count']} for r in results]
+                    models = [{"model_key": r['model_key'], "dimensions": r['dimensions'], "count": r['count'], "storage_type": "normalized"} for r in results]
                     logger.info(f"Available embedding models (normalized): {models}")
                     return models
         
@@ -240,7 +240,8 @@ def get_available_embedding_models():
                     model = {
                         "model_key": model_key, 
                         "dimensions": dimensions, 
-                        "count": result['count']
+                        "count": result['count'],
+                        "storage_type": "legacy"
                     }
                     logger.info(f"Available embedding model (legacy): {model}")
                     return [model]
@@ -428,10 +429,8 @@ async def semantic_search(request: SearchRequest):
         
         logger.info(f"Searching with model: {model_key} ({expected_dim} dims)")
         
-        # We already detected the table in get_available_embedding_models()
-        # If we found models from segment_embeddings, use that table
-        # Check if the model came from normalized storage (has count > 0 means it exists)
-        use_normalized = db_model['count'] > 0 and 'model_key' in db_model
+        # Check storage type to determine which table to query
+        use_normalized = db_model.get('storage_type') == 'normalized'
         
         if use_normalized:
             # Use segment_embeddings table with explicit vector dimensions
