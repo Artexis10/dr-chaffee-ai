@@ -933,7 +933,6 @@ export default async function handler(
         JOIN sources s ON seg.source_id = s.id
         WHERE se.embedding IS NOT NULL 
           AND se.model_key = $3
-          AND seg.speaker_label = 'Chaffee'
         ORDER BY se.embedding <=> $1::vector
         LIMIT $2
       `;
@@ -954,7 +953,7 @@ export default async function handler(
           0.5 as similarity
         FROM segments seg
         JOIN sources s ON seg.source_id = s.id
-        WHERE seg.text ILIKE $1 AND seg.speaker_label = 'Chaffee'
+        WHERE seg.text ILIKE $1
         ORDER BY 
           CASE WHEN seg.text ILIKE $1 THEN 1 ELSE 2 END,
           COALESCE(s.metadata->>'provenance', 'yt_caption') = 'owner' DESC,
@@ -987,8 +986,7 @@ export default async function handler(
           1 - (seg.embedding <=> $1::vector) as similarity
         FROM segments seg
         JOIN sources s ON seg.source_id = s.id
-        WHERE seg.embedding IS NOT NULL 
-          AND seg.speaker_label = 'Chaffee'
+        WHERE seg.embedding IS NOT NULL
         ORDER BY seg.embedding <=> $1::vector
         LIMIT $2
       `;
