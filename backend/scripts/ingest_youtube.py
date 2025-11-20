@@ -1772,7 +1772,8 @@ class EnhancedYouTubeIngester:
                     video_texts.append(text)
                     
                     # Only embed Chaffee segments for search optimization (per spec)
-                    if self.config.embed_chaffee_only and speaker in ['CH', 'CHAFFEE', 'Chaffee']:
+                    # CRITICAL: If speaker is None (speaker ID disabled), treat as Chaffee
+                    if self.config.embed_chaffee_only and (speaker in ['CH', 'CHAFFEE', 'Chaffee'] or speaker is None):
                         video_chaffee_texts.append(text)
                     elif not self.config.embed_chaffee_only:
                         video_chaffee_texts.append(text)
@@ -1806,9 +1807,11 @@ class EnhancedYouTubeIngester:
                         speaker = segment.speaker_label if hasattr(segment, 'speaker_label') else segment.get('speaker_label', 'GUEST')
                         
                         # Only assign embedding if this segment should be embedded
+                        # CRITICAL: If speaker is None (speaker ID disabled), treat as Chaffee
                         should_embed = (
                             not self.config.embed_chaffee_only or 
-                            speaker in ['CH', 'CHAFFEE', 'Chaffee']
+                            speaker in ['CH', 'CHAFFEE', 'Chaffee'] or
+                            speaker is None
                         )
                         
                         if should_embed and embedding_idx < len(embeddings):

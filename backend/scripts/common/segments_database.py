@@ -271,7 +271,8 @@ class SegmentsDatabase:
                     if self._get_segment_value(segment, 'embedding'):
                         speaker_label = self._get_segment_value(segment, 'speaker_label', 'Guest')
                         # Only embed Chaffee segments if embed_chaffee_only is enabled
-                        if not embed_chaffee_only or speaker_label == 'Chaffee':
+                        # CRITICAL: If speaker_label is None (speaker ID disabled), treat as Chaffee
+                        if not embed_chaffee_only or speaker_label == 'Chaffee' or speaker_label is None:
                             embedding = self._get_segment_value(segment, 'embedding')
                     
                     # Get voice embedding (always store for speaker identification)
