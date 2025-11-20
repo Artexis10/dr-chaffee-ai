@@ -57,18 +57,37 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Startup event to warm up embedding model
+# Startup event to warm up embedding model (optional on low-memory environments)
 @app.on_event("startup")
 async def startup_event():
-    """Warm up embedding model on startup to avoid slow first request"""
+    """Warm up embedding model on startup to avoid slow first request
+    
+    Skips warmup on low-memory environments (e.g., Render Starter 512MB)
+    Model will load on first request instead (~20-25s delay)
+    """
+    import os
+    
+    # Skip warmup on Render Starter (512MB) - not enough memory
+    # Set SKIP_WARMUP=true to disable, or let it auto-detect low memory
+    skip_warmup = os.getenv('SKIP_WARMUP', '').lower() == 'true'
+    
+    if skip_warmup:
+        logger.info("⏭️  Skipping embedding model warmup (SKIP_WARMUP=true)")
+        return
+    
     try:
         logger.info("🚀 Warming up embedding model on startup...")
         generator = get_embedding_generator()
         # Generate a dummy embedding to load the model
         _ = generator.generate_embeddings(["warmup"])
         logger.info("✅ Embedding model warmed up successfully")
+    except MemoryError as e:
+        logger.warning(f"⚠️ Out of memory during warmup: {e}")
+        logger.info("💡 Model will load on first request (~20-25s delay)")
+        logger.info("💡 To fix: upgrade Render plan or set SKIP_WARMUP=true")
     except Exception as e:
         logger.warning(f"⚠️ Failed to warm up embedding model: {e}")
+        logger.info("💡 Model will load on first request instead")
 
 # Security
 security = HTTPBearer()
