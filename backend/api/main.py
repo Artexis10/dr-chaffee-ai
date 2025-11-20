@@ -209,24 +209,28 @@ def get_available_embedding_models():
                     # Fallback to common dimension
                     dimensions = 1536
                 
-                # Get model info
+                # Get count of embeddings
                 cur.execute("""
-                    SELECT 
-                        COALESCE(embedding_model, 'gte-qwen2-1.5b') as model_key,
-                        COUNT(*) as count
+                    SELECT COUNT(*) as count
                     FROM segments
                     WHERE embedding IS NOT NULL
-                    GROUP BY embedding_model
-                    ORDER BY count DESC
-                    LIMIT 1
                 """)
                 result = cur.fetchone()
                 cur.close()
                 conn.close()
                 
-                if result:
+                if result and result['count'] > 0:
+                    # Map dimensions to model name
+                    # 384 = BGE-small, 768 = Nomic, 1536 = OpenAI/GTE-Qwen2
+                    dimension_to_model = {
+                        384: 'BAAI/bge-small-en-v1.5',
+                        768: 'nomic-ai/nomic-embed-text-v1.5',
+                        1536: 'gte-Qwen2-1.5B'
+                    }
+                    model_key = dimension_to_model.get(dimensions, 'gte-Qwen2-1.5B')
+                    
                     model = {
-                        "model_key": result['model_key'], 
+                        "model_key": model_key, 
                         "dimensions": dimensions, 
                         "count": result['count']
                     }
