@@ -1,7 +1,6 @@
 # Minimal requirements for Render production deployment
-# NO heavy ML packages (torch, sentence-transformers, transformers)
-# We use Nomic API for embeddings (cloud-based, no local models needed)
-# Heavy packages are only needed for ingestion scripts (run separately)
+# Includes sentence-transformers for BGE-small embeddings (384-dim, lightweight)
+# Heavy packages like torch are only needed for ingestion scripts (run separately)
 
 # Core database
 psycopg2-binary>=2.9.9
@@ -14,7 +13,10 @@ fastapi==0.104.1
 uvicorn[standard]==0.24.0
 python-multipart==0.0.18  # Required for file upload endpoints (updated for security)
 
-# HTTP client for Nomic API calls
+# Embeddings (BGE-small for search queries)
+sentence-transformers>=2.2.0  # Lightweight model for /embed endpoint
+
+# HTTP client for API calls
 requests>=2.31.0
 
 # OpenAI for answer generation (lightweight SDK)

@@ -13,10 +13,13 @@ import zipfile
 import io
 import json
 import os
+import logging
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 import uuid
+
+logger = logging.getLogger(__name__)
 
 from pydantic import BaseModel
 from sqlalchemy import create_engine, text
