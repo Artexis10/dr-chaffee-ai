@@ -47,7 +47,7 @@ export default function TuningAuth() {
       justifyContent: 'center',
       alignItems: 'center',
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #1e3a8a 0%, #3730a3 100%)',
+      background: '#000000',
       padding: '2rem'
     }}>
       <div style={{
@@ -65,8 +65,8 @@ export default function TuningAuth() {
           margin: '0 auto 1.5rem',
           borderRadius: '50%',
           overflow: 'hidden',
-          border: '4px solid #1e3a8a',
-          boxShadow: '0 4px 12px rgba(30, 58, 138, 0.3)'
+          border: '4px solid #000000',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)'
         }}>
           <Image 
             src="/dr-chaffee.jpg" 
@@ -80,9 +80,7 @@ export default function TuningAuth() {
         <h1 style={{
           fontSize: '2rem',
           fontWeight: 700,
-          background: 'linear-gradient(135deg, #1e3a8a, #3730a3)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
+          color: '#000000',
           marginBottom: '0.5rem'
         }}>
           Tuning Dashboard
@@ -132,7 +130,7 @@ export default function TuningAuth() {
               boxSizing: 'border-box'
             }}
             onFocus={(e) => {
-              if (!error) e.target.style.borderColor = '#1e3a8a';
+              if (!error) e.target.style.borderColor = '#000000';
             }}
             onBlur={(e) => {
               if (!error) e.target.style.borderColor = '#e2e8f0';
@@ -161,23 +159,23 @@ export default function TuningAuth() {
               fontSize: '1rem',
               fontWeight: 600,
               color: 'white',
-              background: 'linear-gradient(135deg, #1e3a8a, #3730a3)',
+              background: '#000000',
               border: 'none',
               borderRadius: '12px',
               cursor: loading ? 'not-allowed' : 'pointer',
               transition: 'transform 0.2s, box-shadow 0.2s',
-              boxShadow: '0 4px 12px rgba(30, 58, 138, 0.4)',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
               opacity: loading ? 0.7 : 1
             }}
             onMouseEnter={(e) => {
               if (!loading) {
                 e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 6px 20px rgba(30, 58, 138, 0.5)';
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.4)';
               }
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(30, 58, 138, 0.4)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)';
             }}
           >
             {loading ? 'Unlocking...' : 'Access Dashboard'}
@@ -196,21 +194,21 @@ export default function TuningAuth() {
               padding: '0.75rem 1.5rem',
               fontSize: '0.9rem',
               fontWeight: 600,
-              color: '#1e3a8a',
-              background: '#dbeafe',
-              border: '2px solid #1e3a8a',
+              color: '#000000',
+              background: '#f5f5f5',
+              border: '2px solid #000000',
               borderRadius: '12px',
               textDecoration: 'none',
               cursor: 'pointer',
               transition: 'all 0.2s'
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#1e3a8a';
+              e.currentTarget.style.background = '#000000';
               e.currentTarget.style.color = 'white';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = '#dbeafe';
-              e.currentTarget.style.color = '#1e3a8a';
+              e.currentTarget.style.background = '#f5f5f5';
+              e.currentTarget.style.color = '#000000';
             }}
           >
             Back to Main App
