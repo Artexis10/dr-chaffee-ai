@@ -17,13 +17,17 @@ depends_on = None
 
 
 def upgrade() -> None:
-    """Drop segment_embeddings table and related indexes"""
-    # Drop indexes first
+    """Drop segment_embeddings table and related indexes if they exist"""
+    # Drop indexes first (IF EXISTS prevents errors if they don't exist)
     op.execute("DROP INDEX IF EXISTS idx_segment_embeddings_model_key")
     op.execute("DROP INDEX IF EXISTS idx_segment_embeddings_embedding")
     
-    # Drop the table
-    op.drop_table('segment_embeddings')
+    # Drop the table only if it exists
+    # Check if table exists in information_schema
+    conn = op.get_bind()
+    inspector = conn.dialect.inspector
+    if inspector.has_table('segment_embeddings'):
+        op.drop_table('segment_embeddings')
 
 
 def downgrade() -> None:
