@@ -1,6 +1,10 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 
-const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:8001';
+// Use Render production URL as default, fallback to localhost for development
+const BACKEND_API_URL = process.env.BACKEND_API_URL || 
+  (process.env.NODE_ENV === 'production' 
+    ? 'https://drchaffee-backend.onrender.com' 
+    : 'http://localhost:8001');
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
