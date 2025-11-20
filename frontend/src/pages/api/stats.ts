@@ -21,7 +21,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         COUNT(*) as total_segments,
         COUNT(DISTINCT source_id) as total_videos,
         COUNT(embedding) as segments_with_embeddings,
-        ROUND((COUNT(embedding)::float / COUNT(*)::float) * 100, 1) as embedding_coverage_pct
+        CAST((COUNT(embedding)::float / COUNT(*)::float) * 100 AS NUMERIC(5,1)) as embedding_coverage_pct
       FROM segments
     `);
     
