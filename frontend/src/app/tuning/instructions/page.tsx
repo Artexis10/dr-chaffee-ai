@@ -1,7 +1,7 @@
 'use client';
 
 import CustomInstructionsEditor from '../../../components/CustomInstructionsEditor';
-import '../../styles/custom-instructions.css';
+import '../../../styles/custom-instructions.css';
 
 export default function InstructionsPage() {
   return (
