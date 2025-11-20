@@ -9,14 +9,14 @@
   --color-accent: #0a0a0a;
   --color-accent-dark: #000000;
   
-  /* Neutral colors - Light Mode (Sophisticated) */
-  --color-background: #fafafa;
+  /* Neutral colors - Light Mode (Sophisticated & Airy) */
+  --color-background: #f8f9fa;
   --color-card: #ffffff;
-  --color-text: #0a0a0a;
-  --color-text-light: #6a6a6a;
-  --color-text-muted: #9a9a9a;
-  --color-border: #e0e0e0;
-  --color-border-light: #f0f0f0;
+  --color-text: #1a1a1a;
+  --color-text-light: #5a5a5a;
+  --color-text-muted: #8a8a8a;
+  --color-border: #e5e7eb;
+  --color-border-light: #f3f4f6;
   
   /* Semantic colors - Monochrome */
   --color-success: #000000;

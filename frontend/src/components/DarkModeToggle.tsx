@@ -4,18 +4,19 @@ export const DarkModeToggle: React.FC = () => {
   // Initialize to dark mode by default (will be updated by useEffect if needed)
   const [isDarkMode, setIsDarkMode] = useState(true);
 
-  // Initialize dark mode - default to dark unless explicitly set to light
+  // Initialize dark mode - ALWAYS default to dark
   useEffect(() => {
     const storedTheme = localStorage.getItem('theme');
     
-    // Default to dark mode unless user explicitly chose light
+    // Default to dark mode (sophisticated black theme)
     if (storedTheme === 'light') {
       setIsDarkMode(false);
       document.documentElement.classList.remove('dark-mode');
     } else {
+      // Always start with dark mode
       setIsDarkMode(true);
       document.documentElement.classList.add('dark-mode');
-      // Set default theme if not already set
+      // Set default theme to dark if not already set
       if (!storedTheme) {
         localStorage.setItem('theme', 'dark');
       }

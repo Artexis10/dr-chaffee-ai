@@ -134,12 +134,13 @@ export function PasswordGate({ children }: PasswordGateProps) {
         </div>
 
         <h1 style={{
-          fontSize: '2rem',
+          fontSize: '2.2rem',
           fontWeight: 700,
           background: 'linear-gradient(135deg, #667eea, #764ba2)',
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
-          marginBottom: '0.5rem'
+          marginBottom: '0.5rem',
+          letterSpacing: '-0.02em'
         }}>
           Ask Dr. Chaffee
         </h1>
@@ -164,7 +165,7 @@ export function PasswordGate({ children }: PasswordGateProps) {
             fontSize: '0.9rem',
             margin: 0
           }}>
-            🔒 This application is password protected. Please enter the access code to continue.
+            🔐 Main Application Access - Enter your password to explore Dr. Chaffee's knowledge base.
           </p>
         </div>
 
@@ -242,10 +243,11 @@ export function PasswordGate({ children }: PasswordGateProps) {
         }}>
           <p style={{
             color: '#64748b',
-            fontSize: '0.9rem',
-            marginBottom: '1rem'
+            fontSize: '0.85rem',
+            marginBottom: '0.75rem',
+            fontWeight: 500
           }}>
-            Admin Access:
+            Need admin access?
           </p>
           <a
             href="/tuning/auth"
