@@ -233,6 +233,26 @@ export default function OverviewPage() {
             >
               Configure Search
             </a>
+            <a
+              href="/tuning/instructions"
+              style={{
+                display: 'inline-block',
+                padding: '0.75rem 1rem',
+                background: '#555555',
+                color: 'white',
+                borderRadius: '0.5rem',
+                textDecoration: 'none',
+                fontWeight: 500,
+                fontSize: '0.875rem',
+                textAlign: 'center',
+                cursor: 'pointer',
+                transition: 'background 0.2s'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = '#777777'}
+              onMouseLeave={(e) => e.currentTarget.style.background = '#555555'}
+            >
+              Custom Instructions
+            </a>
           </div>
         </div>
       </div>
