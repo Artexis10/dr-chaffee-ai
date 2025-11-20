@@ -14,20 +14,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Call backend tuning auth endpoint
-    const response = await fetch(`${BACKEND_API_URL}/tuning/auth`, {
+    // Call backend tuning auth endpoint (backend sets its own cookie)
+    const response = await fetch(`${BACKEND_API_URL}/api/tuning/auth/verify`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ password }),
+      credentials: 'include', // Important: allows cookies to be set
     });
 
     if (response.ok) {
       const data = await response.json();
       
-      // Set secure httpOnly cookie with the token
-      res.setHeader('Set-Cookie', `tuning_token=${data.token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=86400`);
+      // Backend already set the httpOnly cookie, just forward the success
+      // Extract the cookie from backend response and forward it
+      const backendCookie = response.headers.get('set-cookie');
+      if (backendCookie) {
+        res.setHeader('Set-Cookie', backendCookie);
+      }
       
       return res.status(200).json({ success: true });
     } else if (response.status === 401) {
