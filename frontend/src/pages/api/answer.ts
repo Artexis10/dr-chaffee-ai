@@ -261,7 +261,7 @@ async function generateQueryEmbedding(query: string): Promise<number[]> {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ text: query }),
-      signal: AbortSignal.timeout(10000), // 10 second timeout
+      signal: AbortSignal.timeout(30000), // 30 second timeout (first request loads model on Render Starter)
     });
 
     if (!response.ok) {
@@ -659,7 +659,8 @@ async function checkAnswerCache(query: string, style: string): Promise<any | nul
     const embeddingResponse = await fetch(`${BACKEND_API_URL}/embed`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: query })
+      body: JSON.stringify({ text: query }),
+      signal: AbortSignal.timeout(30000) // 30s timeout for model loading
     });
     
     if (!embeddingResponse.ok) {
@@ -727,7 +728,8 @@ async function saveAnswerCache(query: string, style: string, answer: any): Promi
     const embeddingResponse = await fetch(`${BACKEND_API_URL}/embed`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: query })
+      body: JSON.stringify({ text: query }),
+      signal: AbortSignal.timeout(30000) // 30s timeout for model loading
     });
     
     if (!embeddingResponse.ok) {
