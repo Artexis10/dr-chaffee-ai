@@ -47,17 +47,18 @@ export default function TuningAuth() {
       justifyContent: 'center',
       alignItems: 'center',
       minHeight: '100vh',
-      background: '#000000',
+      background: '#0a0a0a',
       padding: '2rem'
     }}>
       <div style={{
-        background: 'white',
+        background: '#ffffff',
         borderRadius: '20px',
         padding: '3rem',
         maxWidth: '450px',
         width: '100%',
-        boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-        textAlign: 'center'
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.3)',
+        textAlign: 'center',
+        border: '1px solid #e0e0e0'
       }}>
         <div style={{
           width: '120px',
