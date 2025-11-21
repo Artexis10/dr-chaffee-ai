@@ -39,7 +39,7 @@ console.log('ANSWER_ENABLED:', ANSWER_ENABLED);
 console.log('USE_MOCK_MODE:', USE_MOCK_MODE);
 
 // Backend API Integration
-const BACKEND_API_URL = process.env.BACKEND_API_URL || process.env.EMBEDDING_SERVICE_URL || 'https://drchaffee-backend.onrender.com';
+const BACKEND_API_URL = process.env.BACKEND_API_URL || 'https://drchaffee-backend.onrender.com';
 
 // Cache configuration
 const CACHE_SIMILARITY_THRESHOLD = 0.92; // 92% similarity to consider a cache hit
@@ -250,7 +250,7 @@ function extractKeywords(query: string): string[] {
 
 // Generate embeddings for the query
 async function generateQueryEmbedding(query: string): Promise<number[]> {
-  const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:8000';
+  const BACKEND_API_URL = process.env.BACKEND_API_URL || 'https://dr-chaffee-ai.onrender.com/api';
   
   try {
     console.log('Calling backend API for query embedding:', query);
@@ -261,7 +261,7 @@ async function generateQueryEmbedding(query: string): Promise<number[]> {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ text: query }),
-      signal: AbortSignal.timeout(60000), // 1 minute timeout
+      signal: AbortSignal.timeout(10000), // 10 seconds timeout
     });
 
     if (!response.ok) {
@@ -729,9 +729,10 @@ async function saveAnswerCache(query: string, style: string, answer: any): Promi
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: query }),
-      signal: AbortSignal.timeout(30000) // 30s timeout for model loading
+      signal: AbortSignal.timeout(10000) // 10s timeout for model loading
     });
     
+    // ... rest of the code remains the same ...
     if (!embeddingResponse.ok) {
       const errorText = await embeddingResponse.text();
       console.error('[Cache Save] Failed to generate embedding, status:', embeddingResponse.status, 'error:', errorText);
