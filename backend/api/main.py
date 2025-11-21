@@ -31,13 +31,28 @@ from psycopg2.extras import RealDictCursor
 import sys
 backend_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(backend_path)
-from scripts.process_srt_files import SRTProcessor
-from scripts.common.database_upsert import DatabaseUpserter
-from scripts.common.transcript_common import TranscriptSegment
-from scripts.common.embeddings import EmbeddingGenerator
+
+try:
+    from scripts.process_srt_files import SRTProcessor
+    from scripts.common.database_upsert import DatabaseUpserter
+    from scripts.common.transcript_common import TranscriptSegment
+    from scripts.common.embeddings import EmbeddingGenerator
+    logger.info("✅ Successfully imported backend processors")
+except Exception as e:
+    logger.error(f"❌ Failed to import backend processors: {e}", exc_info=True)
+    # Don't crash - these are only needed for specific endpoints
+    SRTProcessor = None
+    DatabaseUpserter = None
+    TranscriptSegment = None
+    EmbeddingGenerator = None
 
 # Import tuning router
-from .tuning import router as tuning_router
+try:
+    from .tuning import router as tuning_router
+    logger.info("✅ Successfully imported tuning router")
+except Exception as e:
+    logger.error(f"⚠️ Failed to import tuning router: {e}", exc_info=True)
+    tuning_router = None
 
 app = FastAPI(
     title="Ask Dr. Chaffee API",
@@ -45,8 +60,12 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Include tuning API
-app.include_router(tuning_router)
+# Include tuning API (if available)
+if tuning_router is not None:
+    app.include_router(tuning_router)
+    logger.info("✅ Tuning router included")
+else:
+    logger.warning("⚠️ Tuning router not available")
 
 # CORS middleware
 app.add_middleware(
@@ -102,15 +121,22 @@ _embedding_generator = None
 def get_embedding_generator():
     global _embedding_generator
     if _embedding_generator is None:
-        # Read from .env (single source of truth)
-        provider = os.getenv('EMBEDDING_PROVIDER', 'sentence-transformers')
-        model = os.getenv('EMBEDDING_MODEL', 'BAAI/bge-small-en-v1.5')
+        if EmbeddingGenerator is None:
+            raise RuntimeError("EmbeddingGenerator not available - backend processors failed to import")
         
-        _embedding_generator = EmbeddingGenerator(
-            embedding_provider=provider,
-            model_name=model
-        )
-        logger.info(f"Initialized embedding generator: {provider} / {model}")
+        try:
+            # Read from .env (single source of truth)
+            provider = os.getenv('EMBEDDING_PROVIDER', 'sentence-transformers')
+            model = os.getenv('EMBEDDING_MODEL', 'BAAI/bge-small-en-v1.5')
+            
+            _embedding_generator = EmbeddingGenerator(
+                embedding_provider=provider,
+                model_name=model
+            )
+            logger.info(f"✅ Initialized embedding generator: {provider} / {model}")
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize embedding generator: {e}", exc_info=True)
+            raise
     return _embedding_generator
 
 def get_active_model_key():
