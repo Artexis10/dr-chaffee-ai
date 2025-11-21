@@ -23,4 +23,5 @@ COPY backend /app/backend
 EXPOSE 8000
 
 # Start command
-CMD ["uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+WORKDIR /app/backend
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
