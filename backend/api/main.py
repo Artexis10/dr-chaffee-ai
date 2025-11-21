@@ -110,6 +110,8 @@ async def startup_event():
     
     if skip_warmup:
         logger.info("⏭️  Skipping embedding model warmup (SKIP_WARMUP=true)")
+        logger.info("✅ App is ready to accept requests on http://0.0.0.0:8000")
+        logger.info("✅ Healthcheck endpoint available at /live")
         return
     
     try:
@@ -342,6 +344,7 @@ async def health_check():
 @app.get("/live")
 async def liveness():
     """Liveness probe - app is running"""
+    logger.info("✅ /live endpoint called - returning alive status")
     return {"status": "alive"}
 
 @app.get("/api/test-db")
