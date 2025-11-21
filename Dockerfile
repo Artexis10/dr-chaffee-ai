@@ -35,9 +35,11 @@ WORKDIR /app/backend
 # Use /live endpoint which has no dependencies
 # start-period=120s gives 2 minutes for app to fully initialize
 # timeout=5s is aggressive to catch real failures
+# Uses PORT env var (Railway injects this dynamically)
 HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
-    CMD curl -f http://localhost:8000/live || exit 1
+    CMD curl -f http://localhost:${PORT:-8000}/live || exit 1
 
 # Start command with SKIP_WARMUP to avoid embedding model download on startup
 ENV SKIP_WARMUP=true
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Use Railway's PORT variable (defaults to 8000 for local dev)
+CMD uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8000}
