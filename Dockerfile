@@ -42,13 +42,9 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=300s --retries=3 \
 # Start command with SKIP_WARMUP to avoid embedding model download on startup
 ENV SKIP_WARMUP=true
 
-# Create startup script that starts the app (migrations run in background)
+# Create startup script that starts the app immediately (no migrations)
 RUN echo '#!/bin/bash\n\
 set -e\n\
-if [ -n "$DATABASE_URL" ]; then\n\
-  echo "Running database migrations in background..."\n\
-  python -m alembic upgrade head > /tmp/migrations.log 2>&1 &\n\
-fi\n\
 echo "Starting application..."\n\
 exec uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8000}' > /app/backend/start.sh && \
     chmod +x /app/backend/start.sh
