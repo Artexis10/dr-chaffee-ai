@@ -45,9 +45,14 @@ ENV SKIP_WARMUP=true
 # Create startup script that runs migrations then starts the app
 RUN echo '#!/bin/bash\n\
 set -e\n\
-echo "Running database migrations..."\n\
-python -m alembic upgrade head\n\
-echo "Migrations complete. Starting application..."\n\
+if [ -z "$DATABASE_URL" ]; then\n\
+  echo "⚠️  DATABASE_URL not set, skipping migrations"\n\
+else\n\
+  echo "Running database migrations..."\n\
+  python -m alembic upgrade head || echo "⚠️  Migrations failed, continuing anyway"\n\
+  echo "Migrations complete."\n\
+fi\n\
+echo "Starting application..."\n\
 exec uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8000}' > /app/backend/start.sh && \
     chmod +x /app/backend/start.sh
 
