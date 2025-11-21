@@ -4,6 +4,21 @@ FastAPI main application for Ask Dr. Chaffee
 Multi-source transcript processing with admin interface
 """
 
+import logging
+import sys
+
+# Configure logging FIRST, before any other imports
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stdout
+)
+logger = logging.getLogger(__name__)
+
+logger.info("=" * 60)
+logger.info("🚀 Starting FastAPI application initialization...")
+logger.info("=" * 60)
+
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -13,13 +28,10 @@ import zipfile
 import io
 import json
 import os
-import logging
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 import uuid
-
-logger = logging.getLogger(__name__)
 
 from pydantic import BaseModel
 from sqlalchemy import create_engine, text
@@ -54,11 +66,13 @@ except Exception as e:
     logger.error(f"⚠️ Failed to import tuning router: {e}", exc_info=True)
     tuning_router = None
 
+logger.info("📦 Creating FastAPI app instance...")
 app = FastAPI(
     title="Ask Dr. Chaffee API",
     description="Multi-source transcript processing and LLM search",
     version="1.0.0"
 )
+logger.info("✅ FastAPI app created successfully")
 
 # Include tuning API (if available)
 if tuning_router is not None:
@@ -68,6 +82,7 @@ else:
     logger.warning("⚠️ Tuning router not available")
 
 # CORS middleware
+logger.info("🔧 Adding CORS middleware...")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Configure for production
@@ -75,6 +90,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+logger.info("✅ CORS middleware added")
 
 # Startup event to warm up embedding model (optional on low-memory environments)
 @app.on_event("startup")
@@ -247,10 +263,18 @@ def get_available_embedding_models():
 
 def get_db_connection():
     """Get database connection"""
-    return psycopg2.connect(
-        os.getenv('DATABASE_URL'),
-        cursor_factory=RealDictCursor
-    )
+    db_url = os.getenv('DATABASE_URL')
+    if not db_url:
+        logger.error("❌ DATABASE_URL environment variable not set!")
+        raise ValueError("DATABASE_URL not configured")
+    try:
+        logger.info(f"📡 Connecting to database...")
+        conn = psycopg2.connect(db_url, cursor_factory=RealDictCursor)
+        logger.info(f"✅ Database connection successful")
+        return conn
+    except Exception as e:
+        logger.error(f"❌ Failed to connect to database: {e}", exc_info=True)
+        raise
 
 class JobStatus(BaseModel):
     job_id: str
@@ -1006,6 +1030,11 @@ def convert_to_srt(content: str) -> str:
     # Placeholder implementation
     # Actual implementation depends on the specific format of Zoom transcripts
     return content
+
+# Log that the app module has been fully loaded
+logger.info("=" * 60)
+logger.info("✅ FastAPI application module fully initialized!")
+logger.info("=" * 60)
 
 if __name__ == "__main__":
     import uvicorn
