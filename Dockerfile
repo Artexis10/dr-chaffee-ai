@@ -33,7 +33,9 @@ WORKDIR /app/backend
 
 # Health check (extended timeouts for model loading on Railway)
 # Use /live endpoint which has no dependencies
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
+# start-period=120s gives 2 minutes for app to fully initialize
+# timeout=5s is aggressive to catch real failures
+HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
     CMD curl -f http://localhost:8000/live || exit 1
 
 # Start command with SKIP_WARMUP to avoid embedding model download on startup
