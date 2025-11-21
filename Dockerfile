@@ -41,5 +41,15 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
 
 # Start command with SKIP_WARMUP to avoid embedding model download on startup
 ENV SKIP_WARMUP=true
+
+# Create startup script that runs migrations then starts the app
+RUN echo '#!/bin/bash\n\
+set -e\n\
+echo "Running database migrations..."\n\
+python -m alembic upgrade head\n\
+echo "Migrations complete. Starting application..."\n\
+exec uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8000}' > /app/backend/start.sh && \
+    chmod +x /app/backend/start.sh
+
 # Use Railway's PORT variable (defaults to 8000 for local dev)
-CMD uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8000}
+CMD ["/app/backend/start.sh"]
