@@ -27,19 +27,6 @@ google-auth-oauthlib==1.1.0
 sentence-transformers>=2.7.0
 transformers>=4.47.0
 
-# Audio transcription
-faster-whisper>=1.0.2
-ctranslate2>=4.4.0
-torch>=2.2.0,<2.9.0
-torchaudio>=2.2.0,<2.9.0
-psutil>=5.9.0
-
-# Advanced ASR with speaker identification
-pyannote.audio>=4.0.0
-speechbrain>=0.5.16
-soundfile>=0.13.1
-webvtt-py>=0.5.1
-
 # Date/time parsing
 isodate==0.6.1
 
