@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ \
     libssl-dev \
     libffi-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Copy production requirements only
@@ -31,8 +32,9 @@ EXPOSE 8000
 WORKDIR /app/backend
 
 # Health check (extended timeouts for model loading on Railway)
+# Use curl instead of requests to avoid import issues
 HEALTHCHECK --interval=30s --timeout=15s --start-period=120s --retries=5 \
-    CMD python -c "import requests; requests.get('http://localhost:8000/health', timeout=10)"
+    CMD curl -f http://localhost:8000/health || exit 1
 
 # Start command with SKIP_WARMUP to avoid embedding model download on startup
 ENV SKIP_WARMUP=true
