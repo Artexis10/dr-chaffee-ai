@@ -1,0 +1,57 @@
+# Core dependencies
+psycopg2-binary>=2.9.9
+alembic>=1.13.0
+sqlalchemy>=2.0.07
+python-dotenv==1.0.0
+numpy==1.26.4
+tqdm==4.66.1
+
+# Web API dependencies
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.18
+aiofiles==23.2.1
+celery==5.3.4
+redis==5.0.1
+
+# YouTube transcript fetching
+youtube-transcript-api==0.6.1
+yt-dlp>=2023.11.16
+
+# YouTube Data API
+google-api-python-client==2.108.0
+google-auth-httplib2==0.1.1
+google-auth-oauthlib==1.1.0
+
+# Text processing and embeddings
+sentence-transformers>=2.7.0
+transformers>=4.47.0
+
+# Audio transcription
+faster-whisper>=1.0.2
+ctranslate2>=4.4.0
+torch>=2.2.0,<2.9.0
+torchaudio>=2.2.0,<2.9.0
+psutil>=5.9.0
+
+# Advanced ASR with speaker identification
+pyannote.audio>=4.0.0
+speechbrain>=0.5.16
+soundfile>=0.13.1
+webvtt-py>=0.5.1
+
+# Date/time parsing
+isodate==0.6.1
+
+# Async/concurrent processing
+asyncio-throttle==1.0.2
+apscheduler==3.10.4
+aiohttp==3.9.1
+aiohttp-socks==0.8.4
+
+# HTML parsing
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+
+# YAML support
+pyyaml>=6.0.3
