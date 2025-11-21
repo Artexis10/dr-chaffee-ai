@@ -16,7 +16,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY backend/requirements-prod.txt /tmp/requirements.txt
 
 # Install Python dependencies with no cache
-RUN pip install --no-cache-dir -r /tmp/requirements.txt && \
+# Use CPU-only PyTorch to avoid massive CUDA downloads (~3.5GB)
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch==2.1.2 && \
+    pip install --no-cache-dir -r /tmp/requirements.txt && \
     rm /tmp/requirements.txt
 
 # Copy the entire backend
