@@ -32,9 +32,9 @@ EXPOSE 8000
 WORKDIR /app/backend
 
 # Health check (extended timeouts for model loading on Railway)
-# Use curl instead of requests to avoid import issues
-HEALTHCHECK --interval=30s --timeout=15s --start-period=120s --retries=5 \
-    CMD curl -f http://localhost:8000/health || exit 1
+# Use /live endpoint which has no dependencies
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
+    CMD curl -f http://localhost:8000/live || exit 1
 
 # Start command with SKIP_WARMUP to avoid embedding model download on startup
 ENV SKIP_WARMUP=true

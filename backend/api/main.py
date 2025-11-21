@@ -86,6 +86,8 @@ async def startup_event():
     """
     import os
     
+    logger.info("🚀 Startup event triggered")
+    
     # Skip warmup on Render Starter (512MB) - not enough memory
     # Set SKIP_WARMUP=true to disable, or let it auto-detect low memory
     skip_warmup = os.getenv('SKIP_WARMUP', '').lower() == 'true'
@@ -105,7 +107,7 @@ async def startup_event():
         logger.info("💡 Model will load on first request (~20-25s delay)")
         logger.info("💡 To fix: upgrade Render plan or set SKIP_WARMUP=true")
     except Exception as e:
-        logger.warning(f"⚠️ Failed to warm up embedding model: {e}")
+        logger.warning(f"⚠️ Failed to warm up embedding model: {e}", exc_info=True)
         logger.info("💡 Model will load on first request instead")
 
 # Security
@@ -304,12 +306,19 @@ async def verify_admin_token(credentials: HTTPAuthorizationCredentials = Depends
 @app.head("/")
 async def root():
     """Root endpoint"""
+    logger.info("✅ Root endpoint called")
     return {"status": "ok", "service": "Ask Dr. Chaffee API"}
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
+    """Health check endpoint - minimal, no dependencies"""
+    logger.info("✅ Health check endpoint called")
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
+@app.get("/live")
+async def liveness():
+    """Liveness probe - app is running"""
+    return {"status": "alive"}
 
 @app.get("/api/test-db")
 async def test_db():
