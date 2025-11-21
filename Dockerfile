@@ -31,12 +31,12 @@ EXPOSE 8000
 # Set working directory for app
 WORKDIR /app/backend
 
-# Health check (extended timeouts for model loading on Railway)
+# Health check (extended timeouts for migrations + model loading on Railway)
 # Use /live endpoint which has no dependencies
-# start-period=120s gives 2 minutes for app to fully initialize
+# start-period=300s gives 5 minutes for migrations + app to fully initialize
 # timeout=5s is aggressive to catch real failures
 # Uses PORT env var (Railway injects this dynamically)
-HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=300s --retries=3 \
     CMD curl -f http://localhost:${PORT:-8000}/live || exit 1
 
 # Start command with SKIP_WARMUP to avoid embedding model download on startup
