@@ -83,14 +83,21 @@ else:
 
 # CORS middleware
 logger.info("🔧 Adding CORS middleware...")
+allowed_origins = [
+    "http://localhost:3000",  # Local development
+    "http://localhost:8000",  # Local backend
+    "https://askdrchaffee.com",  # Production domain
+    "https://www.askdrchaffee.com",  # Production domain with www
+    "https://dr-chaffee-ai.vercel.app",  # Vercel deployment
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure for production
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-logger.info("✅ CORS middleware added")
+logger.info(f"✅ CORS middleware added for origins: {allowed_origins}")
 
 # Startup event to warm up embedding model (optional on low-memory environments)
 @app.on_event("startup")
