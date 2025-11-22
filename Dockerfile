@@ -1,26 +1,16 @@
-# Optimized multi-stage Docker build for Dr. Chaffee AI
-# Use NVIDIA CUDA base image for GPU support
-FROM nvidia/cuda:13.0.0-runtime-ubuntu22.04
+# Optimized CPU-only Docker build for Dr. Chaffee AI
+# Slim Python base image for Hetzner deployment
+FROM python:3.11-slim
 
-# Install system dependencies and Python
+# Install system dependencies (CPU-only, no CUDA)
 RUN apt-get update && apt-get install -y \
-    python3.11 \
-    python3.11-venv \
-    python3-pip \
     ffmpeg \
     wget \
     curl \
     git \
     postgresql-client \
     build-essential \
-    libcudnn9-dev-cuda-13 \
-    nodejs \
-    npm \
     && rm -rf /var/lib/apt/lists/*
-
-# Set Python 3.11 as default
-RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1 && \
-    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
 
 # Upgrade pip for better wheel support
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel
@@ -61,10 +51,9 @@ RUN pip install --no-cache-dir \
     brotli \
     mutagen
 
-# Stage 4: ML/AI with CUDA support (may take time but has wheels)
-# Install PyTorch with CUDA 12.1 support (matches NVIDIA CUDA 13.0 runtime)
+# Stage 4: ML/AI with CPU-only PyTorch
 RUN pip install --no-cache-dir \
-    torch==2.1.2 torchvision==0.16.2 torchaudio==2.1.2 --index-url https://download.pytorch.org/whl/cu121 && \
+    torch==2.1.2 torchvision==0.16.2 torchaudio==2.1.2 && \
     pip install --no-cache-dir \
     sentence-transformers \
     transformers
