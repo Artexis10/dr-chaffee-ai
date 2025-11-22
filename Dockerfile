@@ -103,7 +103,9 @@ RUN pip install --no-cache-dir \
 
 # Copy application code
 COPY backend/ .
-COPY .env .env
+# Note: .env is not baked into the image.
+# Environment variables are provided at runtime by Coolify / the host.
+# COPY .env .env
 
 # Create directories for temporary files
 RUN mkdir -p /tmp/whisper_cache /tmp/audio_downloads
