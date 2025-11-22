@@ -51,19 +51,20 @@ RUN pip install --no-cache-dir \
     brotli \
     mutagen
 
-# Stage 4: ML/AI with CPU-only PyTorch
+# Stage 4: ML/AI with CPU-only PyTorch + embeddings
 RUN pip install --no-cache-dir \
-    torch==2.1.2 torchvision==0.16.2 torchaudio==2.1.2 && \
+    torch==2.1.2 \
+    torchvision==0.16.2 \
+    torchaudio==2.1.2 \
+    --index-url https://download.pytorch.org/whl/cpu && \
     pip install --no-cache-dir \
     sentence-transformers \
     transformers
 
-# Stage 5: Audio transcription (critical packages)
+# Stage 5: Audio transcription (minimal CPU stack)
 RUN pip install --no-cache-dir \
     faster-whisper \
     ctranslate2 \
-    pyannote.audio \
-    speechbrain \
     soundfile
 
 # Stage 6: Utilities
@@ -77,18 +78,6 @@ RUN pip install --no-cache-dir \
     aiohttp-socks \
     beautifulsoup4 \
     lxml
-
-# Stage 7: Development/Testing (optional)
-RUN pip install --no-cache-dir \
-    black \
-    ruff \
-    pytest \
-    pytest-cov \
-    pytest-mock \
-    pytest-asyncio \
-    pytest-timeout \
-    freezegun \
-    hypothesis || true
 
 # Copy application code
 COPY backend/ .
