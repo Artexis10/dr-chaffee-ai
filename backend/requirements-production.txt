@@ -1,55 +1,60 @@
 # Production requirements for CPU-only API deployment (Hetzner + Coolify)
 # Excludes: GPU dependencies, ASR/diarization, ingestion pipeline
 # Use this for backend API servers that only serve search/answer endpoints
+#
+# CRITICAL: Install order matters! See Dockerfile for proper sequence.
+# NumPy MUST be installed before PyTorch to prevent NumPy 2.x from being pulled in.
 
 # ============================================================================
-# CORE DEPENDENCIES
+# NUMPY (MUST BE FIRST - installed in Dockerfile before PyTorch)
 # ============================================================================
-psycopg2-binary>=2.9.9
-alembic>=1.13.0
-sqlalchemy>=2.0.7
+# numpy==1.24.3  # Installed first in Dockerfile, compatible with torch 2.1.2
+
+# ============================================================================
+# PYTORCH CPU-ONLY (installed in Dockerfile after NumPy)
+# ============================================================================
+# torch==2.1.2+cpu
+# torchvision==0.16.2+cpu
+# torchaudio==2.1.2+cpu
+# Installed via: pip install --index-url https://download.pytorch.org/whl/cpu
+
+# ============================================================================
+# CORE DEPENDENCIES (safe to install anytime)
+# ============================================================================
+psycopg2-binary==2.9.9
+alembic==1.13.1
+sqlalchemy==2.0.23
 python-dotenv==1.0.0
-
-# NumPy 2 is currently breaking PyTorch / HF stack in our image.
-# Pin to a stable 1.x release that is well supported.
-numpy<2.0.0
-
 tqdm==4.66.1
+isodate==0.6.1
+psutil==5.9.6
 
 # ============================================================================
 # WEB API
 # ============================================================================
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
-python-multipart==0.0.18  # Security fix applied
+python-multipart==0.0.18
 aiofiles==23.2.1
 
 # ============================================================================
-# EMBEDDINGS (CPU-ONLY)
+# EMBEDDINGS (installed AFTER PyTorch in Dockerfile)
 # ============================================================================
-# Use versions known to work well with torch==2.1.2 CPU
+# Versions compatible with torch==2.1.2 and numpy==1.24.3
 sentence-transformers==2.2.2
 transformers==4.36.2
-
-# PyTorch CPU-only (installed in Dockerfile, not here)
-# IMPORTANT: keep these pinned together for compatibility
-#   torch==2.1.2
-#   torchvision==0.16.2
-#   torchaudio==2.1.2
-# Installed via:
-#   pip install --index-url https://download.pytorch.org/whl/cpu \
-#       torch==2.1.2 torchvision==0.16.2 torchaudio==2.1.2
-
-# ============================================================================
-# UTILITIES
-# ============================================================================
-isodate==0.6.1
-psutil>=5.9.0
+tokenizers==0.15.0
+huggingface-hub==0.19.4
+safetensors==0.4.1
+regex==2023.10.3
+requests==2.31.0
+filelock==3.13.1
+packaging==23.2
 
 # ============================================================================
 # OPENAI (for answer generation)
 # ============================================================================
-openai>=1.0.0
+openai==1.3.0
 
 # ============================================================================
 # EXCLUDED FROM PRODUCTION

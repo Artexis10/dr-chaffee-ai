@@ -21,35 +21,51 @@ WORKDIR /app
 # Copy production requirements (CPU-only, no ASR/diarization)
 COPY backend/requirements-production.txt .
 
-# Install dependencies in stages to avoid resolver backtracking
-# Stage 1: Core dependencies
-RUN pip install --no-cache-dir \
-    psycopg2-binary \
-    alembic \
-    sqlalchemy \
-    python-dotenv \
-    numpy \
-    tqdm \
-    isodate \
-    psutil
+# CRITICAL: Install order to prevent NumPy 2.x from breaking PyTorch
+# 1. NumPy 1.x FIRST (before PyTorch)
+# 2. PyTorch CPU-only from CPU wheel index
+# 3. Everything else (sentence-transformers, transformers, etc.)
 
-# Stage 2: Web API
-RUN pip install --no-cache-dir \
-    fastapi \
-    uvicorn[standard] \
-    python-multipart \
-    aiofiles
+# Stage 1: NumPy 1.x (MUST be first to prevent NumPy 2.x)
+RUN pip install --no-cache-dir "numpy==1.24.3"
 
-# Stage 3: CPU-only PyTorch + Embeddings (CRITICAL: CPU wheels only)
+# Stage 2: PyTorch CPU-only (AFTER NumPy, BEFORE other ML libs)
 RUN pip install --no-cache-dir \
     torch==2.1.2 \
     torchvision==0.16.2 \
     torchaudio==2.1.2 \
-    --index-url https://download.pytorch.org/whl/cpu && \
-    pip install --no-cache-dir \
-    sentence-transformers \
-    transformers \
-    openai
+    --index-url https://download.pytorch.org/whl/cpu
+
+# Stage 3: Core dependencies (safe, no NumPy conflicts)
+RUN pip install --no-cache-dir \
+    psycopg2-binary==2.9.9 \
+    alembic==1.13.1 \
+    sqlalchemy==2.0.23 \
+    python-dotenv==1.0.0 \
+    tqdm==4.66.1 \
+    isodate==0.6.1 \
+    psutil==5.9.6
+
+# Stage 4: Web API
+RUN pip install --no-cache-dir \
+    fastapi==0.104.1 \
+    uvicorn[standard]==0.24.0 \
+    python-multipart==0.0.18 \
+    aiofiles==23.2.1
+
+# Stage 5: Embeddings (AFTER PyTorch, with pinned versions)
+RUN pip install --no-cache-dir \
+    sentence-transformers==2.2.2 \
+    transformers==4.36.2 \
+    tokenizers==0.15.0 \
+    huggingface-hub==0.19.4 \
+    safetensors==0.4.1 \
+    regex==2023.10.3 \
+    filelock==3.13.1 \
+    packaging==23.2
+
+# Stage 6: OpenAI
+RUN pip install --no-cache-dir openai==1.3.0
 
 # Copy application code
 COPY backend/ .
