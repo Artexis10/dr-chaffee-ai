@@ -8,28 +8,28 @@
 psycopg2-binary>=2.9.9
 alembic>=1.13.0
 sqlalchemy>=2.0.7
-python-dotenv==1.0.0
+python-dotenv==1.2.1
 
 # NumPy 2 is currently breaking PyTorch / HF stack in our image.
 # Pin to a stable 1.x release that is well supported.
 numpy<2.0.0
 
-tqdm==4.66.1
+tqdm==4.67.1
 
 # ============================================================================
 # WEB API
 # ============================================================================
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-python-multipart==0.0.18  # Security fix applied
+fastapi==0.121.3
+uvicorn[standard]==0.38.0
+python-multipart==0.0.20  # Security fix applied
 aiofiles==23.2.1
 
 # ============================================================================
 # EMBEDDINGS (CPU-ONLY)
 # ============================================================================
 # Use versions known to work well with torch==2.1.2 CPU
-sentence-transformers==2.2.2
-transformers==4.36.2
+sentence-transformers==2.7.0
+transformers==4.57.1
 
 # PyTorch CPU-only (installed in Dockerfile, not here)
 # IMPORTANT: keep these pinned together for compatibility
@@ -43,7 +43,7 @@ transformers==4.36.2
 # ============================================================================
 # UTILITIES
 # ============================================================================
-isodate==0.6.1
+isodate==0.7.2
 psutil>=5.9.0
 
 # ============================================================================

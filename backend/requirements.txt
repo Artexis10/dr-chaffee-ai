@@ -2,26 +2,26 @@
 psycopg2-binary>=2.9.9
 alembic>=1.13.0
 sqlalchemy>=2.0.07
-python-dotenv==1.0.0
+python-dotenv==1.2.1
 numpy==1.26.4  # Pinned version with pre-built wheels for Python 3.11/3.12
-tqdm==4.66.1
+tqdm==4.67.1
 
 # Web API dependencies
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-python-multipart==0.0.18
+fastapi==0.121.3
+uvicorn[standard]==0.38.0
+python-multipart==0.0.20
 aiofiles==23.2.1
-celery==5.3.4
-redis==5.0.1
+celery==5.5.3
+redis==5.3.1
 
 # YouTube transcript fetching
-youtube-transcript-api==0.6.1
+youtube-transcript-api==0.6.3
 yt-dlp>=2023.11.16  # Latest for better reliability
 
 # YouTube Data API
-google-api-python-client==2.108.0
-google-auth-httplib2==0.1.1
-google-auth-oauthlib==1.1.0
+google-api-python-client==2.187.0
+google-auth-httplib2==0.2.1
+google-auth-oauthlib==1.2.3
 
 # Text processing and embeddings
 sentence-transformers>=2.7.0
@@ -33,8 +33,8 @@ faster-whisper>=1.0.2  # Supports large-v3, distil-large-v3, large-v3-turbo
 ctranslate2>=4.4.0  # CTranslate2 for faster-whisper (4.6.0+ for CUDA 13.0)
 # Torch for ML models (Python 3.12 requires >=2.2.0)
 # Note: CPU-only version is fine for production (bulk processing done locally with GPU)
-torch>=2.2.0,<2.9.0
-torchaudio>=2.2.0,<2.9.0
+torch>=2.2.0,<2.10.0
+torchaudio>=2.2.0,<2.10.0
 # System monitoring for VRAM tracking
 psutil>=5.9.0
 
@@ -45,19 +45,19 @@ soundfile>=0.13.1  # Audio I/O (required by pyannote.audio 4.0.0)
 webvtt-py>=0.5.1  # VTT subtitle parsing (maintained fork)
 
 # Date/time parsing
-isodate==0.6.1
+isodate==0.7.2
 
 # Async/concurrent processing
 asyncio-throttle==1.0.2
-apscheduler==3.10.4
-aiohttp==3.9.1
-aiohttp-socks==0.8.4
+apscheduler==3.11.1
+aiohttp==3.13.2
+aiohttp-socks==0.10.2
 
 # Optional development tools
-black==23.9.1
-ruff==0.0.292
+black==23.12.1
+ruff==0.14.6
 pyyaml>=6.0.3  # Pre-built wheels for Python 3.11/3.12 (required by pre-commit)
-pre-commit==3.4.00
+pre-commit==3.8.0
 beautifulsoup4>=4.12.0
 lxml>=4.9.0
 
