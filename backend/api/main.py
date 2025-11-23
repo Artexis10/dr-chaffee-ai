@@ -82,11 +82,11 @@ async def startup_event():
         _ = generator.generate_embeddings(["warmup"])
         logger.info("✅ Embedding model warmed up successfully")
     except MemoryError as e:
-        logger.warning(f"⚠️ Out of memory during warmup: {e}")
+        logger.exception(f"⚠️ Out of memory during warmup")
         logger.info("💡 Model will load on first request (~20-25s delay)")
         logger.info("💡 To fix: upgrade Render plan or set SKIP_WARMUP=true")
     except Exception as e:
-        logger.warning(f"⚠️ Failed to warm up embedding model: {e}")
+        logger.exception(f"⚠️ Failed to warm up embedding model")
         logger.info("💡 Model will load on first request instead")
 
 # Security

@@ -9,6 +9,8 @@
 # NUMPY (MUST BE FIRST - installed in Dockerfile before PyTorch)
 # ============================================================================
 # numpy==1.24.3  # Installed first in Dockerfile, compatible with torch 2.1.2
+# CRITICAL: NumPy 2.x breaks PyTorch 2.1.2 - always use NumPy 1.x
+# If installing manually: pip install "numpy<2.0.0"
 
 # ============================================================================
 # PYTORCH CPU-ONLY (installed in Dockerfile after NumPy)

@@ -234,7 +234,6 @@ class EmbeddingGenerator:
             if str(backend_dir) not in sys.path:
                 sys.path.insert(0, str(backend_dir))
             from services.embeddings_service import EmbeddingsService
-            import numpy as np
             
             # Initialize service if needed
             if not EmbeddingsService.is_initialized():
@@ -244,8 +243,8 @@ class EmbeddingGenerator:
             batch_size = int(os.getenv('EMBEDDING_BATCH_SIZE', '256'))
             embeddings = EmbeddingsService.encode_texts(texts, batch_size=batch_size)
             
-            # Convert to list of lists for compatibility
-            return [emb.tolist() if isinstance(emb, np.ndarray) else list(emb) for emb in embeddings]
+            # Convert to list of lists for compatibility (NumPy-free)
+            return [emb.tolist() if hasattr(emb, 'tolist') else list(emb) for emb in embeddings]
             
         except Exception as e:
             logger.error(f"Failed to use new EmbeddingsService, falling back to legacy: {e}")
@@ -367,7 +366,7 @@ class EmbeddingGenerator:
             raise
     
     def _generate_local_embeddings(self, texts: List[str]) -> List[List[float]]:
-        """Generate embeddings using local SentenceTransformer model"""
+        """Generate embeddings using local SentenceTransformer model (NumPy-free)"""
         model = self._load_local_model()
         
         try:
@@ -389,14 +388,15 @@ class EmbeddingGenerator:
             # Some sentence-transformers versions ignore the device parameter
             embedding_device = os.getenv('EMBEDDING_DEVICE', 'cuda')
             
-            # Use convert_to_tensor=True to keep tensors on GPU during encoding
-            embeddings = model.encode(
+            # CRITICAL: Use convert_to_tensor=True to get PyTorch tensors (NO NumPy)
+            # This avoids NumPy dependency entirely in the embedding pipeline
+            embeddings_tensor = model.encode(
                 texts, 
                 batch_size=batch_size,
                 show_progress_bar=len(texts) > 10,
-                convert_to_numpy=True,
+                convert_to_numpy=False,  # CRITICAL: Do NOT convert to NumPy
                 normalize_embeddings=True,  # Normalize for better similarity search
-                convert_to_tensor=False,  # We want numpy output, but process on GPU
+                convert_to_tensor=True,  # CRITICAL: Return PyTorch tensors
                 device=embedding_device  # Explicitly specify device
             )
             
@@ -404,11 +404,12 @@ class EmbeddingGenerator:
             elapsed = time.time() - start_time
             texts_per_sec = len(texts) / elapsed if elapsed > 0 else 0
             
-            # Convert to list of lists for JSON serialization
-            result = [embedding.tolist() if hasattr(embedding, 'tolist') else embedding for embedding in embeddings]
+            # Convert PyTorch tensor to list[list[float]] (NO NumPy involved)
+            # .detach() removes gradient tracking, .cpu() moves to CPU, .tolist() converts to Python list
+            result = embeddings_tensor.detach().cpu().tolist()
             
             # CRITICAL: Free GPU memory immediately after embedding generation
-            del embeddings
+            del embeddings_tensor
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
             
@@ -438,6 +439,7 @@ class EmbeddingGenerator:
                 logger.info("Attempting GPU recovery and retry with smaller batch...")
                 
                 # Emergency GPU cleanup
+                import torch
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
                     torch.cuda.synchronize()
@@ -447,22 +449,24 @@ class EmbeddingGenerator:
                     smaller_batch_size = 16  # Very conservative
                     logger.info(f"Retrying with batch_size={smaller_batch_size}")
                     
-                    embeddings = model.encode(
+                    # Use PyTorch tensors (NO NumPy) for retry as well
+                    embeddings_tensor = model.encode(
                         texts, 
                         batch_size=smaller_batch_size,
                         show_progress_bar=False,
-                        convert_to_numpy=True,
+                        convert_to_numpy=False,  # CRITICAL: No NumPy
                         normalize_embeddings=True,
-                        convert_to_tensor=False,
+                        convert_to_tensor=True,  # CRITICAL: PyTorch tensors
                         device=embedding_device
                     )
                     
-                    result = [embedding.tolist() if hasattr(embedding, 'tolist') else embedding for embedding in embeddings]
+                    result = embeddings_tensor.detach().cpu().tolist()
                     
-                    del embeddings
+                    del embeddings_tensor
                     if torch.cuda.is_available():
                         torch.cuda.empty_cache()
                     
+                    import time
                     elapsed = time.time() - start_time
                     logger.info(f"✅ Recovery successful: {len(result)} embeddings in {elapsed:.2f}s")
                     return result
