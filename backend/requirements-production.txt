@@ -12,7 +12,7 @@ python-dotenv==1.0.0
 
 # NumPy 2 is currently breaking PyTorch / HF stack in our image.
 # Pin to a stable 1.x release that is well supported.
-numpy>=1.26.4,<2.0.0
+numpy<2.0.0
 
 tqdm==4.66.1
 
