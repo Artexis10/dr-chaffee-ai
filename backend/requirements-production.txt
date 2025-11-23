@@ -7,9 +7,13 @@
 # ============================================================================
 psycopg2-binary>=2.9.9
 alembic>=1.13.0
-sqlalchemy>=2.0.07
+sqlalchemy>=2.0.7
 python-dotenv==1.0.0
-numpy>=2.0.0
+
+# NumPy 2 is currently breaking PyTorch / HF stack in our image.
+# Pin to a stable 1.x release that is well supported.
+numpy>=1.26.4,<2.0.0
+
 tqdm==4.66.1
 
 # ============================================================================
@@ -23,14 +27,18 @@ aiofiles==23.2.1
 # ============================================================================
 # EMBEDDINGS (CPU-ONLY)
 # ============================================================================
-# sentence-transformers with CPU-only PyTorch
-sentence-transformers>=2.7.0
-transformers>=4.47.0  # Security fix applied
+# Use versions known to work well with torch==2.1.2 CPU
+sentence-transformers==2.2.2
+transformers==4.36.2
 
-# PyTorch CPU-only (CRITICAL: --index-url in Dockerfile)
-# torch==2.1.2 (installed via --index-url https://download.pytorch.org/whl/cpu)
-# torchvision==0.16.2
-# torchaudio==2.1.2
+# PyTorch CPU-only (installed in Dockerfile, not here)
+# IMPORTANT: keep these pinned together for compatibility
+#   torch==2.1.2
+#   torchvision==0.16.2
+#   torchaudio==2.1.2
+# Installed via:
+#   pip install --index-url https://download.pytorch.org/whl/cpu \
+#       torch==2.1.2 torchvision==0.16.2 torchaudio==2.1.2
 
 # ============================================================================
 # UTILITIES
