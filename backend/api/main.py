@@ -282,8 +282,46 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
-    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+    """
+    Health check endpoint for production monitoring
+    Checks: Database connection, embedding service readiness
+    Returns: 200 OK if healthy, 503 if degraded
+    """
+    health_status = {
+        "status": "ok",
+        "service": "Ask Dr. Chaffee API",
+        "timestamp": datetime.now().isoformat(),
+        "checks": {}
+    }
+    
+    # Check 1: Database connection
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT 1")
+        cur.fetchone()
+        cur.close()
+        conn.close()
+        health_status["checks"]["database"] = "ok"
+    except Exception as e:
+        logger.error(f"Database health check failed: {e}")
+        health_status["checks"]["database"] = "degraded"
+        health_status["status"] = "degraded"
+    
+    # Check 2: Embedding service readiness
+    try:
+        generator = get_embedding_generator()
+        # Quick test embedding (should be fast if model is loaded)
+        _ = generator.generate_embeddings(["health check"])
+        health_status["checks"]["embeddings"] = "ok"
+    except Exception as e:
+        logger.error(f"Embedding service health check failed: {e}")
+        health_status["checks"]["embeddings"] = "degraded"
+        health_status["status"] = "degraded"
+    
+    # Return 503 if degraded, 200 if ok
+    status_code = 503 if health_status["status"] == "degraded" else 200
+    return JSONResponse(content=health_status, status_code=status_code)
 
 @app.get("/api/test-db")
 async def test_db():

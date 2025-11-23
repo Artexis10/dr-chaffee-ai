@@ -1,5 +1,6 @@
-# Optimized CPU-only Docker build for Dr. Chaffee AI
-# Slim Python base image for Hetzner deployment
+# Production CPU-only Docker build for Dr. Chaffee AI Backend API
+# Optimized for Hetzner + Coolify deployment
+# Excludes: GPU dependencies, ASR, diarization, ingestion pipeline
 FROM python:3.11-slim
 
 # Install system dependencies (CPU-only, no CUDA)
@@ -17,41 +18,29 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
 WORKDIR /app
 
-# Copy simplified requirements for faster installation
-COPY backend/requirements-simple.txt .
+# Copy production requirements (CPU-only, no ASR/diarization)
+COPY backend/requirements-production.txt .
 
 # Install dependencies in stages to avoid resolver backtracking
-# Stage 1: Core dependencies (fast, pre-built wheels)
+# Stage 1: Core dependencies
 RUN pip install --no-cache-dir \
     psycopg2-binary \
     alembic \
     sqlalchemy \
     python-dotenv \
     numpy \
-    tqdm
+    tqdm \
+    isodate \
+    psutil
 
-# Stage 2: Web API (fast, pre-built wheels)
+# Stage 2: Web API
 RUN pip install --no-cache-dir \
     fastapi \
     uvicorn[standard] \
     python-multipart \
-    aiofiles \
-    celery \
-    redis
+    aiofiles
 
-# Stage 3: YouTube dependencies (fast, pre-built wheels)
-RUN pip install --no-cache-dir \
-    youtube-transcript-api \
-    yt-dlp \
-    yt-dlp-ejs \
-    google-api-python-client \
-    google-auth-httplib2 \
-    google-auth-oauthlib \
-    pycryptodome \
-    brotli \
-    mutagen
-
-# Stage 4: ML/AI with CPU-only PyTorch + embeddings
+# Stage 3: CPU-only PyTorch + Embeddings (CRITICAL: CPU wheels only)
 RUN pip install --no-cache-dir \
     torch==2.1.2 \
     torchvision==0.16.2 \
@@ -59,25 +48,8 @@ RUN pip install --no-cache-dir \
     --index-url https://download.pytorch.org/whl/cpu && \
     pip install --no-cache-dir \
     sentence-transformers \
-    transformers
-
-# Stage 5: Audio transcription (minimal CPU stack)
-RUN pip install --no-cache-dir \
-    faster-whisper \
-    ctranslate2 \
-    soundfile
-
-# Stage 6: Utilities
-RUN pip install --no-cache-dir \
-    psutil \
-    webvtt-py \
-    isodate \
-    asyncio-throttle \
-    apscheduler \
-    aiohttp \
-    aiohttp-socks \
-    beautifulsoup4 \
-    lxml
+    transformers \
+    openai
 
 # Copy application code
 COPY backend/ .
@@ -95,11 +67,14 @@ ENV TEMP_AUDIO_DIR=/tmp/audio_downloads
 ENV YT_DLP_PATH=yt-dlp
 ENV FFMPEG_PATH=ffmpeg
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD python -c "import yt_dlp; print('OK')" || exit 1
+# Health check - Query /health endpoint
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()" || exit 1
+
+# Expose port 8000 (Coolify will map 80/443 -> 8000 via reverse proxy)
+EXPOSE 8000
 
 # Run the FastAPI application
-# Use PORT env var if provided (Coolify sets this), otherwise default to 8000
+# Coolify sets PORT env var, but we default to 8000
 CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
 
