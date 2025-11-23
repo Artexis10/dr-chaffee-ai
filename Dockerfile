@@ -21,22 +21,24 @@ WORKDIR /app
 # Copy production requirements (CPU-only, no ASR/diarization)
 COPY backend/requirements-production.txt .
 
-# CRITICAL: Install order to prevent NumPy 2.x from breaking PyTorch
-# 1. NumPy 1.x FIRST (before PyTorch)
-# 2. PyTorch CPU-only from CPU wheel index
-# 3. Everything else (sentence-transformers, transformers, etc.)
+# ============================================================================
+# CRITICAL: NumPy/PyTorch Installation Order
+# ============================================================================
+# NumPy 2.x breaks PyTorch 2.1.2 with '_pytree' errors.
+# Solution: Install NumPy 1.24.3 FIRST, then PyTorch, then everything else.
+# NEVER use pip install -r requirements.txt - it will upgrade NumPy to 2.x!
 
-# Stage 1: NumPy 1.x (MUST be first to prevent NumPy 2.x)
+# Stage 1: NumPy 1.24.3 (MUST be first, locked to prevent upgrades)
 RUN pip install --no-cache-dir "numpy==1.24.3"
 
-# Stage 2: PyTorch CPU-only (AFTER NumPy, BEFORE other ML libs)
+# Stage 2: PyTorch CPU-only (compiled against NumPy 1.x)
 RUN pip install --no-cache-dir \
     torch==2.1.2 \
     torchvision==0.16.2 \
     torchaudio==2.1.2 \
     --index-url https://download.pytorch.org/whl/cpu
 
-# Stage 3: Core dependencies (safe, no NumPy conflicts)
+# Stage 3: Core dependencies (no NumPy conflicts)
 RUN pip install --no-cache-dir \
     psycopg2-binary==2.9.9 \
     alembic==1.13.1 \
@@ -46,14 +48,17 @@ RUN pip install --no-cache-dir \
     isodate==0.6.1 \
     psutil==5.9.6
 
-# Stage 4: Web API
+# Stage 4: Web API (CRITICAL: use plain uvicorn, NOT uvicorn[standard])
+# uvicorn[standard] includes uvloop/httptools which can pull NumPy 2.x
 RUN pip install --no-cache-dir \
     fastapi==0.104.1 \
-    uvicorn[standard]==0.24.0 \
+    uvicorn==0.24.0 \
     python-multipart==0.0.18 \
-    aiofiles==23.2.1
+    aiofiles==23.2.1 \
+    click==8.1.7 \
+    h11==0.14.0
 
-# Stage 5: Embeddings (AFTER PyTorch, with pinned versions)
+# Stage 5: Embeddings (pinned to versions compatible with torch 2.1.2 + numpy 1.24.3)
 RUN pip install --no-cache-dir \
     sentence-transformers==2.2.2 \
     transformers==4.36.2 \
@@ -62,10 +67,29 @@ RUN pip install --no-cache-dir \
     safetensors==0.4.1 \
     regex==2023.10.3 \
     filelock==3.13.1 \
-    packaging==23.2
+    packaging==23.2 \
+    requests==2.31.0 \
+    urllib3==2.1.0 \
+    certifi==2023.11.17 \
+    charset-normalizer==3.3.2 \
+    idna==3.6
 
 # Stage 6: OpenAI
-RUN pip install --no-cache-dir openai==1.3.0
+RUN pip install --no-cache-dir \
+    openai==1.3.0 \
+    anyio==3.7.1 \
+    sniffio==1.3.0 \
+    httpx==0.25.2 \
+    httpcore==1.0.2 \
+    pydantic==2.5.2 \
+    pydantic-core==2.14.5 \
+    typing-extensions==4.9.0 \
+    distro==1.8.0
+
+# Stage 7: VERIFY NumPy version (fail build if NumPy 2.x snuck in)
+RUN python -c "import numpy; assert numpy.__version__.startswith('1.24'), f'NumPy {numpy.__version__} detected, expected 1.24.x'"
+RUN python -c "import torch; print(f'✅ PyTorch {torch.__version__}')"
+RUN python -c "import numpy; print(f'✅ NumPy {numpy.__version__}')"
 
 # Copy application code
 COPY backend/ .
