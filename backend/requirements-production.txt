@@ -21,40 +21,40 @@
 # ============================================================================
 # CORE DEPENDENCIES (safe to install anytime)
 # ============================================================================
-psycopg2-binary==2.9.9
-alembic==1.13.1
-sqlalchemy==2.0.23
-python-dotenv==1.0.0
-tqdm==4.66.1
-isodate==0.6.1
-psutil==5.9.6
+psycopg2-binary==2.9.11
+alembic==1.17.2
+sqlalchemy==2.0.44
+python-dotenv==1.2.1
+tqdm==4.67.1
+isodate==0.7.2
+psutil==5.9.8
 
 # ============================================================================
 # WEB API
 # ============================================================================
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-python-multipart==0.0.18
+fastapi==0.121.3
+uvicorn[standard]==0.38.0
+python-multipart==0.0.20
 aiofiles==23.2.1
 
 # ============================================================================
 # EMBEDDINGS (installed AFTER PyTorch in Dockerfile)
 # ============================================================================
 # Versions compatible with torch==2.1.2 and numpy==1.24.3
-sentence-transformers==2.2.2
-transformers==4.36.2
-tokenizers==0.15.0
-huggingface-hub==0.19.4
-safetensors==0.4.1
-regex==2023.10.3
-requests==2.31.0
-filelock==3.13.1
+sentence-transformers==2.7.0
+transformers==4.57.1
+tokenizers==0.22.1
+huggingface-hub==0.36.0
+safetensors==0.7.0
+regex==2023.12.25
+requests==2.32.5
+filelock==3.20.0
 packaging==23.2
 
 # ============================================================================
 # OPENAI (for answer generation)
 # ============================================================================
-openai==1.3.0
+openai==1.109.1
 
 # ============================================================================
 # EXCLUDED FROM PRODUCTION
