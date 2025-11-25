@@ -43,7 +43,7 @@ jobs:
           PYTHONPATH: ${{ github.workspace }};${{ github.workspace }}/backend
       
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           files: ./coverage.xml
           flags: unittests,windows
