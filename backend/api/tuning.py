@@ -169,8 +169,12 @@ async def require_tuning_auth(request: Request):
         raise HTTPException(status_code=401, detail="Tuning dashboard access denied. Please authenticate first.")
 
 
-@router.get("/models", response_model=List[EmbeddingModelInfo])
-async def list_models(request: Request = Depends(require_tuning_auth)):
+@router.get(
+    "/models",
+    response_model=List[EmbeddingModelInfo],
+    dependencies=[Depends(require_tuning_auth)],
+)
+async def list_models(request: Request):
     """
     List all available embedding models with their configurations.
     Protected: requires tuning_auth cookie.
@@ -196,8 +200,12 @@ async def list_models(request: Request = Depends(require_tuning_auth)):
     return result
 
 
-@router.get("/config", response_model=TuningConfig)
-async def get_config(request: Request = Depends(require_tuning_auth)):
+@router.get(
+    "/config",
+    response_model=TuningConfig,
+    dependencies=[Depends(require_tuning_auth)],
+)
+async def get_config(request: Request):
     """
     Get current tuning configuration from .env (single source of truth).
     Protected: requires tuning_auth cookie.
@@ -223,8 +231,11 @@ async def get_config(request: Request = Depends(require_tuning_auth)):
     )
 
 
-@router.post("/models/query")
-async def set_query_model(model_key: str, request: Request = Depends(require_tuning_auth)):
+@router.post(
+    "/models/query",
+    dependencies=[Depends(require_tuning_auth)],
+)
+async def set_query_model(model_key: str, request: Request):
     """
     Set the active query model (instant switch if embeddings exist).
     Updates .env file to persist change.
@@ -278,8 +289,11 @@ async def set_query_model(model_key: str, request: Request = Depends(require_tun
         raise HTTPException(status_code=500, detail=f"Failed to update configuration: {e}")
 
 
-@router.post("/models/ingestion")
-async def set_ingestion_models(model_keys: List[str], request: Request = Depends(require_tuning_auth)):
+@router.post(
+    "/models/ingestion",
+    dependencies=[Depends(require_tuning_auth)],
+)
+async def set_ingestion_models(model_keys: List[str], request: Request):
     """
     Set the active ingestion models (requires re-ingestion to generate embeddings).
     Updates .env file to persist change.
@@ -341,8 +355,11 @@ async def set_ingestion_models(model_keys: List[str], request: Request = Depends
         raise HTTPException(status_code=500, detail=f"Failed to update configuration: {e}")
 
 
-@router.post("/search/config")
-async def update_search_config(config: SearchConfig, request: Request = Depends(require_tuning_auth)):
+@router.post(
+    "/search/config",
+    dependencies=[Depends(require_tuning_auth)],
+)
+async def update_search_config(config: SearchConfig, request: Request):
     """
     Update search configuration parameters.
     Note: This updates the in-memory config. For persistence, update .env file.
@@ -362,8 +379,12 @@ async def update_search_config(config: SearchConfig, request: Request = Depends(
     }
 
 
-@router.get("/summarizer/config", response_model=SummarizerConfig)
-async def get_summarizer_config(request: Request = Depends(require_tuning_auth)):
+@router.get(
+    "/summarizer/config",
+    response_model=SummarizerConfig,
+    dependencies=[Depends(require_tuning_auth)],
+)
+async def get_summarizer_config(request: Request):
     """
     Get current summarizer configuration.
     Protected: requires tuning_auth cookie.
@@ -375,8 +396,11 @@ async def get_summarizer_config(request: Request = Depends(require_tuning_auth))
     )
 
 
-@router.post("/summarizer/config")
-async def update_summarizer_config(config: SummarizerConfig, request: Request = Depends(require_tuning_auth)):
+@router.post(
+    "/summarizer/config",
+    dependencies=[Depends(require_tuning_auth)],
+)
+async def update_summarizer_config(config: SummarizerConfig, request: Request):
     """
     Update summarizer configuration.
     
@@ -462,8 +486,12 @@ async def list_summarizer_models():
     }
 
 
-@router.post("/search/test", response_model=List[TestSearchResult])
-async def test_search(search_request: TestSearchRequest, request: Request = Depends(require_tuning_auth)):
+@router.post(
+    "/search/test",
+    response_model=List[TestSearchResult],
+    dependencies=[Depends(require_tuning_auth)],
+)
+async def test_search(search_request: TestSearchRequest, request: Request):
     """
     Test search with current or specified model.
     Protected: requires tuning_auth cookie.
@@ -606,8 +634,12 @@ class InstructionPreview(BaseModel):
     estimated_tokens: int
 
 
-@router.get("/instructions", response_model=List[CustomInstruction])
-async def list_instructions(request: Request = Depends(require_tuning_auth)):
+@router.get(
+    "/instructions",
+    response_model=List[CustomInstruction],
+    dependencies=[Depends(require_tuning_auth)],
+)
+async def list_instructions(request: Request):
     """
     List all custom instruction sets.
     Protected: requires tuning_auth cookie.
@@ -634,8 +666,12 @@ async def list_instructions(request: Request = Depends(require_tuning_auth)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/instructions/active", response_model=CustomInstruction)
-async def get_active_instructions(request: Request = Depends(require_tuning_auth)):
+@router.get(
+    "/instructions/active",
+    response_model=CustomInstruction,
+    dependencies=[Depends(require_tuning_auth)],
+)
+async def get_active_instructions(request: Request):
     """
     Get the currently active instruction set.
     Protected: requires tuning_auth cookie.
@@ -668,8 +704,12 @@ async def get_active_instructions(request: Request = Depends(require_tuning_auth
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/instructions", response_model=CustomInstruction)
-async def create_instructions(instruction: CustomInstruction, request: Request = Depends(require_tuning_auth)):
+@router.post(
+    "/instructions",
+    response_model=CustomInstruction,
+    dependencies=[Depends(require_tuning_auth)],
+)
+async def create_instructions(instruction: CustomInstruction, request: Request):
     """
     Create a new custom instruction set.
     Protected: requires tuning_auth cookie.
@@ -705,8 +745,12 @@ async def create_instructions(instruction: CustomInstruction, request: Request =
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.put("/instructions/{instruction_id}", response_model=CustomInstruction)
-async def update_instructions(instruction_id: int, instruction: CustomInstruction, request: Request = Depends(require_tuning_auth)):
+@router.put(
+    "/instructions/{instruction_id}",
+    response_model=CustomInstruction,
+    dependencies=[Depends(require_tuning_auth)],
+)
+async def update_instructions(instruction_id: int, instruction: CustomInstruction, request: Request):
     """
     Update an existing custom instruction set.
     Protected: requires tuning_auth cookie.
@@ -749,8 +793,11 @@ async def update_instructions(instruction_id: int, instruction: CustomInstructio
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/instructions/{instruction_id}")
-async def delete_instructions(instruction_id: int, request: Request = Depends(require_tuning_auth)):
+@router.delete(
+    "/instructions/{instruction_id}",
+    dependencies=[Depends(require_tuning_auth)],
+)
+async def delete_instructions(instruction_id: int, request: Request):
     """
     Delete a custom instruction set.
     Protected: requires tuning_auth cookie.
@@ -784,8 +831,11 @@ async def delete_instructions(instruction_id: int, request: Request = Depends(re
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/instructions/{instruction_id}/activate")
-async def activate_instructions(instruction_id: int, request: Request = Depends(require_tuning_auth)):
+@router.post(
+    "/instructions/{instruction_id}/activate",
+    dependencies=[Depends(require_tuning_auth)],
+)
+async def activate_instructions(instruction_id: int, request: Request):
     """
     Activate a specific instruction set (deactivates all others).
     Protected: requires tuning_auth cookie.
@@ -825,8 +875,12 @@ async def activate_instructions(instruction_id: int, request: Request = Depends(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/instructions/{instruction_id}/history", response_model=List[CustomInstructionHistory])
-async def get_instruction_history(instruction_id: int, request: Request = Depends(require_tuning_auth)):
+@router.get(
+    "/instructions/{instruction_id}/history",
+    response_model=List[CustomInstructionHistory],
+    dependencies=[Depends(require_tuning_auth)],
+)
+async def get_instruction_history(instruction_id: int, request: Request):
     """
     Get version history for an instruction set.
     Protected: requires tuning_auth cookie.
@@ -853,8 +907,11 @@ async def get_instruction_history(instruction_id: int, request: Request = Depend
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/instructions/{instruction_id}/rollback/{version}")
-async def rollback_instructions(instruction_id: int, version: int, request: Request = Depends(require_tuning_auth)):
+@router.post(
+    "/instructions/{instruction_id}/rollback/{version}",
+    dependencies=[Depends(require_tuning_auth)],
+)
+async def rollback_instructions(instruction_id: int, version: int, request: Request):
     """
     Rollback to a previous version of instructions.
     Protected: requires tuning_auth cookie.
@@ -896,8 +953,12 @@ async def rollback_instructions(instruction_id: int, version: int, request: Requ
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/instructions/preview", response_model=InstructionPreview)
-async def preview_instructions(instruction: CustomInstruction, request: Request = Depends(require_tuning_auth)):
+@router.post(
+    "/instructions/preview",
+    response_model=InstructionPreview,
+    dependencies=[Depends(require_tuning_auth)],
+)
+async def preview_instructions(instruction: CustomInstruction, request: Request):
     """
     Preview how custom instructions will be merged with baseline.
     Protected: requires tuning_auth cookie (sensitive - shows baseline prompt).
