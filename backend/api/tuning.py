@@ -14,7 +14,7 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
-from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi import APIRouter, HTTPException, Query, Response, Request, Depends
 from pydantic import BaseModel, Field
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -156,19 +156,25 @@ async def verify_password(request: PasswordRequest, response: Response):
     return {"success": True, "message": "Authentication successful"}
 
 
-def require_tuning_auth(request):
-    """Middleware to check tuning authentication cookie"""
+async def require_tuning_auth(request: Request):
+    """
+    FastAPI dependency to check tuning authentication cookie.
+    Use as: Depends(require_tuning_auth)
+    
+    All sensitive tuning endpoints MUST use this dependency to ensure
+    only authenticated users can access configuration and instructions.
+    """
     cookie = request.cookies.get("tuning_auth")
     if cookie != "authenticated":
         raise HTTPException(status_code=401, detail="Tuning dashboard access denied. Please authenticate first.")
 
 
 @router.get("/models", response_model=List[EmbeddingModelInfo])
-async def list_models(request):
+async def list_models(request: Request = Depends(require_tuning_auth)):
     """
-    List all available embedding models with their configurations
+    List all available embedding models with their configurations.
+    Protected: requires tuning_auth cookie.
     """
-    require_tuning_auth(request)
     config = load_embedding_models()
     models = config.get("models", {})
     active_query = config.get("active_query_model")
@@ -191,9 +197,10 @@ async def list_models(request):
 
 
 @router.get("/config", response_model=TuningConfig)
-async def get_config():
+async def get_config(request: Request = Depends(require_tuning_auth)):
     """
-    Get current tuning configuration from .env (single source of truth)
+    Get current tuning configuration from .env (single source of truth).
+    Protected: requires tuning_auth cookie.
     """
     # Get search config from environment
     search_config = SearchConfig(
@@ -217,10 +224,11 @@ async def get_config():
 
 
 @router.post("/models/query")
-async def set_query_model(model_key: str):
+async def set_query_model(model_key: str, request: Request = Depends(require_tuning_auth)):
     """
-    Set the active query model (instant switch if embeddings exist)
-    Updates .env file to persist change
+    Set the active query model (instant switch if embeddings exist).
+    Updates .env file to persist change.
+    Protected: requires tuning_auth cookie.
     """
     config = load_embedding_models()
     models = config.get("models", {})
@@ -271,10 +279,11 @@ async def set_query_model(model_key: str):
 
 
 @router.post("/models/ingestion")
-async def set_ingestion_models(model_keys: List[str]):
+async def set_ingestion_models(model_keys: List[str], request: Request = Depends(require_tuning_auth)):
     """
-    Set the active ingestion models (requires re-ingestion to generate embeddings)
-    Updates .env file to persist change
+    Set the active ingestion models (requires re-ingestion to generate embeddings).
+    Updates .env file to persist change.
+    Protected: requires tuning_auth cookie.
     """
     config = load_embedding_models()
     models = config.get("models", {})
@@ -333,11 +342,11 @@ async def set_ingestion_models(model_keys: List[str]):
 
 
 @router.post("/search/config")
-async def update_search_config(config: SearchConfig):
+async def update_search_config(config: SearchConfig, request: Request = Depends(require_tuning_auth)):
     """
-    Update search configuration parameters
-    
+    Update search configuration parameters.
     Note: This updates the in-memory config. For persistence, update .env file.
+    Protected: requires tuning_auth cookie.
     """
     # Update environment variables (runtime only)
     os.environ["ANSWER_TOPK"] = str(config.top_k)
@@ -354,9 +363,10 @@ async def update_search_config(config: SearchConfig):
 
 
 @router.get("/summarizer/config", response_model=SummarizerConfig)
-async def get_summarizer_config():
+async def get_summarizer_config(request: Request = Depends(require_tuning_auth)):
     """
-    Get current summarizer configuration
+    Get current summarizer configuration.
+    Protected: requires tuning_auth cookie.
     """
     return SummarizerConfig(
         model=os.getenv("SUMMARIZER_MODEL", "gpt-4-turbo"),
@@ -366,9 +376,9 @@ async def get_summarizer_config():
 
 
 @router.post("/summarizer/config")
-async def update_summarizer_config(config: SummarizerConfig):
+async def update_summarizer_config(config: SummarizerConfig, request: Request = Depends(require_tuning_auth)):
     """
-    Update summarizer configuration
+    Update summarizer configuration.
     
     Allowed models (cost-controlled whitelist):
     - gpt-4-turbo: $0.01/1k input, $0.03/1k output (recommended)
@@ -376,6 +386,7 @@ async def update_summarizer_config(config: SummarizerConfig):
     - gpt-3.5-turbo: $0.0005/1k input, $0.0015/1k output (faster, cheaper)
     
     Note: This updates runtime config. For persistence, update .env file.
+    Protected: requires tuning_auth cookie.
     """
     # Whitelist of approved models
     allowed_models = {
@@ -452,9 +463,10 @@ async def list_summarizer_models():
 
 
 @router.post("/search/test", response_model=List[TestSearchResult])
-async def test_search(request: TestSearchRequest):
+async def test_search(search_request: TestSearchRequest, request: Request = Depends(require_tuning_auth)):
     """
-    Test search with current or specified model
+    Test search with current or specified model.
+    Protected: requires tuning_auth cookie.
     """
     from ..services.embeddings_service import EmbeddingsService
     import psycopg2
@@ -462,14 +474,14 @@ async def test_search(request: TestSearchRequest):
     try:
         # Get active model or use override
         config = load_embedding_models()
-        model_key = request.model_key or config.get("active_query_model")
+        model_key = search_request.model_key or config.get("active_query_model")
         
         # Generate query embedding
         embeddings_service = EmbeddingsService.get_instance()
-        query_embedding = embeddings_service.encode_text(request.query)
+        query_embedding = embeddings_service.encode_text(search_request.query)
         
         # Search database
-        top_k = request.top_k or int(os.getenv("ANSWER_TOPK", "20"))
+        top_k = search_request.top_k or int(os.getenv("ANSWER_TOPK", "20"))
         
         conn = psycopg2.connect(os.getenv('DATABASE_URL'))
         try:
@@ -595,9 +607,10 @@ class InstructionPreview(BaseModel):
 
 
 @router.get("/instructions", response_model=List[CustomInstruction])
-async def list_instructions():
+async def list_instructions(request: Request = Depends(require_tuning_auth)):
     """
-    List all custom instruction sets
+    List all custom instruction sets.
+    Protected: requires tuning_auth cookie.
     """
     try:
         conn = get_db_connection()
@@ -622,9 +635,10 @@ async def list_instructions():
 
 
 @router.get("/instructions/active", response_model=CustomInstruction)
-async def get_active_instructions():
+async def get_active_instructions(request: Request = Depends(require_tuning_auth)):
     """
-    Get the currently active instruction set
+    Get the currently active instruction set.
+    Protected: requires tuning_auth cookie.
     """
     try:
         conn = get_db_connection()
@@ -655,9 +669,10 @@ async def get_active_instructions():
 
 
 @router.post("/instructions", response_model=CustomInstruction)
-async def create_instructions(instruction: CustomInstruction):
+async def create_instructions(instruction: CustomInstruction, request: Request = Depends(require_tuning_auth)):
     """
-    Create a new custom instruction set
+    Create a new custom instruction set.
+    Protected: requires tuning_auth cookie.
     """
     try:
         conn = get_db_connection()
@@ -691,9 +706,10 @@ async def create_instructions(instruction: CustomInstruction):
 
 
 @router.put("/instructions/{instruction_id}", response_model=CustomInstruction)
-async def update_instructions(instruction_id: int, instruction: CustomInstruction):
+async def update_instructions(instruction_id: int, instruction: CustomInstruction, request: Request = Depends(require_tuning_auth)):
     """
-    Update an existing custom instruction set
+    Update an existing custom instruction set.
+    Protected: requires tuning_auth cookie.
     """
     try:
         conn = get_db_connection()
@@ -734,9 +750,10 @@ async def update_instructions(instruction_id: int, instruction: CustomInstructio
 
 
 @router.delete("/instructions/{instruction_id}")
-async def delete_instructions(instruction_id: int):
+async def delete_instructions(instruction_id: int, request: Request = Depends(require_tuning_auth)):
     """
-    Delete a custom instruction set
+    Delete a custom instruction set.
+    Protected: requires tuning_auth cookie.
     """
     try:
         conn = get_db_connection()
@@ -768,9 +785,10 @@ async def delete_instructions(instruction_id: int):
 
 
 @router.post("/instructions/{instruction_id}/activate")
-async def activate_instructions(instruction_id: int):
+async def activate_instructions(instruction_id: int, request: Request = Depends(require_tuning_auth)):
     """
-    Activate a specific instruction set (deactivates all others)
+    Activate a specific instruction set (deactivates all others).
+    Protected: requires tuning_auth cookie.
     """
     try:
         conn = get_db_connection()
@@ -808,9 +826,10 @@ async def activate_instructions(instruction_id: int):
 
 
 @router.get("/instructions/{instruction_id}/history", response_model=List[CustomInstructionHistory])
-async def get_instruction_history(instruction_id: int):
+async def get_instruction_history(instruction_id: int, request: Request = Depends(require_tuning_auth)):
     """
-    Get version history for an instruction set
+    Get version history for an instruction set.
+    Protected: requires tuning_auth cookie.
     """
     try:
         conn = get_db_connection()
@@ -835,9 +854,10 @@ async def get_instruction_history(instruction_id: int):
 
 
 @router.post("/instructions/{instruction_id}/rollback/{version}")
-async def rollback_instructions(instruction_id: int, version: int):
+async def rollback_instructions(instruction_id: int, version: int, request: Request = Depends(require_tuning_auth)):
     """
-    Rollback to a previous version of instructions
+    Rollback to a previous version of instructions.
+    Protected: requires tuning_auth cookie.
     """
     try:
         conn = get_db_connection()
@@ -877,9 +897,10 @@ async def rollback_instructions(instruction_id: int, version: int):
 
 
 @router.post("/instructions/preview", response_model=InstructionPreview)
-async def preview_instructions(instruction: CustomInstruction):
+async def preview_instructions(instruction: CustomInstruction, request: Request = Depends(require_tuning_auth)):
     """
-    Preview how custom instructions will be merged with baseline
+    Preview how custom instructions will be merged with baseline.
+    Protected: requires tuning_auth cookie (sensitive - shows baseline prompt).
     """
     try:
         # Load baseline prompt

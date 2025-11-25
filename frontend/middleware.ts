@@ -1,6 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { verifySessionTokenEdge } from './src/utils/authTokenEdge';
 
-export function middleware(request: NextRequest) {
+/**
+ * Next.js Middleware for authentication
+ * 
+ * Protects:
+ * - /tuning/* routes (except /tuning/auth) - requires tuning_auth cookie
+ * - Main app routes - requires valid signed auth_token cookie
+ * 
+ * Public routes:
+ * - /api/* - API routes (protected at API level)
+ * - /tuning/auth - Tuning login page
+ * - / - Home page (shows PasswordGate component)
+ */
+export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   
   // Protect all /tuning routes EXCEPT /tuning/auth
@@ -14,19 +27,31 @@ export function middleware(request: NextRequest) {
     }
   }
   
-  // Protect main app routes (all routes except /tuning/*, /tuning/auth, and API routes)
+  // Protect main app routes (all routes except /tuning/*, /tuning/auth, API routes, and home)
   // Allow access to: /, /api/*, /tuning/auth
   const isApiRoute = pathname.startsWith('/api/');
   const isTuningAuth = pathname === '/tuning/auth';
   const isTuningRoute = pathname.startsWith('/tuning');
+  const isHomePage = pathname === '/';
   
-  if (!isApiRoute && !isTuningAuth && !isTuningRoute) {
+  if (!isApiRoute && !isTuningAuth && !isTuningRoute && !isHomePage) {
     // Check if user has main app auth token
-    const authToken = request.cookies.get('auth_token');
+    const authTokenCookie = request.cookies.get('auth_token');
+    const token = authTokenCookie?.value;
     
-    // If not authenticated, redirect to home (which shows password gate)
-    if (!authToken) {
+    if (!token) {
+      // No token - redirect to home (which shows password gate)
       return NextResponse.redirect(new URL('/', request.url));
+    }
+    
+    // Verify the signed token (checks signature and expiration)
+    const payload = await verifySessionTokenEdge(token);
+    
+    if (!payload) {
+      // Invalid or expired token - clear cookie and redirect to home
+      const response = NextResponse.redirect(new URL('/', request.url));
+      response.cookies.delete('auth_token');
+      return response;
     }
   }
   

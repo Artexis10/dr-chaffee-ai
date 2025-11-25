@@ -31,6 +31,24 @@ console.log('USE_MOCK_MODE:', USE_MOCK_MODE);
 // Backend API Integration
 const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:8001';
 
+// Internal API key for backend authentication
+// This prevents direct public access to backend RAG endpoints
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
+
+/**
+ * Build headers for backend API requests, including internal API key
+ */
+function getBackendHeaders(additionalHeaders?: Record<string, string>): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...additionalHeaders,
+  };
+  if (INTERNAL_API_KEY) {
+    headers['X-Internal-Key'] = INTERNAL_API_KEY;
+  }
+  return headers;
+}
+
 // Cache configuration
 const CACHE_SIMILARITY_THRESHOLD = 0.92; // 92% similarity to consider a cache hit
 const CACHE_TTL_HOURS = parseInt(process.env.ANSWER_CACHE_TTL_HOURS || '336'); // 14 days
@@ -611,7 +629,7 @@ async function checkAnswerCache(query: string, style: string): Promise<any | nul
   try {
     const response = await fetch(`${BACKEND_API_URL}/answer/cache/lookup`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getBackendHeaders(),
       body: JSON.stringify({ 
         query, 
         style, 
@@ -647,7 +665,7 @@ async function saveAnswerCache(query: string, style: string, answer: any): Promi
     
     const response = await fetch(`${BACKEND_API_URL}/answer/cache/save`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getBackendHeaders(),
       body: JSON.stringify({
         query,
         style,
@@ -780,7 +798,7 @@ export default async function handler(
     
     const chunksResponse = await fetch(`${BACKEND_API_URL}/answer/chunks`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getBackendHeaders(),
       body: JSON.stringify({
         query,
         top_k: maxContext,

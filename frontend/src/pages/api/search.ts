@@ -1,5 +1,15 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 
+/**
+ * Search API proxy - forwards requests to backend with internal API key.
+ * 
+ * This prevents direct public access to the backend /search endpoint.
+ * The INTERNAL_API_KEY is injected here and validated by the backend.
+ */
+
+// Get internal API key for backend authentication
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
+
 interface SearchResult {
   id: number;
   title: string;
@@ -127,11 +137,17 @@ export default async function handler(
     
     console.log('Calling backend API at:', BACKEND_API_URL);
     
+    // Build headers with internal API key for backend authentication
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (INTERNAL_API_KEY) {
+      headers['X-Internal-Key'] = INTERNAL_API_KEY;
+    }
+    
     const embeddingResponse = await fetch(`${BACKEND_API_URL}/search`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify({
         query: query,
         top_k: limit,

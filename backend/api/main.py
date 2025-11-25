@@ -4,7 +4,7 @@ FastAPI main application for Ask Dr. Chaffee
 Multi-source transcript processing with admin interface
 """
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -90,9 +90,23 @@ async def startup_event():
     else:
         logger.info("✅ Embedding model warmed up successfully")
 
-# Security
-security = HTTPBearer()
-ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "admin-secret-key")
+# =============================================================================
+# Security Configuration
+# =============================================================================
+# ADMIN_API_KEY: Required for admin endpoints (upload, sync, jobs)
+# Must be set in production - no insecure default allowed.
+ADMIN_API_KEY = os.getenv("ADMIN_API_KEY")
+if not ADMIN_API_KEY:
+    logger.warning("⚠️  ADMIN_API_KEY not set - admin endpoints will be inaccessible")
+
+# INTERNAL_API_KEY: Protects RAG/search endpoints from direct public access.
+# Frontend Next.js API routes inject this header when proxying to backend.
+# In production, this MUST be set. In dev, can be disabled for convenience.
+INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY")
+if not INTERNAL_API_KEY:
+    logger.warning("⚠️  INTERNAL_API_KEY not set - RAG endpoints are publicly accessible (dev mode)")
+
+security = HTTPBearer(auto_error=False)
 
 # Background job tracking
 processing_jobs: Dict[str, Dict[str, Any]] = {}
@@ -269,11 +283,45 @@ class AnswerRequest(BaseModel):
     style: Optional[str] = 'concise'
     top_k: Optional[int] = None  # Will use ANSWER_TOP_K env var if not specified
 
-# Authentication
+# =============================================================================
+# Authentication Dependencies
+# =============================================================================
+
 async def verify_admin_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    if credentials.credentials != ADMIN_API_KEY:
+    """
+    Verify admin API token for protected admin endpoints.
+    Requires: Authorization: Bearer <ADMIN_API_KEY>
+    
+    Used by: /api/upload/*, /api/sync/*, /api/jobs
+    """
+    if not ADMIN_API_KEY:
+        raise HTTPException(
+            status_code=503, 
+            detail="Admin API not configured. Set ADMIN_API_KEY environment variable."
+        )
+    if not credentials or credentials.credentials != ADMIN_API_KEY:
         raise HTTPException(status_code=401, detail="Invalid admin token")
     return credentials.credentials
+
+
+async def verify_internal_api_key(request: Request):
+    """
+    Verify internal API key for RAG/search endpoints.
+    Requires: X-Internal-Key header matching INTERNAL_API_KEY.
+    
+    This prevents direct public access to backend RAG endpoints.
+    The frontend Next.js API routes inject this header when proxying requests.
+    
+    In dev mode (INTERNAL_API_KEY not set), this check is skipped with a warning.
+    In production, INTERNAL_API_KEY MUST be set.
+    """
+    if not INTERNAL_API_KEY:
+        # Dev mode: skip check but log warning (already logged at startup)
+        return
+    
+    header_key = request.headers.get("X-Internal-Key")
+    if header_key != INTERNAL_API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid internal API key")
 
 @app.get("/")
 @app.head("/")
@@ -339,8 +387,8 @@ async def test_db():
         return {"status": "error", "error": str(e)}
 
 
-@app.get("/stats")
-@app.get("/api/stats")
+@app.get("/stats", dependencies=[Depends(verify_internal_api_key)])
+@app.get("/api/stats", dependencies=[Depends(verify_internal_api_key)])
 async def get_stats():
     """
     Get database statistics for segments and embeddings.
@@ -399,19 +447,19 @@ async def get_stats():
         }
 
 
-@app.get("/search")
-@app.get("/api/search")
+@app.get("/search", dependencies=[Depends(verify_internal_api_key)])
+@app.get("/api/search", dependencies=[Depends(verify_internal_api_key)])
 async def search_get(q: str, top_k: int = 50, min_similarity: float = 0.5):
     """GET endpoint for search (for frontend compatibility)"""
     request = SearchRequest(query=q, top_k=top_k, min_similarity=min_similarity)
     return await semantic_search(request)
 
-@app.post("/search", response_model=SearchResponse)
+@app.post("/search", response_model=SearchResponse, dependencies=[Depends(verify_internal_api_key)])
 async def search_post(request: SearchRequest):
     """POST endpoint for search (alternative path)"""
     return await semantic_search(request)
 
-@app.post("/api/search", response_model=SearchResponse)
+@app.post("/api/search", response_model=SearchResponse, dependencies=[Depends(verify_internal_api_key)])
 async def semantic_search(request: SearchRequest):
     """
     Semantic search with optional reranking
@@ -568,8 +616,8 @@ async def semantic_search(request: SearchRequest):
         logger.error(f"Search failed: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
-@app.post("/embed")
-@app.post("/api/embed")
+@app.post("/embed", dependencies=[Depends(verify_internal_api_key)])
+@app.post("/api/embed", dependencies=[Depends(verify_internal_api_key)])
 async def generate_embedding(request: dict):
     """Generate embedding for a text"""
     import logging
@@ -598,8 +646,8 @@ async def generate_embedding(request: dict):
         logger.error(f"Embedding generation failed: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Embedding generation failed: {str(e)}")
 
-@app.post("/answer")
-@app.post("/api/answer")
+@app.post("/answer", dependencies=[Depends(verify_internal_api_key)])
+@app.post("/api/answer", dependencies=[Depends(verify_internal_api_key)])
 async def answer_question(request: AnswerRequest):
     """Generate AI-powered answer using RAG with OpenAI"""
     import logging
@@ -698,8 +746,8 @@ Answer as Dr. Chaffee would, synthesizing the information above. Be conversation
         logger.error(f"Answer generation failed: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Answer generation failed: {str(e)}")
 
-@app.get("/answer")
-@app.get("/api/answer")
+@app.get("/answer", dependencies=[Depends(verify_internal_api_key)])
+@app.get("/api/answer", dependencies=[Depends(verify_internal_api_key)])
 async def answer_get(query: str, top_k: int = 10, style: str = 'concise'):
     """GET endpoint for answer (for frontend compatibility)"""
     request = SearchRequest(query=query, top_k=top_k)
@@ -732,7 +780,7 @@ class ChunksRequest(BaseModel):
     use_semantic: bool = True
 
 
-@app.post("/answer/cache/lookup")
+@app.post("/answer/cache/lookup", dependencies=[Depends(verify_internal_api_key)])
 async def answer_cache_lookup(request: CacheLookupRequest):
     """
     Look up cached answer by semantic similarity.
@@ -821,7 +869,7 @@ async def answer_cache_lookup(request: CacheLookupRequest):
         return {"cached": None, "error": str(e)}
 
 
-@app.post("/answer/cache/save")
+@app.post("/answer/cache/save", dependencies=[Depends(verify_internal_api_key)])
 async def answer_cache_save(request: CacheSaveRequest):
     """
     Save answer to cache with embedding for semantic lookup.
@@ -884,7 +932,7 @@ async def answer_cache_save(request: CacheSaveRequest):
         raise HTTPException(status_code=500, detail=f"Cache save failed: {str(e)}")
 
 
-@app.post("/answer/chunks")
+@app.post("/answer/chunks", dependencies=[Depends(verify_internal_api_key)])
 async def get_answer_chunks(request: ChunksRequest):
     """
     Get relevant chunks for RAG answer generation.
