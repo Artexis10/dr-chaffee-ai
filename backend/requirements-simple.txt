@@ -6,7 +6,7 @@ psycopg2-binary>=2.9.9
 alembic>=1.13.0
 sqlalchemy>=2.0.07
 python-dotenv==1.0.0
-numpy>=2.0.0
+numpy<2.0.0  # CRITICAL: NumPy 2.x breaks PyTorch/sentence-transformers
 tqdm==4.66.1
 
 # Web API
