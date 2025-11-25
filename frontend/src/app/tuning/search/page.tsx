@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search as SearchIcon } from 'lucide-react';
+import { Save, Loader2 } from 'lucide-react';
 
 interface SearchConfig {
   top_k: number;
@@ -20,7 +20,9 @@ export default function SearchPage() {
     return_top_k: 20,
   });
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [messageType, setMessageType] = useState<'success' | 'error'>('success');
   const [testQuery, setTestQuery] = useState('');
   const [testResults, setTestResults] = useState<any>(null);
   const [testing, setTesting] = useState(false);
@@ -31,40 +33,38 @@ export default function SearchPage() {
 
   const loadConfig = async () => {
     try {
-      const res = await fetch('/api/search-config');
-      if (!res.ok) {
-        // Use default config if endpoint doesn't exist or fails
-        console.warn('Search config endpoint not available, using defaults');
-        setLoading(false);
-        return;
+      // Load from localStorage first (client-side persistence)
+      const stored = localStorage.getItem('search-config');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setConfig(parsed);
       }
-      const data = await res.json();
-      setConfig(data);
     } catch (error) {
-      // Silently use defaults - don't show error banner for missing config
-      console.warn('Failed to load config, using defaults:', error);
+      console.warn('Failed to load config from localStorage:', error);
     } finally {
       setLoading(false);
     }
   };
 
   const handleSave = async () => {
+    setSaving(true);
+    setMessage('');
+    
     try {
-      setMessage('');
-      const res = await fetch('/api/search-config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config)
-      });
+      // Save to localStorage for persistence
+      localStorage.setItem('search-config', JSON.stringify(config));
       
-      if (res.ok) {
-        setMessage('Configuration saved successfully');
-      } else {
-        setMessage('Failed to save configuration');
-      }
+      setMessageType('success');
+      setMessage('Configuration saved');
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setMessage(''), 3000);
     } catch (error) {
       console.error('Error saving config:', error);
-      setMessage('Error saving configuration');
+      setMessageType('error');
+      setMessage('Failed to save configuration. Please try again.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -124,17 +124,22 @@ export default function SearchPage() {
         </p>
       </div>
 
-      {/* Message - only show for actual user actions, not load failures */}
-      {message && !message.includes('Failed to load') && (
+      {/* Message */}
+      {message && (
         <div style={{
-          background: message.includes('success') ? '#f0fdf4' : '#fef2f2',
-          color: message.includes('success') ? '#166534' : '#7f1d1d',
-          padding: '1rem',
+          background: messageType === 'success' ? 'var(--bg-card, #f0fdf4)' : '#fef2f2',
+          color: messageType === 'success' ? '#059669' : '#dc2626',
+          padding: '0.75rem 1rem',
           borderRadius: '0.5rem',
           marginBottom: '1.5rem',
-          border: `1px solid ${message.includes('success') ? '#dcfce7' : '#fee2e2'}`
+          border: `1px solid ${messageType === 'success' ? '#d1fae5' : '#fecaca'}`,
+          fontSize: '0.875rem',
+          fontWeight: 500,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem'
         }}>
-          {message}
+          {messageType === 'success' ? '✓' : '⚠'} {message}
         </div>
       )}
 
@@ -265,21 +270,40 @@ export default function SearchPage() {
             {/* Save Button */}
             <button
               onClick={handleSave}
+              disabled={saving}
               style={{
                 padding: '0.75rem 1.5rem',
-                background: '#000000',
+                background: saving ? '#6b7280' : 'var(--accent, #000000)',
                 color: 'white',
                 border: 'none',
                 borderRadius: '0.5rem',
                 fontWeight: 600,
-                cursor: 'pointer',
+                cursor: saving ? 'not-allowed' : 'pointer',
                 transition: 'background 0.2s',
-                marginTop: '1rem'
+                marginTop: '1rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem'
               }}
-              onMouseEnter={(e) => e.currentTarget.style.background = '#333333'}
-              onMouseLeave={(e) => e.currentTarget.style.background = '#000000'}
+              onMouseEnter={(e) => {
+                if (!saving) e.currentTarget.style.background = 'var(--accent-hover, #333333)';
+              }}
+              onMouseLeave={(e) => {
+                if (!saving) e.currentTarget.style.background = 'var(--accent, #000000)';
+              }}
             >
-              Save Configuration
+              {saving ? (
+                <>
+                  <Loader2 style={{ width: '1rem', height: '1rem', animation: 'spin 1s linear infinite' }} />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save style={{ width: '1rem', height: '1rem' }} />
+                  Save Configuration
+                </>
+              )}
             </button>
           </div>
         </div>

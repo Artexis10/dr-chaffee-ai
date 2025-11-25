@@ -134,38 +134,42 @@ export default function ModelsPage() {
           <div
             key={model.key}
             style={{
-              background: 'white',
-              border: model.is_active_query ? '2px solid #000000' : '1px solid #e5e7eb',
+              background: 'var(--bg-card, white)',
+              border: model.is_active_query ? '2px solid var(--accent, #000000)' : '1px solid var(--border-subtle, #e5e7eb)',
               borderRadius: '0.75rem',
               padding: '1.5rem',
-              transition: 'all 0.2s'
+              transition: 'all 0.2s',
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: '280px'
             }}
             onMouseEnter={(e) => {
               if (!model.is_active_query) {
-                e.currentTarget.style.borderColor = '#d1d5db';
+                e.currentTarget.style.borderColor = 'var(--border-hover, #d1d5db)';
                 e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.1)';
               }
             }}
             onMouseLeave={(e) => {
               if (!model.is_active_query) {
-                e.currentTarget.style.borderColor = '#e5e7eb';
+                e.currentTarget.style.borderColor = 'var(--border-subtle, #e5e7eb)';
                 e.currentTarget.style.boxShadow = 'none';
               }
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'start', justifyContent: 'space-between', marginBottom: '1rem' }}>
+            {/* Card header */}
+            <div style={{ display: 'flex', alignItems: 'start', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
               <div>
-                <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#1f2937', marginBottom: '0.25rem' }}>
+                <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary, #1f2937)', marginBottom: '0.25rem' }}>
                   {model.key}
                 </h3>
-                <p style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+                <p style={{ fontSize: '0.875rem', color: 'var(--text-muted, #6b7280)' }}>
                   {model.provider}
                 </p>
               </div>
               {model.is_active_query && (
                 <div style={{
-                  background: '#f5f5f5',
-                  color: '#000000',
+                  background: 'var(--bg-card-elevated, #f5f5f5)',
+                  color: 'var(--accent, #000000)',
                   padding: '0.25rem 0.75rem',
                   borderRadius: '9999px',
                   fontSize: '0.75rem',
@@ -176,64 +180,70 @@ export default function ModelsPage() {
               )}
             </div>
 
-            <p style={{ color: '#4b5563', marginBottom: '1rem', fontSize: '0.875rem' }}>
-              {model.description}
-            </p>
+            {/* Card body - flex-grow to push button to bottom */}
+            <div style={{ flex: 1 }}>
+              <p style={{ color: 'var(--text-muted, #4b5563)', marginBottom: '1rem', fontSize: '0.875rem', lineHeight: 1.5 }}>
+                {model.description}
+              </p>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem', paddingBottom: '1rem', borderBottom: '1px solid #e5e7eb' }}>
-              <div>
-                <p style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>Dimensions</p>
-                <p style={{ fontSize: '1.25rem', fontWeight: 600, color: '#1f2937' }}>
-                  {model.dimensions}
-                </p>
-              </div>
-              <div>
-                <p style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>Approx. cost per 1K words</p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                  <DollarSign style={{ width: '1rem', height: '1rem', color: model.cost_per_1k === 0 ? '#10b981' : '#6b7280' }} />
-                  <p style={{ fontSize: '1.25rem', fontWeight: 600, color: '#1f2937' }}>
-                    {model.cost_per_1k === 0 ? 'Free (local)' : model.cost_per_1k}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border-subtle, #e5e7eb)' }}>
+                <div>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted, #6b7280)', marginBottom: '0.25rem' }}>Dimensions</p>
+                  <p style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary, #1f2937)' }}>
+                    {model.dimensions}
                   </p>
                 </div>
-                {model.cost_per_1k === 0 && (
-                  <p style={{ fontSize: '0.7rem', color: '#10b981', marginTop: '0.25rem' }}>Runs on your server, no API costs</p>
-                )}
+                <div>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted, #6b7280)', marginBottom: '0.25rem' }}>Cost per 1K words</p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <DollarSign style={{ width: '1rem', height: '1rem', color: model.cost_per_1k === 0 ? '#059669' : 'var(--text-muted, #6b7280)' }} />
+                    <p style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary, #1f2937)' }}>
+                      {model.cost_per_1k === 0 ? 'Free' : `$${model.cost_per_1k}`}
+                    </p>
+                  </div>
+                  {model.cost_per_1k === 0 && (
+                    <p style={{ fontSize: '0.7rem', color: '#059669', marginTop: '0.25rem' }}>Runs locally</p>
+                  )}
+                </div>
               </div>
             </div>
 
-            {model.is_active_query ? (
-              <div style={{
-                width: '100%',
-                padding: '0.75rem',
-                background: '#f3f4f6',
-                color: '#6b7280',
-                borderRadius: '0.5rem',
-                fontWeight: 500,
-                textAlign: 'center',
-                fontSize: '0.875rem'
-              }}>
-                Currently active
-              </div>
-            ) : (
-              <button
-                onClick={() => handleSetActive(model.key)}
-                style={{
+            {/* Card footer - always at bottom */}
+            <div style={{ marginTop: '1rem' }}>
+              {model.is_active_query ? (
+                <div style={{
                   width: '100%',
                   padding: '0.75rem',
-                  background: '#000000',
-                  color: 'white',
-                  border: 'none',
+                  background: 'var(--bg-card-elevated, #f3f4f6)',
+                  color: 'var(--text-muted, #6b7280)',
                   borderRadius: '0.5rem',
                   fontWeight: 500,
-                  cursor: 'pointer',
-                  transition: 'background 0.2s'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.background = '#333333'}
-                onMouseLeave={(e) => e.currentTarget.style.background = '#000000'}
-              >
-                Set as Active
-              </button>
-            )}
+                  textAlign: 'center',
+                  fontSize: '0.875rem'
+                }}>
+                  Currently active
+                </div>
+              ) : (
+                <button
+                  onClick={() => handleSetActive(model.key)}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    background: 'var(--accent, #000000)',
+                    color: 'var(--accent-foreground, white)',
+                    border: 'none',
+                    borderRadius: '0.5rem',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    transition: 'background 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--accent-hover, #333333)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'var(--accent, #000000)'}
+                >
+                  Set as Active
+                </button>
+              )}
+            </div>
           </div>
         ))}
       </div>

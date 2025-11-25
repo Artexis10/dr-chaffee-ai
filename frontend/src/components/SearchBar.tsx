@@ -7,20 +7,23 @@ interface SearchBarProps {
   loading: boolean;
   answerStyle: 'concise' | 'detailed';
   onAnswerStyleChange: (style: 'concise' | 'detailed') => void;
+  disabled?: boolean; // Disable all interactions while search is running
 }
 
-export const SearchBar: React.FC<SearchBarProps> = ({ query, setQuery, handleSearch, loading, answerStyle, onAnswerStyleChange }) => {
+export const SearchBar: React.FC<SearchBarProps> = ({ query, setQuery, handleSearch, loading, answerStyle, onAnswerStyleChange, disabled = false }) => {
+  const isDisabled = loading || disabled;
   const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (query.trim()) {
+    if (query.trim() && !isDisabled) {
       handleSearch(e);
     }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isDisabled) return;
     const value = e.target.value;
     setQuery(value);
   };
@@ -55,7 +58,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ query, setQuery, handleSea
         <input
           ref={inputRef}
           type="text"
-          className="search-input"
+          className={`search-input ${isDisabled ? 'disabled' : ''}`}
           placeholder="Ask your question..."
           value={query}
           onChange={handleInputChange}
@@ -63,13 +66,17 @@ export const SearchBar: React.FC<SearchBarProps> = ({ query, setQuery, handleSea
           onBlur={() => setIsFocused(false)}
           onKeyDown={handleKeyDown}
           aria-label="Search query"
-          disabled={loading}
+          readOnly={isDisabled}
+          style={{ opacity: isDisabled ? 0.7 : 1, cursor: isDisabled ? 'not-allowed' : 'text' }}
         />
-        {query && (
+        {query && !isDisabled && (
           <button 
             type="button" 
             className="clear-button"
-            onClick={() => setQuery('')}
+            onClick={() => {
+              setQuery('');
+              inputRef.current?.focus();
+            }}
             aria-label="Clear search"
             tabIndex={0}
           >
@@ -81,8 +88,9 @@ export const SearchBar: React.FC<SearchBarProps> = ({ query, setQuery, handleSea
         <button 
           type="submit" 
           className="search-button"
-          disabled={loading || !query.trim()}
+          disabled={isDisabled || !query.trim()}
           aria-label="Search"
+          style={{ opacity: isDisabled ? 0.6 : 1 }}
         >
           {loading ? 'Searching...' : 'Search'}
         </button>
@@ -95,16 +103,20 @@ export const SearchBar: React.FC<SearchBarProps> = ({ query, setQuery, handleSea
           <button
             type="button"
             className={`toggle-btn ${answerStyle === 'concise' ? 'active' : ''}`}
-            onClick={() => onAnswerStyleChange('concise')}
+            onClick={() => !isDisabled && onAnswerStyleChange('concise')}
             title="Short, focused answer (~30 seconds)"
+            disabled={isDisabled}
+            style={{ opacity: isDisabled ? 0.5 : 1, cursor: isDisabled ? 'not-allowed' : 'pointer' }}
           >
             Short
           </button>
           <button
             type="button"
             className={`toggle-btn ${answerStyle === 'detailed' ? 'active' : ''}`}
-            onClick={() => onAnswerStyleChange('detailed')}
+            onClick={() => !isDisabled && onAnswerStyleChange('detailed')}
             title="Comprehensive answer (~60 seconds)"
+            disabled={isDisabled}
+            style={{ opacity: isDisabled ? 0.5 : 1, cursor: isDisabled ? 'not-allowed' : 'pointer' }}
           >
             Long
           </button>
@@ -143,21 +155,33 @@ export const SearchBar: React.FC<SearchBarProps> = ({ query, setQuery, handleSea
           right: 140px;
           top: 50%;
           transform: translateY(-50%);
-          background: none;
-          border: none;
-          color: var(--color-text-light);
+          background: var(--color-border-light, #f3f4f6);
+          border: 1px solid var(--color-border, #e5e7eb);
+          color: var(--color-text-muted, #6b7280);
           cursor: pointer;
-          padding: var(--space-1);
+          padding: 6px;
           border-radius: 50%;
           display: flex;
           align-items: center;
           justify-content: center;
           transition: all var(--transition-fast);
+          width: 28px;
+          height: 28px;
         }
         
         .clear-button:hover {
-          background: rgba(0, 0, 0, 0.05);
-          color: var(--color-text);
+          background: var(--color-border, #e5e7eb);
+          color: var(--color-text, #1f2937);
+          border-color: var(--color-text-muted, #9ca3af);
+        }
+        
+        .clear-button:focus {
+          outline: 2px solid var(--color-primary, #000);
+          outline-offset: 2px;
+        }
+        
+        .clear-button:active {
+          transform: translateY(-50%) scale(0.95);
         }
         
         .spinner {

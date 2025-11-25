@@ -771,6 +771,7 @@ export default function Home() {
             loading={loading}
             answerStyle={answerStyle}
             onAnswerStyleChange={setAnswerStyle}
+            disabled={answerLoading}
           />
         </ErrorBoundary>
 
@@ -780,7 +781,8 @@ export default function Home() {
             setSourceFilter={setSourceFilter} 
             yearFilter={yearFilter} 
             setYearFilter={setYearFilter} 
-            availableYears={availableYears} 
+            availableYears={availableYears}
+            disabled={loading || answerLoading}
           />
         </ErrorBoundary>
 

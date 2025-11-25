@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FileText, Save, Eye, History, Check, X, Plus, Trash2, RefreshCw } from 'lucide-react';
+import { FileText, Save, Eye, History, Check, X, Plus, Trash2, RefreshCw, Edit2, Copy } from 'lucide-react';
 
 interface CustomInstruction {
   id?: number;
@@ -218,14 +218,19 @@ export default function CustomInstructionsEditor() {
   };
 
   return (
-    <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-xl p-6">
-      <div className="flex items-center justify-between mb-6">
+    <div style={{
+      background: 'var(--bg-card, #ffffff)',
+      border: '1px solid var(--border-subtle, #e5e7eb)',
+      borderRadius: '0.75rem',
+      padding: '1.5rem'
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
         <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <FileText className="w-6 h-6 text-blue-400" />
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary, #1f2937)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <FileText style={{ width: '1.5rem', height: '1.5rem', color: 'var(--text-muted, #6b7280)' }} />
             Custom Instructions
           </h2>
-          <p className="text-slate-400 text-sm mt-1">
+          <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: '0.875rem', marginTop: '0.25rem' }}>
             Add your own guidance without modifying core safety rules
           </p>
         </div>
@@ -233,9 +238,23 @@ export default function CustomInstructionsEditor() {
         {!editMode && (
           <button
             onClick={startNewInstruction}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              background: 'var(--accent, #000000)',
+              color: 'var(--accent-foreground, white)',
+              padding: '0.5rem 1rem',
+              borderRadius: '0.5rem',
+              border: 'none',
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'background 0.2s'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--accent-hover, #333333)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'var(--accent, #000000)'}
           >
-            <Plus className="w-4 h-4" />
+            <Plus style={{ width: '1rem', height: '1rem' }} />
             New Instruction Set
           </button>
         )}
@@ -243,10 +262,20 @@ export default function CustomInstructionsEditor() {
 
       {/* Message Banner */}
       {message && (
-        <div className={`mb-4 p-4 rounded-lg flex items-center gap-2 ${
-          messageType === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-        }`}>
-          {messageType === 'success' ? <Check className="w-5 h-5" /> : <X className="w-5 h-5" />}
+        <div style={{
+          marginBottom: '1rem',
+          padding: '0.75rem 1rem',
+          borderRadius: '0.5rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          background: messageType === 'success' ? '#f0fdf4' : '#fef2f2',
+          color: messageType === 'success' ? '#059669' : '#dc2626',
+          border: `1px solid ${messageType === 'success' ? '#d1fae5' : '#fecaca'}`,
+          fontSize: '0.875rem',
+          fontWeight: 500
+        }}>
+          {messageType === 'success' ? <Check style={{ width: '1.25rem', height: '1.25rem' }} /> : <X style={{ width: '1.25rem', height: '1.25rem' }} />}
           {message}
         </div>
       )}
@@ -359,79 +388,193 @@ export default function CustomInstructionsEditor() {
           )}
         </div>
       ) : (
-        /* List Mode */
-        <div className="space-y-4">
+        /* List Mode - Card Grid */
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1rem' }}>
           {instructions.map((instruction) => (
             <div
               key={instruction.id}
-              className={`border rounded-lg p-4 transition-all ${
-                instruction.is_active
-                  ? 'border-green-500 bg-green-500/10'
-                  : 'border-slate-600 bg-slate-800/30'
-              }`}
+              style={{
+                background: instruction.is_active ? '#f0fdf4' : 'var(--bg-card, #ffffff)',
+                border: instruction.is_active ? '2px solid #86efac' : '1px solid var(--border-subtle, #e5e7eb)',
+                borderRadius: '0.75rem',
+                padding: '1.25rem',
+                display: 'flex',
+                flexDirection: 'column',
+                minHeight: '260px',
+                transition: 'all 0.2s'
+              }}
             >
-              <div className="flex items-start justify-between mb-2">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-semibold text-lg">{instruction.name}</h3>
+              {/* Card Header */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
+                    <h3 style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--text-primary, #1f2937)' }}>{instruction.name}</h3>
                     {instruction.is_active && (
-                      <span className="bg-green-500 text-white text-xs px-2 py-1 rounded">Active</span>
+                      <span style={{
+                        background: '#1f2937',
+                        color: 'white',
+                        fontSize: '0.65rem',
+                        padding: '0.2rem 0.5rem',
+                        borderRadius: '9999px',
+                        fontWeight: 600,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.025em'
+                      }}>Active</span>
                     )}
                     {instruction.version && (
-                      <span className="text-xs text-slate-400">v{instruction.version}</span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted, #6b7280)' }}>v{instruction.version}</span>
                     )}
                   </div>
                   {instruction.description && (
-                    <p className="text-sm text-slate-400">{instruction.description}</p>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted, #6b7280)', lineHeight: 1.4 }}>{instruction.description}</p>
                   )}
                 </div>
                 
-                <div className="flex gap-2">
+                {/* Action Icons */}
+                <div style={{ display: 'flex', gap: '0.25rem', marginLeft: '0.5rem' }}>
                   {instruction.id && instruction.id > 1 && (
                     <button
                       onClick={() => loadHistory(instruction.id!)}
-                      className="text-slate-400 hover:text-blue-400 transition-colors"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        padding: '0.375rem',
+                        borderRadius: '0.375rem',
+                        cursor: 'pointer',
+                        color: 'var(--text-muted, #6b7280)',
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'var(--bg-card-elevated, #f3f4f6)';
+                        e.currentTarget.style.color = 'var(--text-primary, #1f2937)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent';
+                        e.currentTarget.style.color = 'var(--text-muted, #6b7280)';
+                      }}
                       title="View History"
                     >
-                      <History className="w-5 h-5" />
+                      <History style={{ width: '1rem', height: '1rem' }} />
                     </button>
                   )}
                   
                   <button
                     onClick={() => editInstruction(instruction)}
-                    className="text-slate-400 hover:text-yellow-400 transition-colors"
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      padding: '0.375rem',
+                      borderRadius: '0.375rem',
+                      cursor: 'pointer',
+                      color: 'var(--text-muted, #6b7280)',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'var(--bg-card-elevated, #f3f4f6)';
+                      e.currentTarget.style.color = 'var(--text-primary, #1f2937)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'transparent';
+                      e.currentTarget.style.color = 'var(--text-muted, #6b7280)';
+                    }}
                     title="Edit"
                   >
-                    <FileText className="w-5 h-5" />
+                    <Edit2 style={{ width: '1rem', height: '1rem' }} />
                   </button>
                   
                   {!instruction.is_active && instruction.name !== 'default' && instruction.id && (
                     <button
                       onClick={() => deleteInstructions(instruction.id!)}
-                      className="text-slate-400 hover:text-red-400 transition-colors"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        padding: '0.375rem',
+                        borderRadius: '0.375rem',
+                        cursor: 'pointer',
+                        color: 'var(--text-muted, #6b7280)',
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = '#fef2f2';
+                        e.currentTarget.style.color = '#dc2626';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent';
+                        e.currentTarget.style.color = 'var(--text-muted, #6b7280)';
+                      }}
                       title="Delete"
                     >
-                      <Trash2 className="w-5 h-5" />
+                      <Trash2 style={{ width: '1rem', height: '1rem' }} />
                     </button>
                   )}
                 </div>
               </div>
               
-              <div className="bg-slate-900/50 rounded p-3 mb-3 max-h-32 overflow-y-auto">
-                <pre className="text-xs text-slate-300 whitespace-pre-wrap">
+              {/* Card Body - Instructions Preview */}
+              <div style={{
+                flex: 1,
+                background: 'var(--bg-card-elevated, #f9fafb)',
+                borderRadius: '0.5rem',
+                padding: '0.75rem',
+                marginBottom: '0.75rem',
+                maxHeight: '8rem',
+                overflowY: 'auto'
+              }}>
+                <pre style={{
+                  fontSize: '0.75rem',
+                  color: 'var(--text-muted, #4b5563)',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  margin: 0,
+                  fontFamily: 'ui-monospace, monospace',
+                  lineHeight: 1.5
+                }}>
                   {instruction.instructions || '(No custom instructions)'}
                 </pre>
               </div>
               
-              {!instruction.is_active && (
-                <button
-                  onClick={() => activateInstructions(instruction.id!)}
-                  disabled={loading}
-                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 text-white px-4 py-2 rounded-lg transition-colors"
-                >
-                  Activate This Set
-                </button>
-              )}
+              {/* Card Footer */}
+              <div style={{ marginTop: 'auto' }}>
+                {instruction.is_active ? (
+                  <div style={{
+                    width: '100%',
+                    padding: '0.625rem',
+                    background: 'var(--bg-card-elevated, #f3f4f6)',
+                    color: 'var(--text-muted, #6b7280)',
+                    borderRadius: '0.5rem',
+                    fontWeight: 500,
+                    textAlign: 'center',
+                    fontSize: '0.875rem'
+                  }}>
+                    Currently active
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => activateInstructions(instruction.id!)}
+                    disabled={loading}
+                    style={{
+                      width: '100%',
+                      padding: '0.625rem',
+                      background: loading ? '#9ca3af' : 'var(--accent, #000000)',
+                      color: 'var(--accent-foreground, white)',
+                      border: 'none',
+                      borderRadius: '0.5rem',
+                      fontWeight: 500,
+                      cursor: loading ? 'not-allowed' : 'pointer',
+                      transition: 'background 0.2s',
+                      fontSize: '0.875rem'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!loading) e.currentTarget.style.background = 'var(--accent-hover, #333333)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!loading) e.currentTarget.style.background = 'var(--accent, #000000)';
+                    }}
+                  >
+                    Activate This Set
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>
