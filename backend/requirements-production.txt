@@ -39,7 +39,7 @@ uvicorn==0.24.0  # Plain uvicorn (NOT [standard]) - avoids NumPy 2.x conflicts
 python-multipart==0.0.18
 aiofiles==23.2.1
 click==8.1.7
-h11==0.14.0
+h11==0.16.0
 
 # ============================================================================
 # EMBEDDINGS (installed AFTER PyTorch in Dockerfile)
