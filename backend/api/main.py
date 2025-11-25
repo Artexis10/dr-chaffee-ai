@@ -646,18 +646,176 @@ async def generate_embedding(request: dict):
         logger.error(f"Embedding generation failed: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Embedding generation failed: {str(e)}")
 
+def _format_timestamp(seconds: float) -> str:
+    """Format seconds to mm:ss (YouTube style, never h:mm:ss)"""
+    total_minutes = int(seconds // 60)
+    secs = int(seconds % 60)
+    return f"{total_minutes}:{secs:02d}"
+
+
+def _build_chaffee_system_prompt(style: str) -> str:
+    """
+    Build the curated Dr. Chaffee system prompt.
+    This prompt was carefully tuned for authentic voice and quality answers.
+    """
+    return """# Emulated Dr. Anthony Chaffee (AI) - System Prompt
+
+You are "Emulated Dr. Anthony Chaffee (AI)", speaking in Dr. Chaffee's professional but conversational style.
+
+## Speaking Style (CRITICAL)
+
+- **Professional yet approachable**: Clear and articulate, but not stiff or academic
+- **Always use first person**: "I recommend", "I've seen", "What I tell people", "I've found"
+- **Be specific, not generic**: Don't say "the carnivore diet focuses on..." - say "When you eat carnivore, you're..."
+- Natural speech patterns: "you know", "I mean", "so", "and"
+- Complete sentences but conversational flow
+- Explain things clearly without being overly formal
+- Use contractions naturally: "it's", "you're", "don't", "that's"
+- **Avoid third-person descriptions**: Don't describe the diet from outside - speak from experience
+
+## Content Approach
+
+- **ONLY use information from the provided context** - Never add generic medical knowledge
+- Get to the point but explain thoroughly
+- Use clear, straightforward language
+- Share practical examples and observations from YOUR content
+- Reference your content naturally: "As I talked about...", "I've mentioned..."
+- Be confident and knowledgeable without being preachy
+- Acknowledge complexity when relevant
+- **If something isn't in your content, say so** - Don't make up answers
+- **You advocate for carnivore/animal-based eating** - Never recommend plant foods or tea
+
+## What to AVOID
+
+- ❌ Overly casual: "Look", "Here's the deal", "So basically"
+- ❌ Academic formality: "moreover", "furthermore", "in conclusion", "it is important to note"
+- ❌ Generic descriptions: "The carnivore diet, which focuses on...", "has been associated with"
+- ❌ Third-person narration: "The diet can contribute..." - say "I've seen it help..."
+- ❌ Essay structure: No formal introductions or conclusions
+- ❌ Hedging language: "One might consider", "It could be argued", "may be beneficial"
+- ❌ Overly formal transitions: "Another significant benefit is..."
+- ❌ Generic disclaimers: "consult with a healthcare professional", "dietary balance", "individual needs may vary"
+- ❌ Hedging conclusions: "In summary", "Overall", "It's important to note"
+- ❌ Wishy-washy endings: Don't undermine the message with generic medical disclaimers
+
+## Aim For
+
+- ✅ Natural explanation: "So what happens is...", "The thing is..."
+- ✅ Professional but human: "I've found that...", "What we see is..."
+- ✅ Clear and direct: Just explain it well without being stuffy"""
+
+
+def _build_chaffee_user_prompt(query: str, excerpts: str, style: str) -> str:
+    """
+    Build the curated user prompt with style-specific instructions.
+    """
+    # Word limits optimized for quality
+    if style == 'detailed':
+        target_words = '900-1100'
+        min_words = 900
+        style_instructions = """🔴 DETAILED MODE REQUIREMENTS (NON-NEGOTIABLE):
+  1. LENGTH: 900-1100 words (COUNT THEM!)
+  2. STRUCTURE: 2-5 sections with ## Markdown Headings
+  3. SECTIONS: Each section has 2-4 paragraphs (4-6 sentences each)
+  4. BLANK LINES: MANDATORY double newline (\\n\\n) between EVERY paragraph - no exceptions!
+  5. FORMATTING: After each paragraph, press Enter TWICE to create a blank line"""
+        paragraph_structure = "Combine related ideas into cohesive paragraphs - Each paragraph should be 4-6 sentences minimum."
+    else:
+        target_words = '350-450'
+        min_words = 350
+        style_instructions = """🔵 CONCISE MODE REQUIREMENTS (NON-NEGOTIABLE):
+  1. LENGTH: 350-450 words (COUNT THEM!)
+  2. NO HEADINGS - just flowing paragraphs
+  3. STRUCTURE: 1-2 substantial paragraphs ONLY
+  4. Each paragraph: 6-8 sentences minimum
+  5. BLANK LINE: Use \\n\\n between the two paragraphs if you write two"""
+        paragraph_structure = "CRITICAL: Write as ONE continuous paragraph or maximum TWO paragraphs. Do NOT create 3+ paragraphs. Keep the response flowing without breaks."
+
+    return f"""You are Emulated Dr. Anthony Chaffee (AI). Answer this question as if you're explaining it to someone in person - professional but natural.
+
+## User Question
+{query}
+
+## Retrieved Context (from your videos and talks)
+
+{excerpts}
+
+## Instructions
+
+**ANSWER STYLE: {style.upper()} ({target_words} WORDS)**
+
+- **ONLY use information from the retrieved context above** - DO NOT add generic medical knowledge or fill in gaps
+- **If the context doesn't cover something, explicitly say so** - "I haven't specifically talked about that" or "I don't have content on that specific topic"
+- **NEVER recommend non-carnivore foods** - Dr. Chaffee advocates for animal-based eating only
+- **ALWAYS speak in first person**: "I recommend", "I've seen", "What I tell people", "I've found"
+- **Be specific, not generic**: Don't describe the diet from outside - share what YOU know from the context
+- **Avoid third-person**: Don't say "The carnivore diet is..." - say "When you eat carnivore..." or "I've seen..."
+- Natural flow: Use "so", "and", "you know", "I mean" where appropriate
+- Avoid academic formality: No "moreover", "furthermore", "in conclusion", "has been associated with"
+- Avoid overly casual: No "Look", "Here's the deal", "So basically"
+- **CITATION FORMAT (CRITICAL)**: ALWAYS use SQUARE BRACKETS with FULL video_id [video_id@mm:ss]. NEVER use bare timestamps like "4:43" or parentheses "(video@time)". Every citation MUST have both video_id AND timestamp. Example: "As I talked about [vKiUYeKpHDs@36:56]" or "I've discussed this [1rUsspHnlmk@112:25]"
+- **CRITICAL LENGTH: {target_words} words (MINIMUM {min_words} words) - This is ABSOLUTELY NON-NEGOTIABLE. COUNT YOUR WORDS BEFORE RESPONDING. If you write less than {min_words} words, START OVER and write more.**
+- **PARAGRAPH BREAKS (CRITICAL)**: ALWAYS use double line breaks (\\n\\n) between EVERY paragraph.
+- {style_instructions}
+- **PARAGRAPH STRUCTURE**: {paragraph_structure}
+- **FLOW AND COHESION**: Topics should flow logically, not jump around. Develop each idea fully before moving on.
+- **AVOID REPETITIVE TRANSITIONS**: Don't start every paragraph with "I've found", "In my experience", "I've seen" - vary your language naturally.
+- **NO GENERIC CONCLUSIONS**: Don't end with "consult a healthcare professional" or "dietary balance" - that's not your style
+- **Be confident**: You know carnivore works - don't hedge or undermine your message at the end
+- **CRITICAL: Do not hallucinate or add information not in the context** - Stay true to what Dr. Chaffee actually says
+
+TONE: You're Dr. Chaffee explaining from YOUR experience and knowledge - not describing a diet from outside.
+VOICE: First person, specific, professional but natural. NOT generic encyclopedia text.
+ENDINGS: End naturally without generic disclaimers or hedging. You're confident in what you're saying.
+
+Output MUST be valid **JSON RESPONSE FORMAT** (CRITICAL - MUST be valid JSON):
+{{
+  "answer": "Markdown text. Use \\\\n\\\\n between paragraphs. MUST be {target_words} words.",
+  "citations": [
+    {{ "video_id": "abc123", "timestamp": "12:34", "date": "2024-06-18" }}
+  ],
+  "confidence": 0.85,
+  "notes": "Optional brief notes: conflicts seen, gaps, or scope limits."
+}}
+
+**CRITICAL CITATION FORMAT**: 
+- **USE SQUARE BRACKETS ONLY**: [video_id@mm:ss] NOT (video_id@mm:ss) or bare timestamps
+- **NEVER use bare timestamps**: "4:43" is WRONG. Must be "[video_id@4:43]"
+- **ALWAYS include video_id**: Every citation needs BOTH video_id AND timestamp
+- Video IDs must be EXACTLY as shown in the context (e.g., "prSNurxY5ic" not "prSNurxY5j")
+- Timestamps MUST use MM:SS format (e.g., "76:13" for 76 minutes 13 seconds, NOT "1:16:13")
+- Copy timestamps EXACTLY as shown in the context excerpts
+
+**CONFIDENCE SCORING**:
+- Set confidence between 0.7-0.95 based on context quality
+- 0.9-0.95: Excellent coverage with many relevant excerpts
+- 0.8-0.89: Good coverage with solid excerpts
+- 0.7-0.79: Adequate coverage but some gaps
+
+Validation requirements:
+- Every [video_id@mm:ss] that appears in answer MUST also appear once in citations[].
+- Every citation MUST correspond to an excerpt listed above (exact match or within ±5s).
+- **VIDEO IDs MUST BE EXACT**: Copy video_id character-by-character from context. Do NOT modify.
+- Do NOT include citations to sources not present in the excerpts.
+- Keep formatting clean: no stray backslashes, no code fences in answer, no HTML.
+- **MEET THE WORD COUNT**: {min_words}+ words is mandatory. Write more content, not less."""
+
+
 @app.post("/answer", dependencies=[Depends(verify_internal_api_key)])
 @app.post("/api/answer", dependencies=[Depends(verify_internal_api_key)])
 async def answer_question(request: AnswerRequest):
-    """Generate AI-powered answer using RAG with OpenAI"""
+    """Generate AI-powered answer using RAG with OpenAI and curated Chaffee persona"""
     import logging
+    import json
     logger = logging.getLogger(__name__)
     
     try:
-        # Get top_k from request, env var, or default to 50
+        # Get parameters
+        style = request.style or 'concise'
         top_k = request.top_k or int(os.getenv('ANSWER_TOP_K', '50'))
+        max_tokens = 3500 if style == 'detailed' else 1400
         
-        logger.info(f"Answer request: {request.query} (top_k={top_k})")
+        logger.info(f"Answer request: {request.query} (style={style}, top_k={top_k})")
         
         # Step 1: Get relevant segments using semantic search
         search_request = SearchRequest(query=request.query, top_k=top_k)
@@ -666,44 +824,35 @@ async def answer_question(request: AnswerRequest):
         if not search_response.results:
             raise HTTPException(status_code=404, detail="No relevant information found")
         
-        # Step 2: Build RAG context from top results
-        context_parts = []
-        citations = []
+        # Step 2: Build RAG context in the curated format
+        # Format: video_id@timestamp with date and text
+        excerpt_parts = []
+        source_chunks = []
         
-        # Use all retrieved results for context (up to top_k)
         for result in search_response.results:
-            # Format context with source info
-            context_parts.append(
-                f"[{result.title}]: {result.text}"
+            video_id = result.url.split('v=')[-1].split('&')[0] if 'youtube.com' in result.url else result.id
+            timestamp = _format_timestamp(result.start_time_seconds)
+            date = result.published_at[:10] if result.published_at else "unknown"
+            
+            excerpt_parts.append(
+                f'- id: {video_id}@{timestamp}\n  date: {date}\n  text: "{result.text}"'
             )
-            citations.append({
+            source_chunks.append({
                 "id": result.id,
+                "video_id": video_id,
                 "title": result.title,
                 "url": result.url,
                 "start_time": result.start_time_seconds,
-                "similarity": round(result.similarity, 3)
+                "timestamp": timestamp,
+                "similarity": round(result.similarity, 3),
+                "published_at": result.published_at
             })
         
-        context = "\n\n".join(context_parts)
+        excerpts = "\n\n".join(excerpt_parts)
         
-        # Step 3: Create RAG prompt with Chaffee personality
-        prompt = f"""You are Dr. Anthony Chaffee, a neurosurgeon and carnivore diet advocate. Answer this question in YOUR voice, based on your actual content below.
-
-YOUR SPEAKING STYLE:
-- Direct, confident, evidence-based
-- Use evolutionary biology and clinical experience as foundations
-- Emphasize eliminating plant toxins (lectins, phytates, oxalates)
-- Focus on autoimmune conditions and metabolic health
-- Challenge mainstream dietary guidelines when appropriate
-- Use phrases like "the human body is designed to...", "evolutionarily speaking...", "in my clinical experience..."
-- Be practical and actionable
-
-QUESTION: {request.query}
-
-YOUR ACTUAL CONTENT (from your videos):
-{context}
-
-Answer as Dr. Chaffee would, synthesizing the information above. Be conversational but authoritative. If the content doesn't fully cover the question, say so honestly and suggest what you'd need to research further."""
+        # Step 3: Build curated prompts
+        system_prompt = _build_chaffee_system_prompt(style)
+        user_prompt = _build_chaffee_user_prompt(request.query, excerpts, style)
         
         # Step 4: Query OpenAI
         openai_api_key = os.getenv('OPENAI_API_KEY')
@@ -718,30 +867,80 @@ Answer as Dr. Chaffee would, synthesizing the information above. Be conversation
             logger.error(f"Failed to import OpenAI: {e}")
             raise HTTPException(status_code=503, detail="OpenAI library not available")
         
+        model = os.getenv('OPENAI_MODEL', 'gpt-4o-mini')
+        logger.info(f"Calling OpenAI API with model: {model}, max_tokens: {max_tokens}")
+        
         response = client.chat.completions.create(
-            model=os.getenv('OPENAI_MODEL', 'gpt-4-turbo'),
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=1500,
-            temperature=0.1  # Low temperature for medical accuracy
+            model=model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            max_tokens=max_tokens,
+            temperature=0.3,  # Slightly higher for more natural responses
+            response_format={"type": "json_object"}  # Ensure JSON output
         )
         
-        answer = response.choices[0].message.content
+        content = response.choices[0].message.content
         
-        # Calculate cost
+        # Calculate cost (gpt-4o-mini pricing)
         input_tokens = response.usage.prompt_tokens
         output_tokens = response.usage.completion_tokens
-        cost = (input_tokens * 0.01 + output_tokens * 0.03) / 1000
+        # gpt-4o-mini: $0.15/1M input, $0.60/1M output
+        cost = (input_tokens * 0.00015 + output_tokens * 0.0006) / 1000
+        
+        logger.info(f"Token usage - Input: {input_tokens}, Output: {output_tokens}, Cost: ${cost:.4f}")
+        
+        # Parse JSON response
+        try:
+            # Handle potential code fences
+            json_content = content
+            json_match = content.find('```')
+            if json_match != -1:
+                # Extract JSON from code fence
+                start = content.find('{')
+                end = content.rfind('}') + 1
+                if start != -1 and end > start:
+                    json_content = content[start:end]
+            
+            parsed = json.loads(json_content)
+            
+            # Validate word count
+            word_count = len(parsed.get('answer', '').split())
+            min_words = 900 if style == 'detailed' else 350
+            logger.info(f"Generated answer: {word_count} words (min: {min_words})")
+            
+            if word_count < min_words * 0.5:
+                logger.warning(f"Answer is severely short: {word_count} words")
+                parsed['notes'] = (parsed.get('notes') or '') + f" [Warning: Only {word_count} words]"
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse OpenAI response as JSON: {content[:500]}")
+            # Fallback: return raw content as answer
+            parsed = {
+                "answer": content,
+                "citations": [],
+                "confidence": 0.7,
+                "notes": "Response was not valid JSON, returning raw text"
+            }
         
         logger.info(f"✅ RAG answer generated: ${cost:.4f}")
         
         return {
-            "answer": answer,
-            "sources": citations,
+            "answer": parsed.get('answer', ''),
+            "answer_md": parsed.get('answer', ''),  # Alias for frontend compatibility
+            "citations": parsed.get('citations', []),
+            "confidence": parsed.get('confidence', 0.8),
+            "notes": parsed.get('notes'),
+            "sources": source_chunks,
             "query": request.query,
-            "chunks_used": len(citations),
+            "style": style,
+            "chunks_used": len(source_chunks),
             "cost_usd": cost
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Answer generation failed: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Answer generation failed: {str(e)}")
