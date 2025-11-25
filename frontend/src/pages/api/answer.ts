@@ -1,6 +1,4 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { Pool } from 'pg';
-import * as crypto from 'crypto';
 
 // Configure API route for longer timeouts (needed for detailed answers)
 // Note: maxDuration only works on Vercel. For Render/self-hosted, configure timeout in platform settings.
@@ -13,14 +11,6 @@ export const config = {
   },
   // maxDuration: 180, // Only for Vercel - commented out for Render deployment
 };
-
-// Database connection
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL?.includes('render.com') || process.env.NODE_ENV === 'production' 
-    ? { rejectUnauthorized: false } 
-    : false
-});
 
 // Configuration
 const ANSWER_ENABLED = process.env.ANSWER_ENABLED !== 'false'; // Default to enabled
@@ -147,11 +137,6 @@ function normalizeQuery(query: string): string {
   return query.toLowerCase().trim().replace(/\s+/g, ' ');
 }
 
-function generateCacheKey(queryNorm: string, chunkIds: string[], modelVersion: string): string {
-  const content = queryNorm + chunkIds.sort().join(',') + modelVersion;
-  return crypto.createHash('sha256').update(content).digest('hex');
-}
-
 function formatTimestamp(seconds: number): string {
   // Always use mm:ss format (YouTube style) - never h:mm:ss
   // This prevents confusion: 71:21 is clearer than 1:11:21
@@ -246,37 +231,6 @@ function extractKeywords(query: string): string[] {
     .filter(word => word.length > 2 && !stopWords.includes(word));
   
   return words;
-}
-
-// Generate embeddings for the query
-async function generateQueryEmbedding(query: string): Promise<number[]> {
-  // Use module-level BACKEND_API_URL constant
-  
-  try {
-    console.log('Calling backend API for query embedding:', query);
-    
-    const response = await fetch(`${BACKEND_API_URL}/embed`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ text: query }),
-      signal: AbortSignal.timeout(10000), // 10 seconds timeout
-    });
-
-    if (!response.ok) {
-      console.error('Backend API error:', response.status, response.statusText);
-      throw new Error(`Backend API failed: ${response.status} ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    console.log(`Generated embedding with ${data.dimensions} dimensions`);
-    return data.embedding;
-  } catch (error) {
-    console.error('Failed to generate query embedding:', error);
-    console.log('Falling back to text search');
-    return [];
-  }
 }
 
 // Call LLM to generate answer
@@ -652,62 +606,30 @@ function validateAndProcessResponse(llmResponse: LLMResponse, chunks: ChunkResul
   };
 }
 
-// Check answer cache for semantically similar queries
+// Check answer cache for semantically similar queries (via backend API)
 async function checkAnswerCache(query: string, style: string): Promise<any | null> {
   try {
-    // Generate embedding for the query
-    const embeddingResponse = await fetch(`${BACKEND_API_URL}/embed`, {
+    const response = await fetch(`${BACKEND_API_URL}/answer/cache/lookup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: query }),
-      signal: AbortSignal.timeout(30000) // 30s timeout for model loading
+      body: JSON.stringify({ 
+        query, 
+        style, 
+        similarity_threshold: CACHE_SIMILARITY_THRESHOLD 
+      }),
+      signal: AbortSignal.timeout(30000) // 30s timeout
     });
     
-    if (!embeddingResponse.ok) {
-      console.warn('[Cache Lookup] Failed to generate embedding');
+    if (!response.ok) {
+      console.warn('[Cache Lookup] Backend returned error:', response.status);
       return null;
     }
     
-    const { embedding, model_key } = await embeddingResponse.json();
+    const data = await response.json();
     
-    if (!embedding || !model_key) {
-      console.warn('[Cache Lookup] Invalid embedding response');
-      return null;
-    }
-    
-    console.log(`[Cache Lookup] Using model: ${model_key}`);
-    
-    // Use the search function to find similar cached answers
-    const result = await pool.query(`
-      SELECT 
-        ac.id,
-        ac.query_text,
-        ac.answer_md,
-        ac.citations,
-        ac.confidence,
-        ac.notes,
-        ac.used_chunk_ids,
-        ac.source_clips,
-        ac.created_at,
-        ac.access_count,
-        cache_search.similarity
-      FROM search_answer_cache_by_model($1::vector, $2, $3, $4, 1) cache_search
-      JOIN answer_cache ac ON ac.id = cache_search.cache_id
-      LIMIT 1
-    `, [JSON.stringify(embedding), model_key, style, CACHE_SIMILARITY_THRESHOLD]);
-    
-    if (result.rows.length > 0) {
-      const cached = result.rows[0];
-      console.log(`✅ [Cache Hit] "${cached.query_text.substring(0, 50)}..." (similarity: ${(cached.similarity * 100).toFixed(1)}%)`);
-      
-      // Update access count and timestamp
-      await pool.query(`
-        UPDATE answer_cache 
-        SET accessed_at = NOW(), access_count = access_count + 1
-        WHERE id = $1
-      `, [cached.id]);
-      
-      return cached;
+    if (data.cached) {
+      console.log(`✅ [Cache Hit] "${data.cached.query_text?.substring(0, 50)}..." (similarity: ${(data.cached.similarity * 100).toFixed(1)}%)`);
+      return data.cached;
     }
     
     console.log('[Cache Lookup] No cache hit found');
@@ -718,83 +640,39 @@ async function checkAnswerCache(query: string, style: string): Promise<any | nul
   }
 }
 
-// Save answer to cache
+// Save answer to cache (via backend API)
 async function saveAnswerCache(query: string, style: string, answer: any): Promise<void> {
   try {
     console.log(`[Cache Save] Starting cache save for query: "${query.substring(0, 50)}..." (style: ${style})`);
     
-    // Generate embedding for the query
-    console.log(`[Cache Save] Fetching embedding from ${BACKEND_API_URL}/embed`);
-    const embeddingResponse = await fetch(`${BACKEND_API_URL}/embed`, {
+    const response = await fetch(`${BACKEND_API_URL}/answer/cache/save`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: query }),
-      signal: AbortSignal.timeout(10000) // 10s timeout for model loading
+      body: JSON.stringify({
+        query,
+        style,
+        answer_md: answer.answer_md,
+        citations: answer.citations,
+        confidence: answer.confidence,
+        notes: answer.notes,
+        used_chunk_ids: answer.used_chunk_ids || [],
+        source_clips: answer.source_clips || [],
+        ttl_hours: CACHE_TTL_HOURS
+      }),
+      signal: AbortSignal.timeout(30000) // 30s timeout
     });
     
-    // ... rest of the code remains the same ...
-    if (!embeddingResponse.ok) {
-      const errorText = await embeddingResponse.text();
-      console.error('[Cache Save] Failed to generate embedding, status:', embeddingResponse.status, 'error:', errorText);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[Cache Save] Backend returned error:', response.status, errorText);
       return;
     }
     
-    const embeddingData = await embeddingResponse.json();
-    const { embedding, model_key } = embeddingData;
-    
-    if (!embedding || !model_key) {
-      console.error('[Cache Save] Invalid embedding response - missing embedding or model_key');
-      return;
-    }
-    
-    console.log(`[Cache Save] Got embedding for model: ${model_key}`);
-    
-    // Insert into answer_cache table (without embedding)
-    console.log('[Cache Save] Inserting into answer_cache table...');
-    
-    const insertResult = await pool.query(`
-      INSERT INTO answer_cache (
-        query_text, style, answer_md, citations, 
-        confidence, notes, used_chunk_ids, source_clips, ttl_hours
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      RETURNING id
-    `, [
-      query,
-      style,
-      answer.answer_md,
-      JSON.stringify(answer.citations),
-      answer.confidence,
-      answer.notes,
-      answer.used_chunk_ids,
-      JSON.stringify(answer.source_clips || []),
-      CACHE_TTL_HOURS
-    ]);
-    
-    const cacheId = insertResult.rows[0]?.id;
-    
-    // Insert embedding into answer_cache_embeddings table
-    await pool.query(`
-      INSERT INTO answer_cache_embeddings (
-        answer_cache_id, model_key, embedding
-      ) VALUES ($1, $2, $3::vector)
-    `, [cacheId, model_key, JSON.stringify(embedding)]);
-    
-    console.log(`✅ [Cache Save] Successfully cached answer (model: ${model_key}), cache ID: ${cacheId}`);
+    const data = await response.json();
+    console.log(`✅ [Cache Save] Successfully cached answer, cache ID: ${data.cache_id}`);
   } catch (error) {
     console.error('❌ [Cache Save] Failed to save to answer_cache');
     console.error('[Cache Save] Error:', error);
-    if (error instanceof Error) {
-      console.error('[Cache Save] Error message:', error.message);
-      console.error('[Cache Save] Error stack:', error.stack);
-    }
-    // Log the data that failed to insert (for debugging)
-    console.error('[Cache Save] Failed data:', {
-      query: query.substring(0, 100),
-      style,
-      answerLength: answer.answer_md?.length,
-      citationsCount: answer.citations?.length,
-      confidence: answer.confidence
-    });
     // Don't fail the request if caching fails
   }
 }
@@ -813,12 +691,12 @@ export default async function handler(
     return res.status(503).json({ error: 'Answer endpoint is disabled' });
   }
   
-  // Check if database connection string is configured
-  if (!process.env.DATABASE_URL) {
+  // Check if backend URL is configured
+  if (!BACKEND_API_URL) {
     return res.status(503).json({
-      error: 'Database configuration missing',
-      message: 'The database connection string is not configured. Please check your environment variables.',
-      code: 'DB_CONFIG_MISSING'
+      error: 'Backend configuration missing',
+      message: 'BACKEND_API_URL is not configured. Please check your environment variables.',
+      code: 'BACKEND_CONFIG_MISSING'
     });
   }
 
@@ -897,68 +775,28 @@ export default async function handler(
       });
     }
 
-    // Step 2: Embed query and retrieve relevant chunks
-    console.log(`[Answer API] Generating embedding for query...`);
-    const queryEmbedding = await generateQueryEmbedding(query);
-    console.log(`[Answer API] Embedding generated: ${queryEmbedding.length} dimensions`);
+    // Step 2: Retrieve relevant chunks via backend API
+    console.log(`[Answer API] Fetching chunks from backend...`);
     
-    let searchQuery: string;
-    let queryParams: any[];
+    const chunksResponse = await fetch(`${BACKEND_API_URL}/answer/chunks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query,
+        top_k: maxContext,
+        use_semantic: true
+      }),
+      signal: AbortSignal.timeout(60000) // 60s timeout for embedding + search
+    });
     
-    // Use legacy embedding column (segments.embedding)
-    if (queryEmbedding.length > 0) {
-      console.log(`[Answer API] Using semantic search (${queryEmbedding.length} dims)`);
-      
-      searchQuery = `
-        SELECT 
-          seg.id,
-          s.id as source_id,
-          s.source_id as video_id,
-          s.title,
-          seg.text,
-          seg.start_sec as start_time_seconds,
-          seg.end_sec as end_time_seconds,
-          s.published_at,
-          s.source_type,
-          1 - (seg.embedding <=> $1::vector) as similarity
-        FROM segments seg
-        JOIN sources s ON seg.source_id = s.id
-        WHERE seg.embedding IS NOT NULL
-        ORDER BY seg.embedding <=> $1::vector
-        LIMIT $2
-      `;
-      queryParams = [JSON.stringify(queryEmbedding), maxContext];
-    } else {
-      // Fallback to simple text search for reliability
-      console.log(`[Answer API] Using text search fallback`);
-      
-      searchQuery = `
-        SELECT 
-          seg.id,
-          s.id as source_id,
-          s.source_id as video_id,
-          s.title,
-          seg.text,
-          seg.start_sec as start_time_seconds,
-          seg.end_sec as end_time_seconds,
-          s.published_at,
-          s.source_type,
-          0.5 as similarity
-        FROM segments seg
-        JOIN sources s ON seg.source_id = s.id
-        WHERE seg.text ILIKE $1
-        ORDER BY 
-          CASE WHEN seg.text ILIKE $1 THEN 1 ELSE 2 END,
-          COALESCE(s.metadata->>'provenance', 'yt_caption') = 'owner' DESC,
-          s.published_at DESC,
-          seg.start_sec ASC
-        LIMIT $2
-      `;
-      queryParams = [`%${query}%`, maxContext];
+    if (!chunksResponse.ok) {
+      const errorText = await chunksResponse.text();
+      console.error('[Answer API] Backend chunks error:', chunksResponse.status, errorText);
+      throw new Error(`Backend chunk retrieval failed: ${chunksResponse.status}`);
     }
-
-    let searchResult = await pool.query(searchQuery, queryParams);
-    let chunks: ChunkResult[] = searchResult.rows;
+    
+    const chunksData = await chunksResponse.json();
+    let chunks: ChunkResult[] = chunksData.chunks;
     console.log(`[Answer API] Retrieved: ${chunks.length} chunks`);
     
     if (chunks.length < 1) {
@@ -1048,16 +886,15 @@ export default async function handler(
         });
       }
       
-      // Database connection errors
+      // Backend connection errors
       if (error.message.includes('connect') || 
           error.message.includes('ECONNREFUSED') || 
-          error.message.includes('database') ||
-          error.message.includes('Connection') ||
-          error.message.includes('pool')) {
+          error.message.includes('Backend') ||
+          error.message.includes('Connection')) {
         return res.status(503).json({
-          error: 'Database connection failed',
-          message: 'Unable to connect to the database. The service may be temporarily unavailable.',
-          code: 'DB_CONNECTION_ERROR'
+          error: 'Backend connection failed',
+          message: 'Unable to connect to the backend service. The service may be temporarily unavailable.',
+          code: 'BACKEND_CONNECTION_ERROR'
         });
       }
     }

@@ -705,6 +705,298 @@ async def answer_get(query: str, top_k: int = 10, style: str = 'concise'):
     request = SearchRequest(query=query, top_k=top_k)
     return await answer_question(request)
 
+
+# =============================================================================
+# Answer Cache Endpoints (for frontend proxy)
+# =============================================================================
+
+class CacheLookupRequest(BaseModel):
+    query: str
+    style: str = 'concise'
+    similarity_threshold: float = 0.92
+
+class CacheSaveRequest(BaseModel):
+    query: str
+    style: str
+    answer_md: str
+    citations: List[Dict[str, Any]]
+    confidence: float
+    notes: Optional[str] = None
+    used_chunk_ids: List[str] = []
+    source_clips: List[Dict[str, Any]] = []
+    ttl_hours: int = 336
+
+class ChunksRequest(BaseModel):
+    query: str
+    top_k: int = 100
+    use_semantic: bool = True
+
+
+@app.post("/answer/cache/lookup")
+async def answer_cache_lookup(request: CacheLookupRequest):
+    """
+    Look up cached answer by semantic similarity.
+    Returns cached answer if found, null otherwise.
+    """
+    try:
+        # Generate embedding for the query
+        generator = get_embedding_generator()
+        embeddings = generator.generate_embeddings([request.query])
+        
+        if not embeddings or len(embeddings) == 0:
+            return {"cached": None}
+        
+        query_embedding = embeddings[0]
+        embedding_list = query_embedding.tolist() if hasattr(query_embedding, 'tolist') else query_embedding
+        
+        # Get active model key
+        model_key = get_active_model_key()
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Search for similar cached answers
+        cur.execute("""
+            SELECT 
+                ac.id,
+                ac.query_text,
+                ac.answer_md,
+                ac.citations,
+                ac.confidence,
+                ac.notes,
+                ac.used_chunk_ids,
+                ac.source_clips,
+                ac.created_at,
+                ac.access_count,
+                1 - (ace.embedding <=> %s::vector) as similarity
+            FROM answer_cache ac
+            JOIN answer_cache_embeddings ace ON ac.id = ace.answer_cache_id
+            WHERE ace.model_key = %s
+              AND ac.style = %s
+              AND 1 - (ace.embedding <=> %s::vector) >= %s
+            ORDER BY similarity DESC
+            LIMIT 1
+        """, [str(embedding_list), model_key, request.style, str(embedding_list), request.similarity_threshold])
+        
+        result = cur.fetchone()
+        
+        if result:
+            # Update access count
+            cur.execute("""
+                UPDATE answer_cache 
+                SET accessed_at = NOW(), access_count = access_count + 1
+                WHERE id = %s
+            """, [result['id']])
+            conn.commit()
+            
+            cur.close()
+            conn.close()
+            
+            logger.info(f"Cache hit for query: {request.query[:50]}... (similarity: {result['similarity']:.2f})")
+            
+            return {
+                "cached": {
+                    "id": result['id'],
+                    "query_text": result['query_text'],
+                    "answer_md": result['answer_md'],
+                    "citations": result['citations'],
+                    "confidence": result['confidence'],
+                    "notes": result['notes'],
+                    "used_chunk_ids": result['used_chunk_ids'],
+                    "source_clips": result['source_clips'],
+                    "created_at": result['created_at'].isoformat() if result['created_at'] else None,
+                    "access_count": result['access_count'],
+                    "similarity": float(result['similarity'])
+                }
+            }
+        
+        cur.close()
+        conn.close()
+        
+        logger.info(f"Cache miss for query: {request.query[:50]}...")
+        return {"cached": None}
+        
+    except Exception as e:
+        logger.error(f"Cache lookup failed: {str(e)}", exc_info=True)
+        return {"cached": None, "error": str(e)}
+
+
+@app.post("/answer/cache/save")
+async def answer_cache_save(request: CacheSaveRequest):
+    """
+    Save answer to cache with embedding for semantic lookup.
+    """
+    try:
+        # Generate embedding for the query
+        generator = get_embedding_generator()
+        embeddings = generator.generate_embeddings([request.query])
+        
+        if not embeddings or len(embeddings) == 0:
+            raise HTTPException(status_code=500, detail="Failed to generate embedding")
+        
+        query_embedding = embeddings[0]
+        embedding_list = query_embedding.tolist() if hasattr(query_embedding, 'tolist') else query_embedding
+        
+        # Get active model key
+        model_key = get_active_model_key()
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Insert into answer_cache table
+        cur.execute("""
+            INSERT INTO answer_cache (
+                query_text, style, answer_md, citations, 
+                confidence, notes, used_chunk_ids, source_clips, ttl_hours
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, [
+            request.query,
+            request.style,
+            request.answer_md,
+            json.dumps(request.citations),
+            request.confidence,
+            request.notes,
+            request.used_chunk_ids,
+            json.dumps(request.source_clips),
+            request.ttl_hours
+        ])
+        
+        cache_id = cur.fetchone()['id']
+        
+        # Insert embedding into answer_cache_embeddings table
+        cur.execute("""
+            INSERT INTO answer_cache_embeddings (
+                answer_cache_id, model_key, embedding
+            ) VALUES (%s, %s, %s::vector)
+        """, [cache_id, model_key, str(embedding_list)])
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        logger.info(f"Cached answer for query: {request.query[:50]}... (id: {cache_id})")
+        
+        return {"success": True, "cache_id": cache_id}
+        
+    except Exception as e:
+        logger.error(f"Cache save failed: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Cache save failed: {str(e)}")
+
+
+@app.post("/answer/chunks")
+async def get_answer_chunks(request: ChunksRequest):
+    """
+    Get relevant chunks for RAG answer generation.
+    Uses semantic search if embedding available, falls back to text search.
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        chunks = []
+        
+        if request.use_semantic:
+            # Generate embedding for the query
+            generator = get_embedding_generator()
+            embeddings = generator.generate_embeddings([request.query])
+            
+            if embeddings and len(embeddings) > 0:
+                query_embedding = embeddings[0]
+                embedding_list = query_embedding.tolist() if hasattr(query_embedding, 'tolist') else query_embedding
+                
+                cur.execute("""
+                    SELECT 
+                        seg.id,
+                        s.id as source_id,
+                        s.source_id as video_id,
+                        s.title,
+                        seg.text,
+                        seg.start_sec as start_time_seconds,
+                        seg.end_sec as end_time_seconds,
+                        s.published_at,
+                        s.source_type,
+                        1 - (seg.embedding <=> %s::vector) as similarity
+                    FROM segments seg
+                    JOIN sources s ON seg.source_id = s.id
+                    WHERE seg.embedding IS NOT NULL
+                    ORDER BY seg.embedding <=> %s::vector
+                    LIMIT %s
+                """, [str(embedding_list), str(embedding_list), request.top_k])
+                
+                chunks = cur.fetchall()
+        
+        # Fallback to text search if no semantic results
+        if not chunks:
+            cur.execute("""
+                SELECT 
+                    seg.id,
+                    s.id as source_id,
+                    s.source_id as video_id,
+                    s.title,
+                    seg.text,
+                    seg.start_sec as start_time_seconds,
+                    seg.end_sec as end_time_seconds,
+                    s.published_at,
+                    s.source_type,
+                    0.5 as similarity
+                FROM segments seg
+                JOIN sources s ON seg.source_id = s.id
+                WHERE seg.text ILIKE %s
+                ORDER BY s.published_at DESC
+                LIMIT %s
+            """, [f'%{request.query}%', request.top_k])
+            
+            chunks = cur.fetchall()
+        
+        cur.close()
+        conn.close()
+        
+        # Convert to serializable format
+        result_chunks = []
+        for chunk in chunks:
+            result_chunks.append({
+                "id": chunk['id'],
+                "source_id": chunk['source_id'],
+                "video_id": chunk['video_id'],
+                "title": chunk['title'],
+                "text": chunk['text'],
+                "start_time_seconds": float(chunk['start_time_seconds']) if chunk['start_time_seconds'] else 0,
+                "end_time_seconds": float(chunk['end_time_seconds']) if chunk['end_time_seconds'] else 0,
+                "published_at": chunk['published_at'].isoformat() if chunk['published_at'] else None,
+                "source_type": chunk['source_type'],
+                "similarity": float(chunk['similarity']) if chunk['similarity'] else 0.5
+            })
+        
+        return {
+            "chunks": result_chunks,
+            "total": len(result_chunks),
+            "query": request.query
+        }
+        
+    except Exception as e:
+        logger.error(f"Chunk retrieval failed: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Chunk retrieval failed: {str(e)}")
+
+
+# =============================================================================
+# Embedding Model Endpoints
+# =============================================================================
+
+@app.get("/embeddings/models")
+async def list_embedding_models():
+    """List available embedding models in the database."""
+    models = get_available_embedding_models()
+    return {"models": models}
+
+
+@app.get("/embeddings/active")
+async def get_active_embedding_model():
+    """Get the currently active embedding model."""
+    model_key = get_active_model_key()
+    return {"active_model": model_key}
+
+
 @app.get("/api/jobs", dependencies=[Depends(verify_admin_token)])
 async def list_jobs():
     """List all processing jobs"""
