@@ -6,19 +6,28 @@ import threading
 logger = logging.getLogger(__name__)
 
 # =============================================================================
-# EMBEDDING CONFIGURATION - SINGLE SOURCE OF TRUTH
+# FORCE_CPU_ONLY PATCH - MUST RUN BEFORE ANY TORCH IMPORTS
 # =============================================================================
+# This MUST be at the very top of the module, before any code that might
+# import torch or sentence_transformers. On CPU-only PyTorch builds (Hetzner),
+# even calling torch.cuda.is_available() can trigger CUDA initialization errors.
 
-_resolved_config_cache: Optional[Dict[str, Any]] = None
 _force_cpu_applied = False
-
 
 def _apply_force_cpu_mode() -> None:
     """
-    If FORCE_CPU_ONLY=1, monkey-patch torch.cuda.is_available() to always return False.
-    This prevents ANY CUDA access on CPU-only deployments (e.g., Hetzner).
+    If FORCE_CPU_ONLY=1, monkey-patch torch.cuda to prevent ANY CUDA access.
+    This prevents CUDA initialization errors on CPU-only PyTorch builds (e.g., Hetzner).
     
     MUST be called before any torch imports in other modules.
+    
+    Patches:
+    - torch.cuda.is_available() -> always returns False
+    - torch.cuda.device_count() -> always returns 0
+    - torch.cuda.current_device() -> raises RuntimeError
+    - torch.cuda.get_device_name() -> raises RuntimeError
+    - torch.cuda.empty_cache() -> no-op
+    - torch.cuda.synchronize() -> no-op
     """
     global _force_cpu_applied
     if _force_cpu_applied:
@@ -32,21 +41,38 @@ def _apply_force_cpu_mode() -> None:
     try:
         import torch
         
-        # Store original function for logging
-        original_is_available = torch.cuda.is_available
+        # Monkey-patch all CUDA availability functions
+        torch.cuda.is_available = lambda: False
+        torch.cuda.device_count = lambda: 0
         
-        def _fake_cuda_is_available() -> bool:
-            return False
+        def _raise_no_cuda(*args, **kwargs):
+            raise RuntimeError("CUDA is disabled (FORCE_CPU_ONLY=1)")
         
-        # Monkey-patch
-        torch.cuda.is_available = _fake_cuda_is_available
+        # Patch functions that would fail on CPU-only builds
+        torch.cuda.current_device = _raise_no_cuda
+        torch.cuda.get_device_name = _raise_no_cuda
+        torch.cuda.get_device_properties = _raise_no_cuda
+        torch.cuda.empty_cache = lambda: None  # No-op instead of error
+        torch.cuda.synchronize = lambda device=None: None  # No-op
         
-        logger.info("🔒 FORCE_CPU_ONLY=1: torch.cuda.is_available() patched to always return False")
+        logger.info("🔒 FORCE_CPU_ONLY=1: torch.cuda fully patched (is_available=False, device_count=0)")
         _force_cpu_applied = True
         
     except ImportError:
         logger.warning("torch not installed, FORCE_CPU_ONLY has no effect")
         _force_cpu_applied = True
+
+
+# CRITICAL: Apply the patch IMMEDIATELY at module import time
+# This ensures the patch is in place before any other code imports torch
+_apply_force_cpu_mode()
+
+
+# =============================================================================
+# EMBEDDING CONFIGURATION - SINGLE SOURCE OF TRUTH
+# =============================================================================
+
+_resolved_config_cache: Optional[Dict[str, Any]] = None
 
 
 def resolve_embedding_config(force_refresh: bool = False) -> Dict[str, Any]:
@@ -114,17 +140,43 @@ def resolve_embedding_config(force_refresh: bool = False) -> Dict[str, Any]:
     )
     
     # Resolve dimensions (multiple fallbacks for compatibility)
+    # CRITICAL: Model dimensions are fixed - env vars should match or be unset
     dim_str = (
         os.getenv('EMBEDDINGS_DIM') or
         os.getenv('EMBEDDINGS_DIMENSIONS') or
         os.getenv('EMBEDDING_DIMENSIONS') or
-        str(profile_config['dimensions'])
+        ''
     )
-    try:
-        dimensions = int(dim_str)
-    except ValueError:
-        logger.warning(f"Invalid dimensions '{dim_str}', using profile default {profile_config['dimensions']}")
-        dimensions = profile_config['dimensions']
+    
+    # Model-to-dimension mapping (fixed, cannot be overridden)
+    model_dimensions = {
+        'BAAI/bge-small-en-v1.5': 384,
+        'BAAI/bge-large-en-v1.5': 1024,
+        'Alibaba-NLP/gte-Qwen2-1.5B-instruct': 1536,
+        'nomic-embed-text-v1.5': 768,
+        'text-embedding-3-large': 3072,  # OpenAI default
+        'text-embedding-3-small': 1536,  # OpenAI default
+    }
+    
+    # Get correct dimensions for the model
+    correct_dimensions = model_dimensions.get(model, profile_config['dimensions'])
+    
+    if dim_str:
+        try:
+            env_dimensions = int(dim_str)
+            if env_dimensions != correct_dimensions:
+                logger.warning(
+                    f"⚠️  EMBEDDING_DIMENSIONS={env_dimensions} does not match model {model} "
+                    f"(requires {correct_dimensions}). Using correct value: {correct_dimensions}"
+                )
+            dimensions = correct_dimensions  # Always use model's correct dimensions
+        except ValueError:
+            logger.warning(f"Invalid dimensions '{dim_str}', using model default {correct_dimensions}")
+            dimensions = correct_dimensions
+    else:
+        dimensions = correct_dimensions
+    
+    logger.info(f"📐 Embedding dimensions: {dimensions} (model: {model})")
     
     # Resolve device with FORCE_CPU_ONLY override
     force_cpu = os.getenv('FORCE_CPU_ONLY', '').lower() in ('1', 'true', 'yes')
@@ -179,7 +231,18 @@ def resolve_embedding_config(force_refresh: bool = False) -> Dict[str, Any]:
     
     _resolved_config_cache = config
     
-    logger.info(f"📋 Resolved embedding config: provider={provider}, model={model}, dimensions={dimensions}, device={device}")
+    # Log the final resolved configuration
+    force_cpu_env = os.getenv('FORCE_CPU_ONLY', 'not set')
+    logger.info("=" * 60)
+    logger.info("📋 EMBEDDING CONFIGURATION")
+    logger.info("=" * 60)
+    logger.info(f"   Provider: {provider}")
+    logger.info(f"   Model: {model}")
+    logger.info(f"   Dimensions: {dimensions}")
+    logger.info(f"   Device: {device}")
+    logger.info(f"   FORCE_CPU_ONLY: {force_cpu_env}")
+    logger.info("=" * 60)
+    logger.info(f"Embedding provider: {provider}, model: {model}, dimensions: {dimensions}")
     
     return config.copy()
 
@@ -218,8 +281,10 @@ class EmbeddingGenerator:
         
         if self.provider == 'openai':
             self.model_name = model_name or os.getenv('OPENAI_EMBEDDING_MODEL', 'text-embedding-3-large')
-            # OpenAI dimensions can be configured
-            self.embedding_dimensions = config['dimensions'] if config['provider'] == 'openai' else 1536
+            # OpenAI dimensions: use config if provider matches, otherwise use model-specific default
+            # text-embedding-3-large supports 256-3072 dims, default 3072
+            # text-embedding-3-small supports 256-1536 dims, default 1536
+            self.embedding_dimensions = config['dimensions'] if config['provider'] == 'openai' else 3072
             self.openai_client = None
         elif self.provider == 'nomic':
             self.model_name = model_name or os.getenv('NOMIC_MODEL', 'nomic-embed-text-v1.5')
@@ -229,12 +294,15 @@ class EmbeddingGenerator:
                 raise ValueError("NOMIC_API_KEY environment variable required for nomic provider")
         elif self.provider == 'huggingface':
             self.model_name = model_name or os.getenv('HUGGINGFACE_MODEL', 'Alibaba-NLP/gte-Qwen2-1.5B-instruct')
-            self.embedding_dimensions = 1536  # GTE-Qwen2 is 1536
+            # HuggingFace models have fixed dimensions based on model
+            # GTE-Qwen2-1.5B = 1536, but use config if available
+            self.embedding_dimensions = config['dimensions'] if config['provider'] == 'huggingface' else 1536
             self.hf_api_key = os.getenv('HUGGINGFACE_API_KEY')
             if not self.hf_api_key:
                 raise ValueError("HUGGINGFACE_API_KEY environment variable required for huggingface provider")
         else:
-            # Local sentence-transformers - use resolved config
+            # Local sentence-transformers - use resolved config (single source of truth)
+            # This includes 'sentence-transformers' and 'local' providers
             self.model_name = model_name or config['model']
             self.embedding_dimensions = config['dimensions']
             self.profile_batch_size = 256  # Default batch size

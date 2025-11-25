@@ -93,21 +93,34 @@ class EmbeddingsService:
                 )
                 
                 # Explicitly move to device (ensure correct placement)
+                # CRITICAL: Only attempt CUDA operations if device is 'cuda'
+                # On CPU-only builds, torch.cuda.* calls will fail
                 if EmbeddingsService._device == 'cpu':
                     EmbeddingsService._retriever_model = EmbeddingsService._retriever_model.to('cpu')
                     logger.info("✅ Model loaded on CPU")
-                elif EmbeddingsService._device == "cuda" and torch.cuda.is_available():
-                    EmbeddingsService._retriever_model = EmbeddingsService._retriever_model.to('cuda')
-                    # Convert to FP16 on CUDA for speed
-                    EmbeddingsService._retriever_model = EmbeddingsService._retriever_model.half()
-                    logger.info("✅ Retriever model on CUDA with FP16")
+                elif EmbeddingsService._device == 'cuda':
+                    # Only check CUDA if we're configured for it
+                    try:
+                        if torch.cuda.is_available():
+                            EmbeddingsService._retriever_model = EmbeddingsService._retriever_model.to('cuda')
+                            # Convert to FP16 on CUDA for speed
+                            EmbeddingsService._retriever_model = EmbeddingsService._retriever_model.half()
+                            logger.info("✅ Retriever model on CUDA with FP16")
+                            
+                            # Log CUDA memory usage
+                            mem_allocated = torch.cuda.memory_allocated() / 1024**3
+                            logger.info(f"📊 CUDA memory allocated: {mem_allocated:.2f} GB")
+                        else:
+                            # Fallback to CPU if CUDA not available
+                            EmbeddingsService._device = 'cpu'
+                            EmbeddingsService._retriever_model = EmbeddingsService._retriever_model.to('cpu')
+                            logger.warning("⚠️  CUDA requested but not available, using CPU")
+                    except Exception as cuda_err:
+                        logger.warning(f"⚠️  CUDA initialization failed: {cuda_err}, using CPU")
+                        EmbeddingsService._device = 'cpu'
+                        EmbeddingsService._retriever_model = EmbeddingsService._retriever_model.to('cpu')
                 
                 EmbeddingsService._retriever_model.eval()
-                
-                # Log CUDA memory usage
-                if torch.cuda.is_available():
-                    mem_allocated = torch.cuda.memory_allocated() / 1024**3
-                    logger.info(f"📊 CUDA memory allocated: {mem_allocated:.2f} GB")
                 
                 # Load reranker if enabled
                 EmbeddingsService._enable_reranker = os.getenv('ENABLE_RERANKER', 'false').lower() == 'true'
@@ -130,17 +143,24 @@ class EmbeddingsService:
                         
                         logger.info("✅ Reranker model loaded successfully")
                         
-                        if torch.cuda.is_available():
-                            mem_allocated = torch.cuda.memory_allocated() / 1024**3
-                            logger.info(f"📊 CUDA memory after reranker: {mem_allocated:.2f} GB")
+                        # Log CUDA memory only if we're on CUDA
+                        if EmbeddingsService._device == 'cuda':
+                            try:
+                                mem_allocated = torch.cuda.memory_allocated() / 1024**3
+                                logger.info(f"📊 CUDA memory after reranker: {mem_allocated:.2f} GB")
+                            except Exception:
+                                pass  # Ignore CUDA errors on CPU-only builds
                             
                     except RuntimeError as e:
                         if 'out of memory' in str(e).lower():
                             logger.warning("⚠️  CUDA OOM loading bge-reranker-large, falling back to base")
                             
-                            # Clear CUDA cache
-                            if torch.cuda.is_available():
-                                torch.cuda.empty_cache()
+                            # Clear CUDA cache only if on CUDA
+                            if EmbeddingsService._device == 'cuda':
+                                try:
+                                    torch.cuda.empty_cache()
+                                except Exception:
+                                    pass  # Ignore on CPU-only builds
                             
                             # Fallback to base model
                             reranker_name = 'BAAI/bge-reranker-base'
@@ -192,13 +212,37 @@ class EmbeddingsService:
             
             with EmbeddingsService._lock:
                 with torch.inference_mode():
-                    with torch.cuda.amp.autocast(enabled=(EmbeddingsService._device == "cuda")):
+                    # Only use autocast on CUDA - it can fail on CPU-only builds
+                    use_autocast = EmbeddingsService._device == 'cuda'
+                    if use_autocast:
+                        try:
+                            with torch.cuda.amp.autocast(enabled=True):
+                                embeddings = EmbeddingsService._retriever_model.encode(
+                                    texts,
+                                    batch_size=batch_size,
+                                    device=EmbeddingsService._device,
+                                    convert_to_numpy=True,
+                                    normalize_embeddings=True,
+                                    show_progress_bar=len(texts) > 100
+                                )
+                        except Exception as autocast_err:
+                            logger.warning(f"Autocast failed: {autocast_err}, encoding without autocast")
+                            embeddings = EmbeddingsService._retriever_model.encode(
+                                texts,
+                                batch_size=batch_size,
+                                device=EmbeddingsService._device,
+                                convert_to_numpy=True,
+                                normalize_embeddings=True,
+                                show_progress_bar=len(texts) > 100
+                            )
+                    else:
+                        # CPU path - no autocast
                         embeddings = EmbeddingsService._retriever_model.encode(
                             texts,
                             batch_size=batch_size,
                             device=EmbeddingsService._device,
                             convert_to_numpy=True,
-                            normalize_embeddings=True,  # L2 normalize
+                            normalize_embeddings=True,
                             show_progress_bar=len(texts) > 100
                         )
             
@@ -207,9 +251,12 @@ class EmbeddingsService:
             
             logger.info(f"Encoded {len(texts)} texts in {elapsed:.2f}s ({throughput:.1f} texts/sec)")
             
-            # Clear CUDA cache to prevent memory buildup
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+            # Clear CUDA cache only if on CUDA
+            if EmbeddingsService._device == 'cuda':
+                try:
+                    torch.cuda.empty_cache()
+                except Exception:
+                    pass  # Ignore on CPU-only builds
             
             return embeddings
             
@@ -253,9 +300,24 @@ class EmbeddingsService:
             
             with EmbeddingsService._lock:
                 with torch.inference_mode():
-                    with torch.cuda.amp.autocast(enabled=(EmbeddingsService._device == "cuda")):
-                        # Batch size for reranker (smaller than retriever)
-                        batch_size = int(os.getenv('RERANK_BATCH_SIZE', '64'))
+                    # Only use autocast on CUDA
+                    batch_size = int(os.getenv('RERANK_BATCH_SIZE', '64'))
+                    if EmbeddingsService._device == 'cuda':
+                        try:
+                            with torch.cuda.amp.autocast(enabled=True):
+                                scores = EmbeddingsService._reranker_model.predict(
+                                    pairs,
+                                    batch_size=batch_size,
+                                    show_progress_bar=False
+                                )
+                        except Exception:
+                            scores = EmbeddingsService._reranker_model.predict(
+                                pairs,
+                                batch_size=batch_size,
+                                show_progress_bar=False
+                            )
+                    else:
+                        # CPU path - no autocast
                         scores = EmbeddingsService._reranker_model.predict(
                             pairs,
                             batch_size=batch_size,
@@ -270,9 +332,12 @@ class EmbeddingsService:
             
             logger.info(f"Reranked {len(docs)} docs in {elapsed:.2f}s ({throughput:.1f} docs/sec)")
             
-            # Clear CUDA cache
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+            # Clear CUDA cache only if on CUDA
+            if EmbeddingsService._device == 'cuda':
+                try:
+                    torch.cuda.empty_cache()
+                except Exception:
+                    pass
             
             return ranked_indices
             
@@ -305,13 +370,16 @@ class EmbeddingsService:
         with EmbeddingsService._lock:
             EmbeddingsService._retriever_model = None
             EmbeddingsService._reranker_model = None
-            EmbeddingsService._initialized = False
             
-            try:
-                import torch
-                if torch.cuda.is_available():
+            # Only try CUDA cleanup if we were on CUDA
+            if EmbeddingsService._device == 'cuda':
+                try:
+                    import torch
                     torch.cuda.empty_cache()
-            except:
-                pass
+                except Exception:
+                    pass  # Ignore on CPU-only builds
+            
+            EmbeddingsService._initialized = False
+            EmbeddingsService._device = None
             
             logger.info("EmbeddingsService shutdown complete")
