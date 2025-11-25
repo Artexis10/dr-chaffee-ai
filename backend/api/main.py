@@ -338,6 +338,67 @@ async def test_db():
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
+
+@app.get("/stats")
+@app.get("/api/stats")
+async def get_stats():
+    """
+    Get database statistics for segments and embeddings.
+    Returns counts and embedding coverage metrics.
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Single optimized query to get all stats including embedding coverage
+        cur.execute("""
+            SELECT 
+                COUNT(*) as total_segments,
+                COUNT(DISTINCT source_id) as total_videos,
+                COUNT(embedding) as segments_with_embeddings,
+                CAST(
+                    CASE WHEN COUNT(*) > 0 
+                    THEN (COUNT(embedding)::float / COUNT(*)::float) * 100 
+                    ELSE 0 
+                    END AS NUMERIC(5,1)
+                ) as embedding_coverage_pct
+            FROM segments
+        """)
+        
+        stats = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        segment_count = int(stats['total_segments'] or 0)
+        video_count = int(stats['total_videos'] or 0)
+        embedded_count = int(stats['segments_with_embeddings'] or 0)
+        coverage_pct = float(stats['embedding_coverage_pct'] or 0)
+        missing_count = segment_count - embedded_count
+        
+        return {
+            "total_segments": segment_count,
+            "total_videos": video_count,
+            "segments_with_embeddings": embedded_count,
+            "segments_missing_embeddings": missing_count,
+            "embedding_coverage": f"{coverage_pct:.1f}%",
+            "embedding_dimensions": int(os.getenv('EMBEDDING_DIMENSIONS', '384')),
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.exception("Stats endpoint error")
+        # Return safe defaults on error (matching frontend expectation)
+        return {
+            "total_segments": 0,
+            "total_videos": 0,
+            "segments_with_embeddings": 0,
+            "segments_missing_embeddings": 0,
+            "embedding_coverage": "0.0%",
+            "embedding_dimensions": int(os.getenv('EMBEDDING_DIMENSIONS', '384')),
+            "timestamp": datetime.now().isoformat(),
+            "error": str(e)
+        }
+
+
 @app.get("/search")
 @app.get("/api/search")
 async def search_get(q: str, top_k: int = 50, min_similarity: float = 0.5):
