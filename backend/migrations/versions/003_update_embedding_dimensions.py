@@ -5,14 +5,14 @@ Revises: 002
 Create Date: 2025-10-01 14:04:00
 
 This migration updates the embedding column to support the dimensions
-specified in EMBEDDING_DIMENSIONS env var (default: 1536 for GTE-Qwen2-1.5B-instruct).
+specified in EMBEDDING_DIMENSIONS env var (default: 384 for BGE-small-en-v1.5).
 
 The migration reads from .env to determine the target dimensions, allowing
 flexibility for different embedding models:
-- 384 dims: all-MiniLM-L6-v2, gte-small
-- 768 dims: gte-base
+- 384 dims: BGE-small-en-v1.5, all-MiniLM-L6-v2 (default)
+- 768 dims: nomic-embed-text-v1.5
 - 1024 dims: gte-large
-- 1536 dims: gte-Qwen2-1.5B-instruct (default)
+- 1536 dims: gte-Qwen2-1.5B-instruct
 
 """
 from alembic import op
@@ -30,7 +30,7 @@ depends_on = None
 def upgrade() -> None:
     # Load .env to get target dimensions
     load_dotenv()
-    target_dims = int(os.getenv('EMBEDDING_DIMENSIONS', 1536))
+    target_dims = int(os.getenv('EMBEDDING_DIMENSIONS', 384))
     
     print(f"Updating embedding dimensions to {target_dims} (from EMBEDDING_DIMENSIONS env var)")
     

@@ -1,22 +1,204 @@
 import os
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import logging
 import threading
 
 logger = logging.getLogger(__name__)
 
+# =============================================================================
+# EMBEDDING CONFIGURATION - SINGLE SOURCE OF TRUTH
+# =============================================================================
+
+_resolved_config_cache: Optional[Dict[str, Any]] = None
+_force_cpu_applied = False
+
+
+def _apply_force_cpu_mode() -> None:
+    """
+    If FORCE_CPU_ONLY=1, monkey-patch torch.cuda.is_available() to always return False.
+    This prevents ANY CUDA access on CPU-only deployments (e.g., Hetzner).
+    
+    MUST be called before any torch imports in other modules.
+    """
+    global _force_cpu_applied
+    if _force_cpu_applied:
+        return
+    
+    force_cpu = os.getenv('FORCE_CPU_ONLY', '').lower() in ('1', 'true', 'yes')
+    if not force_cpu:
+        _force_cpu_applied = True
+        return
+    
+    try:
+        import torch
+        
+        # Store original function for logging
+        original_is_available = torch.cuda.is_available
+        
+        def _fake_cuda_is_available() -> bool:
+            return False
+        
+        # Monkey-patch
+        torch.cuda.is_available = _fake_cuda_is_available
+        
+        logger.info("🔒 FORCE_CPU_ONLY=1: torch.cuda.is_available() patched to always return False")
+        _force_cpu_applied = True
+        
+    except ImportError:
+        logger.warning("torch not installed, FORCE_CPU_ONLY has no effect")
+        _force_cpu_applied = True
+
+
+def resolve_embedding_config(force_refresh: bool = False) -> Dict[str, Any]:
+    """
+    Single source of truth for embedding configuration.
+    
+    Returns a dict with:
+    {
+        "provider": str,        # 'sentence-transformers', 'openai', 'nomic', etc.
+        "model": str,           # Full model name (e.g., 'BAAI/bge-small-en-v1.5')
+        "dimensions": int,      # 384, 768, 1536, etc.
+        "device": str           # 'cpu' or 'cuda'
+    }
+    
+    Priority:
+    1. FORCE_CPU_ONLY=1 → always CPU
+    2. EMBEDDINGS_DEVICE env var (primary)
+    3. EMBEDDING_DEVICE env var (fallback)
+    4. Auto-detect CUDA availability
+    
+    Dimension priority:
+    1. EMBEDDINGS_DIM env var (primary)
+    2. EMBEDDINGS_DIMENSIONS env var (fallback)
+    3. EMBEDDING_DIMENSIONS env var (legacy fallback)
+    4. Profile default
+    """
+    global _resolved_config_cache
+    
+    # Apply FORCE_CPU_ONLY monkey-patch if needed
+    _apply_force_cpu_mode()
+    
+    if _resolved_config_cache is not None and not force_refresh:
+        return _resolved_config_cache.copy()
+    
+    # Profile-based defaults
+    profile = os.getenv('EMBEDDING_PROFILE', 'speed').lower()  # Default to speed (BGE-small)
+    
+    profiles = {
+        'quality': {
+            'provider': 'sentence-transformers',
+            'model': 'Alibaba-NLP/gte-Qwen2-1.5B-instruct',
+            'dimensions': 1536,
+        },
+        'speed': {
+            'provider': 'sentence-transformers',
+            'model': 'BAAI/bge-small-en-v1.5',
+            'dimensions': 384,
+        }
+    }
+    
+    profile_config = profiles.get(profile, profiles['speed'])
+    
+    # Resolve provider
+    provider = (
+        os.getenv('EMBEDDINGS_PROVIDER') or
+        os.getenv('EMBEDDING_PROVIDER') or
+        profile_config['provider']
+    )
+    
+    # Resolve model
+    model = (
+        os.getenv('EMBEDDINGS_MODEL') or
+        os.getenv('EMBEDDING_MODEL') or
+        profile_config['model']
+    )
+    
+    # Resolve dimensions (multiple fallbacks for compatibility)
+    dim_str = (
+        os.getenv('EMBEDDINGS_DIM') or
+        os.getenv('EMBEDDINGS_DIMENSIONS') or
+        os.getenv('EMBEDDING_DIMENSIONS') or
+        str(profile_config['dimensions'])
+    )
+    try:
+        dimensions = int(dim_str)
+    except ValueError:
+        logger.warning(f"Invalid dimensions '{dim_str}', using profile default {profile_config['dimensions']}")
+        dimensions = profile_config['dimensions']
+    
+    # Resolve device with FORCE_CPU_ONLY override
+    force_cpu = os.getenv('FORCE_CPU_ONLY', '').lower() in ('1', 'true', 'yes')
+    
+    if force_cpu:
+        device = 'cpu'
+        logger.info("🔒 FORCE_CPU_ONLY=1: Device forced to CPU")
+    else:
+        # Check env vars
+        device_env = (
+            os.getenv('EMBEDDINGS_DEVICE') or
+            os.getenv('EMBEDDING_DEVICE') or
+            ''
+        ).lower()
+        
+        if device_env == 'cpu':
+            device = 'cpu'
+            logger.info("📍 Device set to CPU via environment variable")
+        elif device_env == 'cuda':
+            # Verify CUDA is actually available
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    device = 'cuda'
+                    logger.info(f"🚀 CUDA available: {torch.cuda.get_device_name(0)}")
+                else:
+                    device = 'cpu'
+                    logger.warning("⚠️  CUDA requested but not available, falling back to CPU")
+            except ImportError:
+                device = 'cpu'
+                logger.warning("⚠️  torch not installed, using CPU")
+        else:
+            # Auto-detect
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    device = 'cuda'
+                    logger.info(f"🚀 Auto-detected CUDA: {torch.cuda.get_device_name(0)}")
+                else:
+                    device = 'cpu'
+                    logger.info("📍 Auto-detected: No CUDA, using CPU")
+            except ImportError:
+                device = 'cpu'
+                logger.info("📍 torch not installed, using CPU")
+    
+    config = {
+        'provider': provider,
+        'model': model,
+        'dimensions': dimensions,
+        'device': device,
+    }
+    
+    _resolved_config_cache = config
+    
+    logger.info(f"📋 Resolved embedding config: provider={provider}, model={model}, dimensions={dimensions}, device={device}")
+    
+    return config.copy()
+
+
+def get_embedding_dimensions() -> int:
+    """Convenience function to get just the dimensions."""
+    return resolve_embedding_config()['dimensions']
+
+
+def get_embedding_device() -> str:
+    """Convenience function to get just the device."""
+    return resolve_embedding_config()['device']
+
 class EmbeddingGenerator:
     """
-    Enhanced embedding generator supporting OpenAI and local models
+    Enhanced embedding generator supporting OpenAI and local models.
     
-    NOTE: This class is being deprecated in favor of EmbeddingsService.
-    For new code, use:
-        from services.embeddings_service import EmbeddingsService
-        EmbeddingsService.init_from_env()
-        embeddings = EmbeddingsService.encode_texts(texts)
-    
-    This class now acts as a compatibility wrapper that can delegate to
-    EmbeddingsService when using BGE-Small model.
+    Uses resolve_embedding_config() as single source of truth for configuration.
+    Supports FORCE_CPU_ONLY mode for CPU-only deployments.
     """
     # Class-level lock for thread safety
     _lock = threading.Lock()
@@ -27,63 +209,49 @@ class EmbeddingGenerator:
     _use_new_service = None  # Cache decision to use new service
     
     def __init__(self, model_name: str = None, embedding_provider: str = None):
-        # Load profile-based configuration
-        profile = os.getenv('EMBEDDING_PROFILE', 'quality').lower()
+        # Get resolved config (single source of truth)
+        config = resolve_embedding_config()
         
-        # Define profiles
-        profiles = {
-            'quality': {
-                'provider': 'local',
-                'model': 'Alibaba-NLP/gte-Qwen2-1.5B-instruct',
-                'dimensions': 1536,
-                'batch_size': 256,
-                'description': 'Best quality, 20-30 texts/sec'
-            },
-            'speed': {
-                'provider': 'local',
-                'model': 'BAAI/bge-small-en-v1.5',
-                'dimensions': 384,
-                'batch_size': 256,
-                'description': '60-80x faster, 1500-2000 texts/sec'
-            }
-        }
-        
-        # Get profile config (default to quality if invalid)
-        profile_config = profiles.get(profile, profiles['quality'])
-        
-        # Allow environment variable overrides
-        self.provider = embedding_provider or os.getenv('EMBEDDING_PROVIDER', profile_config['provider'])
+        # Allow explicit overrides, but default to resolved config
+        self.provider = embedding_provider or config['provider']
+        self._resolved_device = config['device']  # Store resolved device
         
         if self.provider == 'openai':
             self.model_name = model_name or os.getenv('OPENAI_EMBEDDING_MODEL', 'text-embedding-3-large')
-            # text-embedding-3-large produces 1536 dimensions by default
-            self.embedding_dimensions = int(os.getenv('EMBEDDING_DIMENSIONS', '1536'))
+            # OpenAI dimensions can be configured
+            self.embedding_dimensions = config['dimensions'] if config['provider'] == 'openai' else 1536
             self.openai_client = None
         elif self.provider == 'nomic':
             self.model_name = model_name or os.getenv('NOMIC_MODEL', 'nomic-embed-text-v1.5')
-            self.embedding_dimensions = int(os.getenv('EMBEDDING_DIMENSIONS', '768'))
+            self.embedding_dimensions = 768  # Nomic is always 768
             self.nomic_api_key = os.getenv('NOMIC_API_KEY')
             if not self.nomic_api_key:
                 raise ValueError("NOMIC_API_KEY environment variable required for nomic provider")
         elif self.provider == 'huggingface':
             self.model_name = model_name or os.getenv('HUGGINGFACE_MODEL', 'Alibaba-NLP/gte-Qwen2-1.5B-instruct')
-            self.embedding_dimensions = int(os.getenv('EMBEDDING_DIMENSIONS', '1536'))
+            self.embedding_dimensions = 1536  # GTE-Qwen2 is 1536
             self.hf_api_key = os.getenv('HUGGINGFACE_API_KEY')
             if not self.hf_api_key:
                 raise ValueError("HUGGINGFACE_API_KEY environment variable required for huggingface provider")
         else:
-            # Local sentence-transformers - use profile or env override
-            self.model_name = model_name or os.getenv('EMBEDDING_MODEL', profile_config['model'])
-            self.embedding_dimensions = int(os.getenv('EMBEDDING_DIMENSIONS', profile_config['dimensions']))
-            self.profile_batch_size = profile_config['batch_size']
+            # Local sentence-transformers - use resolved config
+            self.model_name = model_name or config['model']
+            self.embedding_dimensions = config['dimensions']
+            self.profile_batch_size = 256  # Default batch size
         
         # Check if we should use new EmbeddingsService (for BGE-Small)
         if EmbeddingGenerator._use_new_service is None:
             EmbeddingGenerator._use_new_service = self._should_use_new_service()
         
-        logger.info(f"Embedding provider: {self.provider}, model: {self.model_name}, dimensions: {self.embedding_dimensions}")
+        # Log configuration
+        logger.info(f"📋 EmbeddingGenerator initialized:")
+        logger.info(f"   Provider: {self.provider}")
+        logger.info(f"   Model: {self.model_name}")
+        logger.info(f"   Dimensions: {self.embedding_dimensions}")
+        logger.info(f"   Device: {self._resolved_device}")
+        
         if EmbeddingGenerator._use_new_service:
-            logger.info("Using new EmbeddingsService for BGE-Small model")
+            logger.info("   Using EmbeddingsService for BGE-Small model")
         
     def _load_openai_client(self):
         """Load OpenAI client for embeddings"""
@@ -103,8 +271,8 @@ class EmbeddingGenerator:
     
     def _load_local_model(self):
         """Load local SentenceTransformer model (shared across all instances)"""
-        # Read device from environment
-        embedding_device = os.getenv('EMBEDDING_DEVICE', 'cpu')
+        # Use resolved device from config (respects FORCE_CPU_ONLY)
+        embedding_device = self._resolved_device
         
         # Check if we need to load or reload the model (model name OR device changed)
         needs_reload = (
@@ -127,61 +295,44 @@ class EmbeddingGenerator:
                         from sentence_transformers import SentenceTransformer
                         import torch
                         
-                        # Verify CUDA availability if GPU requested
-                        if embedding_device == 'cuda':
-                            if not torch.cuda.is_available():
-                                logger.error("❌ CUDA requested but not available! Falling back to CPU")
-                                embedding_device = 'cpu'
-                            else:
-                                logger.info(f"✅ CUDA available: {torch.cuda.get_device_name(0)}")
+                        # FORCE_CPU_ONLY is already handled by resolve_embedding_config()
+                        # and torch.cuda.is_available() is monkey-patched if needed
                         
                         logger.info(f"Loading local embedding model: {self.model_name} on {embedding_device}")
-                        EmbeddingGenerator._shared_model = SentenceTransformer(self.model_name, device=embedding_device)
                         
-                        # CRITICAL: Explicitly move model to device (SentenceTransformer sometimes ignores device param)
-                        if embedding_device == 'cuda':
+                        # Load model on specified device
+                        EmbeddingGenerator._shared_model = SentenceTransformer(
+                            self.model_name, 
+                            device=embedding_device
+                        )
+                        
+                        # For CPU mode, ensure model is on CPU
+                        if embedding_device == 'cpu':
+                            EmbeddingGenerator._shared_model = EmbeddingGenerator._shared_model.to('cpu')
+                        elif embedding_device == 'cuda' and torch.cuda.is_available():
                             EmbeddingGenerator._shared_model = EmbeddingGenerator._shared_model.to('cuda')
                         
                         EmbeddingGenerator._shared_model.eval()
                         EmbeddingGenerator._shared_model_name = self.model_name
-                        EmbeddingGenerator._shared_model_device = embedding_device  # Track device
+                        EmbeddingGenerator._shared_model_device = embedding_device
                         
-                        # DIAGNOSTIC: Verify actual device placement
-                        # Check first module's device (more reliable than model.device)
+                        # Verify actual device placement
                         first_param = next(EmbeddingGenerator._shared_model.parameters())
                         actual_device = str(first_param.device)
                         
                         logger.info(f"✅ Local embedding model loaded successfully")
-                        logger.info(f"🔍 Requested device: {embedding_device}")
-                        logger.info(f"🔍 Actual device: {actual_device}")
+                        logger.info(f"   Requested device: {embedding_device}")
+                        logger.info(f"   Actual device: {actual_device}")
                         
-                        # CRITICAL: If model ended up on CPU despite CUDA request, force reload
-                        if embedding_device == 'cuda' and 'cpu' in actual_device.lower():
-                            logger.error(f"⚠️  CRITICAL: Model loaded on CPU despite CUDA request!")
-                            logger.error(f"⚠️  Attempting force reload to CUDA...")
-                            
-                            # Force reload with explicit device placement
-                            del EmbeddingGenerator._shared_model
-                            if torch.cuda.is_available():
-                                torch.cuda.empty_cache()
-                            
-                            # Reload with explicit CUDA placement
-                            EmbeddingGenerator._shared_model = SentenceTransformer(self.model_name)
-                            EmbeddingGenerator._shared_model = EmbeddingGenerator._shared_model.to('cuda')
-                            EmbeddingGenerator._shared_model.eval()
-                            
-                            # Verify again
-                            first_param = next(EmbeddingGenerator._shared_model.parameters())
-                            actual_device = str(first_param.device)
-                            logger.info(f"🔍 After force reload, device: {actual_device}")
-                            
-                            if 'cpu' in actual_device.lower():
-                                logger.error(f"❌ FAILED to load model on CUDA - falling back to CPU")
-                                logger.error(f"❌ This will cause 30-50x slower embedding generation!")
-                            else:
-                                logger.info(f"✅ Force reload successful - model now on CUDA")
+                        if embedding_device == 'cpu' and 'cpu' in actual_device.lower():
+                            logger.info(f"✅ CPU mode confirmed")
                         elif embedding_device == 'cuda' and 'cuda' in actual_device.lower():
-                            logger.info(f"🚀 GPU acceleration enabled for embeddings (30-50x faster)")
+                            logger.info(f"🚀 GPU acceleration enabled")
+                        elif embedding_device == 'cuda' and 'cpu' in actual_device.lower():
+                            logger.warning(f"⚠️  Requested CUDA but model is on CPU")
+                            # Update tracked device to actual
+                            EmbeddingGenerator._shared_model_device = 'cpu'
+                            
                     except ImportError:
                         raise ImportError("sentence-transformers package not available. Install with: pip install sentence-transformers")
                     except Exception as e:
@@ -370,26 +521,21 @@ class EmbeddingGenerator:
         model = self._load_local_model()
         
         try:
-            # NOTE: Lock removed for single-threaded ingestion (was causing serialization)
-            # If you have multiple workers calling this simultaneously, re-enable the lock
             import time
             import torch
             start_time = time.time()
             
-            # Generate embeddings in batches (larger batch size for GPU efficiency)
-            # Use profile-specific batch size or env override
+            # Use resolved device (respects FORCE_CPU_ONLY)
+            embedding_device = self._resolved_device
+            
+            # Generate embeddings in batches
             default_batch = getattr(self, 'profile_batch_size', 256)
             batch_size = int(os.getenv('EMBEDDING_BATCH_SIZE', str(default_batch)))
             
-            # DIAGNOSTIC: Log device before encoding
-            logger.debug(f"🔍 Encoding {len(texts)} texts on device: {model.device}")
-            
-            # CRITICAL: Force GPU usage by converting to tensors on GPU
-            # Some sentence-transformers versions ignore the device parameter
-            embedding_device = os.getenv('EMBEDDING_DEVICE', 'cuda')
+            logger.debug(f"🔍 Encoding {len(texts)} texts on device: {embedding_device}")
             
             # CRITICAL: Use convert_to_tensor=True to get PyTorch tensors (NO NumPy)
-            # This avoids NumPy dependency entirely in the embedding pipeline
+            # Always use the resolved device - never hardcode 'cuda'
             embeddings_tensor = model.encode(
                 texts, 
                 batch_size=batch_size,
@@ -397,7 +543,7 @@ class EmbeddingGenerator:
                 convert_to_numpy=False,  # CRITICAL: Do NOT convert to NumPy
                 normalize_embeddings=True,  # Normalize for better similarity search
                 convert_to_tensor=True,  # CRITICAL: Return PyTorch tensors
-                device=embedding_device  # Explicitly specify device
+                device=embedding_device  # Use resolved device (cpu or cuda)
             )
             
             # Calculate performance metrics
@@ -450,6 +596,7 @@ class EmbeddingGenerator:
                     logger.info(f"Retrying with batch_size={smaller_batch_size}")
                     
                     # Use PyTorch tensors (NO NumPy) for retry as well
+                    # Use CPU for OOM recovery to be safe
                     embeddings_tensor = model.encode(
                         texts, 
                         batch_size=smaller_batch_size,
@@ -457,7 +604,7 @@ class EmbeddingGenerator:
                         convert_to_numpy=False,  # CRITICAL: No NumPy
                         normalize_embeddings=True,
                         convert_to_tensor=True,  # CRITICAL: PyTorch tensors
-                        device=embedding_device
+                        device='cpu'  # Force CPU for OOM recovery
                     )
                     
                     result = embeddings_tensor.detach().cpu().tolist()

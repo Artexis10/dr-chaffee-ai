@@ -34,7 +34,7 @@ sys.path.append(backend_path)
 from scripts.process_srt_files import SRTProcessor
 from scripts.common.database_upsert import DatabaseUpserter
 from scripts.common.transcript_common import TranscriptSegment
-from scripts.common.embeddings import EmbeddingGenerator
+from scripts.common.embeddings import EmbeddingGenerator, resolve_embedding_config
 
 # Import tuning router
 from .tuning import router as tuning_router
@@ -64,8 +64,22 @@ async def startup_event():
     
     Skips warmup on low-memory environments (e.g., Render Starter 512MB)
     Model will load on first request instead (~20-25s delay)
+    
+    Also runs DB embedding consistency check to prevent dimension mismatches.
     """
     import os
+    
+    # Log resolved embedding configuration
+    config = resolve_embedding_config()
+    logger.info("=" * 60)
+    logger.info("📋 EMBEDDING CONFIGURATION (Single Source of Truth)")
+    logger.info("=" * 60)
+    logger.info(f"   Provider: {config['provider']}")
+    logger.info(f"   Model: {config['model']}")
+    logger.info(f"   Dimensions: {config['dimensions']}")
+    logger.info(f"   Device: {config['device']}")
+    logger.info(f"   FORCE_CPU_ONLY: {os.getenv('FORCE_CPU_ONLY', 'not set')}")
+    logger.info("=" * 60)
     
     # Skip warmup on Render Starter (512MB) - not enough memory
     # Set SKIP_WARMUP=true to disable, or let it auto-detect low memory
@@ -80,6 +94,14 @@ async def startup_event():
         generator = get_embedding_generator()
         # Generate a dummy embedding to load the model
         generator.generate_embeddings(["warmup"])
+        
+        # Run DB consistency check after warmup
+        is_consistent, message = check_db_embedding_consistency()
+        if not is_consistent:
+            logger.error("🚨 DB EMBEDDING CONSISTENCY CHECK FAILED!")
+            logger.error(message)
+            # Don't crash - just warn loudly
+        
     except MemoryError:
         logger.exception("❌ Embedding warmup failed (out of memory)")
         logger.info("💡 Model will load on first request (~20-25s delay)")
@@ -113,38 +135,127 @@ processing_jobs: Dict[str, Dict[str, Any]] = {}
 
 # Initialize embedding generator (lazy load)
 _embedding_generator = None
+_db_embedding_check_done = False
 
 def get_embedding_generator():
     global _embedding_generator
     if _embedding_generator is None:
-        # Read from .env (single source of truth)
-        provider = os.getenv('EMBEDDING_PROVIDER', 'sentence-transformers')
-        model = os.getenv('EMBEDDING_MODEL', 'BAAI/bge-small-en-v1.5')
+        # Use resolve_embedding_config() as single source of truth
+        config = resolve_embedding_config()
         
         _embedding_generator = EmbeddingGenerator(
-            embedding_provider=provider,
-            model_name=model
+            embedding_provider=config['provider'],
+            model_name=config['model']
         )
-        logger.info(f"Initialized embedding generator: {provider} / {model}")
+        
+        logger.info(f"📋 Embedding generator initialized:")
+        logger.info(f"   Provider: {config['provider']}")
+        logger.info(f"   Model: {config['model']}")
+        logger.info(f"   Dimensions: {config['dimensions']}")
+        logger.info(f"   Device: {config['device']}")
     return _embedding_generator
 
-def get_active_model_key():
-    """Get the active model key from config"""
-    import json
-    from pathlib import Path
+
+def check_db_embedding_consistency():
+    """
+    Check that the configured embedding dimensions match what's in the database.
+    This prevents accidental model switching that would corrupt search results.
     
-    # Load config
-    config_path = Path(__file__).parent.parent / 'config' / 'embedding_models.json'
+    Returns:
+        tuple: (is_consistent: bool, message: str)
+    """
+    global _db_embedding_check_done
+    
+    if _db_embedding_check_done:
+        return True, "Already checked"
+    
     try:
-        with open(config_path, 'r') as f:
-            config = json.load(f)
+        config = resolve_embedding_config()
+        expected_dim = config['dimensions']
         
-        # Get active model from env or config
-        active_model = os.getenv('EMBEDDING_QUERY_MODEL', config.get('active_query_model', 'gte-qwen2-1.5b'))
-        return active_model
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Check if there are any embeddings in the database
+        cur.execute("""
+            SELECT COUNT(*) as count
+            FROM segments
+            WHERE embedding IS NOT NULL
+        """)
+        result = cur.fetchone()
+        
+        if not result or result['count'] == 0:
+            cur.close()
+            conn.close()
+            _db_embedding_check_done = True
+            return True, "No embeddings in database yet"
+        
+        # Get a sample embedding to check dimensions
+        cur.execute("""
+            SELECT embedding
+            FROM segments
+            WHERE embedding IS NOT NULL
+            LIMIT 1
+        """)
+        sample = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not sample or not sample['embedding']:
+            _db_embedding_check_done = True
+            return True, "No embeddings in database yet"
+        
+        # Determine actual dimensions
+        embedding = sample['embedding']
+        if isinstance(embedding, (list, tuple)):
+            actual_dim = len(embedding)
+        elif hasattr(embedding, '__len__') and not isinstance(embedding, str):
+            actual_dim = len(embedding)
+        else:
+            # Parse as string '[0.1, 0.2, ...]'
+            embedding_str = str(embedding)
+            parts = embedding_str.strip('[]').split(',')
+            parts = [p.strip() for p in parts if p.strip()]
+            actual_dim = len(parts)
+        
+        _db_embedding_check_done = True
+        
+        if actual_dim != expected_dim:
+            error_msg = (
+                f"❌ EMBEDDING DIMENSION MISMATCH!\n"
+                f"   Database has: {actual_dim} dimensions ({result['count']} embeddings)\n"
+                f"   Config expects: {expected_dim} dimensions\n"
+                f"   Model: {config['model']}\n"
+                f"   \n"
+                f"   You must either:\n"
+                f"   1. Change EMBEDDING_DIMENSIONS to {actual_dim} to match DB\n"
+                f"   2. Re-embed all segments with the new model\n"
+                f"   \n"
+                f"   Mixing dimensions will corrupt search results!"
+            )
+            logger.error(error_msg)
+            return False, error_msg
+        
+        logger.info(f"✅ DB embedding consistency check passed: {actual_dim} dimensions")
+        return True, f"Consistent: {actual_dim} dimensions"
+        
     except Exception as e:
-        logger.warning(f"Failed to load embedding config: {e}")
-        return 'gte-qwen2-1.5b'
+        logger.warning(f"Could not check DB embedding consistency: {e}")
+        _db_embedding_check_done = True
+        return True, f"Check skipped: {e}"
+
+def get_active_model_key():
+    """Get the active model key from resolved config"""
+    config = resolve_embedding_config()
+    
+    # Map model name to key
+    model_to_key = {
+        'BAAI/bge-small-en-v1.5': 'bge-small-en-v1.5',
+        'Alibaba-NLP/gte-Qwen2-1.5B-instruct': 'gte-qwen2-1.5b',
+        'nomic-embed-text-v1.5': 'nomic-v1.5',
+    }
+    
+    return model_to_key.get(config['model'], 'bge-small-en-v1.5')
 
 # Removed: use_normalized_embeddings() - using legacy storage only
 
@@ -194,8 +305,8 @@ def get_available_embedding_models():
                         dimensions = len(parts)
                 except Exception as e:
                     logger.error(f"Failed to determine dimensions: {e}")
-                    # Fallback to common dimension
-                    dimensions = 1536
+                    # Fallback to resolved config dimension
+                    dimensions = resolve_embedding_config()['dimensions']
                 
                 # Get count of embeddings
                 cur.execute("""
@@ -215,7 +326,7 @@ def get_available_embedding_models():
                         768: 'nomic-v1.5',
                         1536: 'gte-qwen2-1.5b'
                     }
-                    model_key = dimension_to_model.get(dimensions, 'gte-qwen2-1.5b')
+                    model_key = dimension_to_model.get(dimensions, 'bge-small-en-v1.5')
                     
                     model = {
                         "model_key": model_key, 
@@ -429,7 +540,7 @@ async def get_stats():
             "segments_with_embeddings": embedded_count,
             "segments_missing_embeddings": missing_count,
             "embedding_coverage": f"{coverage_pct:.1f}%",
-            "embedding_dimensions": int(os.getenv('EMBEDDING_DIMENSIONS', '384')),
+            "embedding_dimensions": resolve_embedding_config()['dimensions'],
             "timestamp": datetime.now().isoformat()
         }
     except Exception as e:
@@ -441,7 +552,7 @@ async def get_stats():
             "segments_with_embeddings": 0,
             "segments_missing_embeddings": 0,
             "embedding_coverage": "0.0%",
-            "embedding_dimensions": int(os.getenv('EMBEDDING_DIMENSIONS', '384')),
+            "embedding_dimensions": resolve_embedding_config()['dimensions'],
             "timestamp": datetime.now().isoformat(),
             "error": str(e)
         }

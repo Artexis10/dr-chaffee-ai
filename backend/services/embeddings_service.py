@@ -2,15 +2,41 @@
 """
 BGE-Small Embeddings Service with Optional Reranker
 Replaces GTE-Qwen2-1.5B with BAAI/bge-small-en-v1.5 for 50x+ speedup
+
+Uses resolve_embedding_config() from embeddings.py as single source of truth.
+Supports FORCE_CPU_ONLY mode for CPU-only deployments.
 """
 
 import os
+import sys
 import logging
 import numpy as np
 from typing import List, Optional, Tuple
 import threading
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+# Import resolve_embedding_config from embeddings module
+# This ensures consistent configuration across all embedding code
+try:
+    # Add scripts/common to path if needed
+    scripts_common = Path(__file__).parent.parent / 'scripts' / 'common'
+    if str(scripts_common) not in sys.path:
+        sys.path.insert(0, str(scripts_common))
+    from embeddings import resolve_embedding_config, _apply_force_cpu_mode
+except ImportError:
+    # Fallback if import fails - define minimal version
+    logger.warning("Could not import resolve_embedding_config, using fallback")
+    def resolve_embedding_config(force_refresh=False):
+        return {
+            'provider': 'sentence-transformers',
+            'model': os.getenv('EMBEDDING_MODEL', 'BAAI/bge-small-en-v1.5'),
+            'dimensions': int(os.getenv('EMBEDDING_DIMENSIONS', '384')),
+            'device': 'cpu' if os.getenv('FORCE_CPU_ONLY', '').lower() in ('1', 'true', 'yes') else os.getenv('EMBEDDING_DEVICE', 'cpu')
+        }
+    def _apply_force_cpu_mode():
+        pass
 
 
 class EmbeddingsService:
@@ -33,7 +59,7 @@ class EmbeddingsService:
         """
         Initialize models from environment variables.
         Safe to call multiple times (idempotent).
-        Supports profile-based configuration.
+        Uses resolve_embedding_config() as single source of truth.
         """
         if EmbeddingsService._initialized:
             return
@@ -43,39 +69,38 @@ class EmbeddingsService:
                 return
                 
             try:
+                # Apply FORCE_CPU_ONLY monkey-patch BEFORE importing torch
+                _apply_force_cpu_mode()
+                
                 import torch
                 from sentence_transformers import SentenceTransformer, CrossEncoder
                 
-                # Determine device
-                EmbeddingsService._device = "cuda" if torch.cuda.is_available() else "cpu"
+                # Get resolved config (single source of truth)
+                config = resolve_embedding_config()
                 
-                # Load profile-based configuration
-                profile = os.getenv('EMBEDDING_PROFILE', 'quality').lower()
-                profiles = {
-                    'quality': {
-                        'model': 'Alibaba-NLP/gte-Qwen2-1.5B-instruct',
-                        'dimensions': 1536
-                    },
-                    'speed': {
-                        'model': 'BAAI/bge-small-en-v1.5',
-                        'dimensions': 384
-                    }
-                }
-                profile_config = profiles.get(profile, profiles['quality'])
+                # Use resolved device (respects FORCE_CPU_ONLY)
+                EmbeddingsService._device = config['device']
+                model_name = config['model']
                 
-                # Load retriever model (allow env override)
-                model_name = os.getenv('EMBEDDING_MODEL', profile_config['model'])
-                logger.info(f"Loading retriever model: {model_name} on {EmbeddingsService._device}")
+                logger.info(f"📋 EmbeddingsService initializing:")
+                logger.info(f"   Model: {model_name}")
+                logger.info(f"   Device: {EmbeddingsService._device}")
+                logger.info(f"   Dimensions: {config['dimensions']}")
                 
                 EmbeddingsService._retriever_model = SentenceTransformer(
                     model_name,
                     device=EmbeddingsService._device
                 )
                 
-                # Convert to FP16 on CUDA for speed
-                if EmbeddingsService._device == "cuda":
+                # Explicitly move to device (ensure correct placement)
+                if EmbeddingsService._device == 'cpu':
+                    EmbeddingsService._retriever_model = EmbeddingsService._retriever_model.to('cpu')
+                    logger.info("✅ Model loaded on CPU")
+                elif EmbeddingsService._device == "cuda" and torch.cuda.is_available():
+                    EmbeddingsService._retriever_model = EmbeddingsService._retriever_model.to('cuda')
+                    # Convert to FP16 on CUDA for speed
                     EmbeddingsService._retriever_model = EmbeddingsService._retriever_model.half()
-                    logger.info("✅ Retriever model converted to FP16")
+                    logger.info("✅ Retriever model on CUDA with FP16")
                 
                 EmbeddingsService._retriever_model.eval()
                 
@@ -260,8 +285,9 @@ class EmbeddingsService:
     
     @staticmethod
     def get_embedding_dimensions() -> int:
-        """Get embedding dimensions (always 384 for bge-small)"""
-        return 384
+        """Get embedding dimensions from resolved config"""
+        config = resolve_embedding_config()
+        return config['dimensions']
     
     @staticmethod
     def is_initialized() -> bool:

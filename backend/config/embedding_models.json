@@ -68,13 +68,13 @@
   "active_query_model": "bge-small-en-v1.5",
   "active_ingestion_models": ["bge-small-en-v1.5"],
   "recommended_model": "bge-small-en-v1.5",
-  "storage_strategy": "normalized",
+  "storage_strategy": "legacy",
   "notes": [
-    "Normalized storage: segment_embeddings table stores all models",
-    "Supports ANY dimension size - no schema changes needed",
+    "Legacy storage: segments.embedding column (single model per deployment)",
+    "Default: BGE-small-en-v1.5 (384 dims) - fast, CPU-friendly",
+    "For CPU-only deployments: Set FORCE_CPU_ONLY=1 in .env",
     "active_query_model: Which embeddings to use for search queries",
-    "active_ingestion_models: Which embeddings to generate during ingestion (can be multiple)",
-    "To switch: Just change active_query_model - instant if embeddings exist",
-    "To add a new model: Add to config, add to active_ingestion_models, run ingestion"
+    "active_ingestion_models: Which embeddings to generate during ingestion",
+    "To switch models: Update .env, run migration, re-embed all segments"
   ]
 }
