@@ -39,7 +39,7 @@ console.log('ANSWER_ENABLED:', ANSWER_ENABLED);
 console.log('USE_MOCK_MODE:', USE_MOCK_MODE);
 
 // Backend API Integration
-const BACKEND_API_URL = process.env.BACKEND_API_URL || 'https://drchaffee-backend.onrender.com';
+const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:8001';
 
 // Cache configuration
 const CACHE_SIMILARITY_THRESHOLD = 0.92; // 92% similarity to consider a cache hit
@@ -250,7 +250,7 @@ function extractKeywords(query: string): string[] {
 
 // Generate embeddings for the query
 async function generateQueryEmbedding(query: string): Promise<number[]> {
-  const BACKEND_API_URL = process.env.BACKEND_API_URL || 'https://dr-chaffee-ai.onrender.com/api';
+  // Use module-level BACKEND_API_URL constant
   
   try {
     console.log('Calling backend API for query embedding:', query);

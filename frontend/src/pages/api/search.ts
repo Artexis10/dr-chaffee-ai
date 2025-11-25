@@ -129,12 +129,12 @@ export default async function handler(
   }
 
   try {
-    // Call embedding service for semantic search
-    const EMBEDDING_SERVICE_URL = process.env.EMBEDDING_SERVICE_URL || 'http://localhost:8001';
+    // Call backend API for semantic search
+    const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:8001';
     
-    console.log('Calling embedding service at:', EMBEDDING_SERVICE_URL);
+    console.log('Calling backend API at:', BACKEND_API_URL);
     
-    const embeddingResponse = await fetch(`${EMBEDDING_SERVICE_URL}/search`, {
+    const embeddingResponse = await fetch(`${BACKEND_API_URL}/search`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -86,15 +86,26 @@ web: npm run start:all
 
 ## Environment Variables
 
-Set once in Railway dashboard:
-
+### Frontend Variables (Coolify/Railway)
 ```bash
-DATABASE_URL=postgresql://...  # Auto-set by Railway
-YOUTUBE_API_KEY=your-key
-HUGGINGFACE_TOKEN=your-token
-OPENAI_API_KEY=your-key
-NODE_ENV=production
+BACKEND_API_URL=https://your-backend-url.com
+DATABASE_URL=postgresql://...
+OPENAI_API_KEY=sk-proj-...
+SUMMARIZER_MODEL=gpt-4o-mini
+ANSWER_ENABLED=true
+APP_PASSWORD=optional-password
 ```
+
+### Backend Variables (Coolify/Railway)
+```bash
+DATABASE_URL=postgresql://...
+YOUTUBE_API_KEY=your-key
+HUGGINGFACE_HUB_TOKEN=your-token
+OPENAI_API_KEY=sk-proj-...
+EMBEDDING_PROFILE=quality
+```
+
+See `frontend/.env.example` and `backend/.env.example` for complete lists.
 
 ## Development Workflow
 

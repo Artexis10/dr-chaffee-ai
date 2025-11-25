@@ -120,8 +120,14 @@ ask-dr-chaffee/
    ```bash
    git clone <repository-url>
    cd ask-dr-chaffee
-   cp .env.example .env
-   # Edit .env with your database URL and feature toggles
+   
+   # Setup frontend env
+   cp frontend/.env.example frontend/.env.local
+   # Edit frontend/.env.local with your values
+   
+   # Setup backend env
+   cp backend/.env.example backend/.env
+   # Edit backend/.env with your values
    ```
 
 2. **Install Dependencies**
@@ -160,8 +166,14 @@ ask-dr-chaffee/
    ```powershell
    git clone <repository-url>
    Set-Location ask-dr-chaffee
-   copy .env.example .env
-   # Edit .env with your database URL and feature toggles
+   
+   # Setup frontend env
+   copy frontend\.env.example frontend\.env.local
+   # Edit frontend\.env.local with your values
+   
+   # Setup backend env
+   copy backend\.env.example backend\.env
+   # Edit backend\.env with your values
    ```
 
 2. **Install Dependencies**
@@ -329,48 +341,60 @@ The system implements **intelligent cost control** for Whisper transcription:
 
 ## ⚙️ Configuration
 
-### Environment Variables
-```bash
-# Database
-DATABASE_URL=postgresql://user:pass@localhost:5432/ask_dr_chaffee
+### Environment Files Structure
 
-# YouTube Configuration (REQUIRED)
-YOUTUBE_CHANNEL_URL=https://www.youtube.com/@anthonychaffeemd
-YOUTUBE_API_KEY=your_api_key_here  # REQUIRED: YouTube Data API v3 key
+This monorepo uses **separate environment files** for frontend and backend:
 
-# Features
-RERANK_ENABLED=true  # Enable cross-encoder reranking
-SEED=false           # Enable seed mode for development
-
-# Whisper Configuration
-WHISPER_MODEL=small.en      # Default model size for audio transcription
-WHISPER_UPGRADE=medium.en   # Upgraded model for poor quality transcripts
-MAX_AUDIO_DURATION=3600     # Skip very long videos for Whisper
-
-# yt-dlp Configuration
-YTDLP_PROXY=                # Proxy for yt-dlp (e.g., socks5://user:pass@host:port)
-YTDLP_OPTS=--sleep-requests 1 --max-sleep-interval 3 --retries 10 --fragment-retries 10 --socket-timeout 20
-
-# Processing
-CHUNK_DURATION_SECONDS=45   # Transcript chunk size
-DEFAULT_CONCURRENCY=4       # Concurrent workers
-SKIP_SHORTS=true            # Skip videos < 120 seconds
-NEWEST_FIRST=true           # Process newest videos first
-
-# Answer Mode Configuration
-ANSWER_ENABLED=true         # Enable AI answer generation
-ANSWER_TOPK=40             # Max chunks to consider for answers
-ANSWER_TTL_HOURS=336       # Cache TTL (14 days)
-SUMMARIZER_MODEL=gpt-3.5-turbo  # LLM model for answer generation
-ANSWER_STYLE_DEFAULT=concise     # Answer style (concise|detailed)
-
-# Enhanced ASR Configuration (for speaker identification)
-CHAFFEE_MIN_SIM=0.60       # Minimum similarity threshold for Dr. Chaffee identification
-USE_SIMPLE_DIARIZATION=false  # Use HuggingFace diarization instead of simple method
-HUGGINGFACE_TOKEN=         # HuggingFace token for gated models (pyannote)
-SPEAKER_ATTRIBUTION_MARGIN=0.10  # Required margin between best and second-best speaker match
-MIN_SPEAKER_DURATION=3.0   # Minimum segment duration for speaker attribution (seconds)
 ```
+dr-chaffee-ai/
+├── .env.example              # Docker Compose & tooling only (NOT for apps)
+├── frontend/
+│   ├── .env.example          # Full frontend variable documentation
+│   └── .env.local            # Your local frontend config (gitignored)
+└── backend/
+    ├── .env.example          # Full backend variable documentation
+    └── .env                   # Your local backend config (gitignored)
+```
+
+### Frontend Setup (Next.js)
+
+```bash
+cd frontend
+cp .env.example .env.local
+# Edit .env.local with your values
+```
+
+**Key frontend variables:**
+```bash
+BACKEND_API_URL=http://localhost:8001   # Backend API URL
+DATABASE_URL=postgresql://...            # PostgreSQL connection
+OPENAI_API_KEY=sk-proj-...              # For answer generation
+APP_PASSWORD=                            # Optional auth password
+```
+
+### Backend Setup (FastAPI)
+
+```bash
+cd backend
+cp .env.example .env
+# Edit .env with your values
+```
+
+**Key backend variables:**
+```bash
+DATABASE_URL=postgresql://...            # PostgreSQL connection
+YOUTUBE_API_KEY=...                      # YouTube Data API v3
+HUGGINGFACE_HUB_TOKEN=...               # For model downloads
+OPENAI_API_KEY=sk-proj-...              # For answer generation
+```
+
+### Production (Coolify)
+
+In production, set environment variables directly in Coolify:
+- **Frontend app**: Set `BACKEND_API_URL`, `DATABASE_URL`, `OPENAI_API_KEY`, etc.
+- **Backend app**: Set `DATABASE_URL`, `YOUTUBE_API_KEY`, `HUGGINGFACE_HUB_TOKEN`, etc.
+
+See `frontend/.env.example` and `backend/.env.example` for complete variable lists.
 
 ### Available Commands
 
