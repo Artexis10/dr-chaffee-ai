@@ -5,7 +5,13 @@ import { NextApiRequest, NextApiResponse } from 'next';
  * 
  * Architecture: Frontend → Backend → Postgres
  * The frontend never connects directly to the database.
+ * 
+ * Auth: Requires INTERNAL_API_KEY to be set and passed via X-Internal-Key header.
  */
+
+// Internal API key for backend authentication (same as search.ts and answer.ts)
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -28,7 +34,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const response = await fetch(`${backendBaseUrl}/stats`);
+    // Build headers with internal API key for backend authentication
+    const headers: Record<string, string> = {};
+    if (INTERNAL_API_KEY) {
+      headers['X-Internal-Key'] = INTERNAL_API_KEY;
+    }
+    
+    const response = await fetch(`${backendBaseUrl}/stats`, { headers });
     
     if (!response.ok) {
       throw new Error(`Backend /stats responded with ${response.status}`);

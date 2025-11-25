@@ -1,5 +1,18 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 
+/**
+ * Tuning Auth Verify - Proxy to backend tuning authentication
+ * 
+ * Flow:
+ * 1. Frontend sends password to this proxy
+ * 2. Proxy forwards to backend /api/tuning/auth/verify
+ * 3. If backend returns 200, proxy sets its own httpOnly cookie for the frontend domain
+ * 4. Protected tuning endpoints check this cookie
+ * 
+ * Note: We set our own cookie because backend cookies are for the backend domain,
+ * which won't work when frontend and backend are on different hosts.
+ */
+
 // Backend API URL - configured via environment variable
 const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:8001';
 
@@ -28,7 +41,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ password }),
-      credentials: 'include',
       signal: controller.signal,
     });
 
@@ -36,15 +48,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log('[Tuning Auth] Backend response status:', response.status);
 
     if (response.ok) {
-      const data = await response.json();
+      // Backend validated the password - set our own cookie for the frontend domain
+      // This is necessary because backend cookies won't work cross-origin
+      const isProduction = process.env.NODE_ENV === 'production';
       
-      // Backend already set the httpOnly cookie, just forward the success
-      const backendCookie = response.headers.get('set-cookie');
-      if (backendCookie) {
-        res.setHeader('Set-Cookie', backendCookie);
-      }
+      res.setHeader('Set-Cookie', [
+        `tuning_auth=authenticated; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400${isProduction ? '; Secure' : ''}`
+      ]);
       
-      console.log('[Tuning Auth] Authentication successful');
+      console.log('[Tuning Auth] Authentication successful, cookie set for frontend domain');
       return res.status(200).json({ success: true });
     } else if (response.status === 401) {
       console.log('[Tuning Auth] Invalid password');

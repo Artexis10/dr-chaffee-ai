@@ -1,5 +1,11 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 
+/**
+ * Embedding Models API - Proxy to backend tuning/models endpoint
+ * 
+ * Requires tuning authentication (tuning_auth cookie).
+ */
+
 // Backend API URL - configured via environment variable
 const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:8001';
 
@@ -8,13 +14,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // Check for tuning_auth cookie
+  const tuningAuth = req.cookies.tuning_auth;
+  if (tuningAuth !== 'authenticated') {
+    return res.status(401).json({ error: 'Tuning authentication required' });
+  }
+
   try {
-    // Get tuning config from backend
+    // Get tuning config from backend, forwarding the auth cookie
     const response = await fetch(`${BACKEND_API_URL}/api/tuning/models`, {
       headers: {
         'Content-Type': 'application/json',
+        'Cookie': `tuning_auth=${tuningAuth}`,
       },
-      credentials: 'include',
     });
 
     if (!response.ok) {

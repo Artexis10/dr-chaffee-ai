@@ -1,11 +1,23 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 
+/**
+ * Set Active Embedding Model - Proxy to backend tuning endpoint
+ * 
+ * Requires tuning authentication (tuning_auth cookie).
+ */
+
 // Backend API URL - configured via environment variable
 const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:8001';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Check for tuning_auth cookie
+  const tuningAuth = req.cookies.tuning_auth;
+  if (tuningAuth !== 'authenticated') {
+    return res.status(401).json({ error: 'Tuning authentication required' });
   }
 
   const { model_key } = req.body;
@@ -15,13 +27,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Call backend to set active query model
-    const response = await fetch(`${BACKEND_API_URL}/tuning/set-query-model`, {
+    // Call backend to set active query model, forwarding the auth cookie
+    const response = await fetch(`${BACKEND_API_URL}/api/tuning/models/query?model_key=${encodeURIComponent(model_key)}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Cookie': `tuning_auth=${tuningAuth}`,
       },
-      body: JSON.stringify({ model_key }),
     });
 
     if (!response.ok) {
