@@ -784,8 +784,6 @@ export default function Home() {
           />
         </ErrorBoundary>
 
-        {loading && <LoadingSkeleton />}
-
         {error && (
           <div className="error-message" role="alert">
             ⚠️ {error}

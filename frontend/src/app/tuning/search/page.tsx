@@ -32,11 +32,17 @@ export default function SearchPage() {
   const loadConfig = async () => {
     try {
       const res = await fetch('/api/search-config');
+      if (!res.ok) {
+        // Use default config if endpoint doesn't exist or fails
+        console.warn('Search config endpoint not available, using defaults');
+        setLoading(false);
+        return;
+      }
       const data = await res.json();
       setConfig(data);
     } catch (error) {
-      console.error('Failed to load config:', error);
-      setMessage('Failed to load search configuration');
+      // Silently use defaults - don't show error banner for missing config
+      console.warn('Failed to load config, using defaults:', error);
     } finally {
       setLoading(false);
     }
@@ -118,8 +124,8 @@ export default function SearchPage() {
         </p>
       </div>
 
-      {/* Message */}
-      {message && (
+      {/* Message - only show for actual user actions, not load failures */}
+      {message && !message.includes('Failed to load') && (
         <div style={{
           background: message.includes('success') ? '#f0fdf4' : '#fef2f2',
           color: message.includes('success') ? '#166534' : '#7f1d1d',
@@ -148,7 +154,7 @@ export default function SearchPage() {
             {/* top_k */}
             <div>
               <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: '#374151', marginBottom: '0.5rem' }}>
-                Top K (initial retrieval)
+                Initial results to consider
               </label>
               <input
                 type="number"
@@ -163,14 +169,14 @@ export default function SearchPage() {
                 }}
               />
               <p style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
-                Number of segments to retrieve before reranking
+                How many clips to look at before ranking them. Higher = more accurate but slightly slower.
               </p>
             </div>
 
             {/* min_score */}
             <div>
               <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: '#374151', marginBottom: '0.5rem' }}>
-                Minimum Score
+                Minimum relevance
               </label>
               <input
                 type="number"
@@ -188,7 +194,7 @@ export default function SearchPage() {
                 }}
               />
               <p style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
-                Minimum similarity score (0-1) to include results
+                Only show clips that are at least this relevant to the question (0-1).
               </p>
             </div>
 
@@ -202,11 +208,11 @@ export default function SearchPage() {
                   style={{ width: '1rem', height: '1rem', cursor: 'pointer' }}
                 />
                 <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#374151' }}>
-                  Enable Reranker
+                  Use extra AI step to improve ranking
                 </span>
               </label>
               <p style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.5rem' }}>
-                Use AI to rerank results for better relevance (slower but more accurate)
+                More accurate ordering of clips, but a bit slower and may cost more if using paid models.
               </p>
             </div>
 
@@ -214,7 +220,7 @@ export default function SearchPage() {
             {config.enable_reranker && (
               <div>
                 <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: '#374151', marginBottom: '0.5rem' }}>
-                  Rerank Top K
+                  Results to rerank
                 </label>
                 <input
                   type="number"
@@ -229,7 +235,7 @@ export default function SearchPage() {
                   }}
                 />
                 <p style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
-                  Number of results to rerank
+                  How many results to pass through the extra ranking step.
                 </p>
               </div>
             )}
@@ -237,7 +243,7 @@ export default function SearchPage() {
             {/* return_top_k */}
             <div>
               <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: '#374151', marginBottom: '0.5rem' }}>
-                Return Top K (final results)
+                Number of clips to use in answer
               </label>
               <input
                 type="number"
@@ -252,7 +258,7 @@ export default function SearchPage() {
                 }}
               />
               <p style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
-                Number of final results to return to user
+                How many top clips the AI uses when building an answer.
               </p>
             </div>
 

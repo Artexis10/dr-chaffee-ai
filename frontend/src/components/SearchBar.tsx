@@ -189,18 +189,18 @@ export const SearchBar: React.FC<SearchBarProps> = ({ query, setQuery, handleSea
 
         .toggle-buttons {
           display: inline-flex;
-          background: #1f2937;
+          background: var(--color-border, #e5e7eb);
           padding: 3px;
           border-radius: 12px;
           gap: 3px;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
         }
 
         .toggle-btn {
           padding: 10px 28px;
           font-size: 14px;
           font-weight: 600;
-          color: #9ca3af;
+          color: var(--color-text-light, #6b7280);
           background: transparent;
           border: none;
           border-radius: 10px;
@@ -211,15 +211,14 @@ export const SearchBar: React.FC<SearchBarProps> = ({ query, setQuery, handleSea
         }
 
         .toggle-btn:hover:not(.active) {
-          color: #d1d5db;
-          background: rgba(255, 255, 255, 0.05);
+          color: var(--color-text, #1f2937);
+          background: rgba(255, 255, 255, 0.5);
         }
 
         .toggle-btn.active {
-          background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-          color: white;
-          box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4), 0 2px 4px rgba(0, 0, 0, 0.1);
-          transform: translateY(-1px);
+          background: var(--color-card, #ffffff);
+          color: var(--color-text, #000000);
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
         }
         
         @media (max-width: 768px) {

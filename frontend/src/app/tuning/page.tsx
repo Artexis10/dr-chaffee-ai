@@ -176,7 +176,7 @@ export default function OverviewPage() {
             </div>
             <div style={{ paddingTop: '0.75rem', borderTop: '1px solid #e5e7eb' }}>
               <p style={{ fontSize: '0.875rem', color: '#6b7280' }}>
-                Embeddings are used for semantic search. Higher dimensions = more expressive but slower.
+                Embeddings help the AI find the most relevant clips. 384 is a good balance of speed and accuracy.
               </p>
             </div>
           </div>

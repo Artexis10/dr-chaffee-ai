@@ -121,7 +121,7 @@ export default function ModelsPage() {
               <p style={{ fontSize: '1.125rem', fontWeight: 600 }}>{activeModel.dimensions}</p>
             </div>
             <div>
-              <p style={{ fontSize: '0.75rem', opacity: 0.8, marginBottom: '0.25rem' }}>Cost per 1K</p>
+              <p style={{ fontSize: '0.75rem', opacity: 0.8, marginBottom: '0.25rem' }}>Approx. cost per 1K words</p>
               <p style={{ fontSize: '1.125rem', fontWeight: 600 }}>${activeModel.cost_per_1k}</p>
             </div>
           </div>
@@ -188,17 +188,33 @@ export default function ModelsPage() {
                 </p>
               </div>
               <div>
-                <p style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>Cost per 1K</p>
+                <p style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>Approx. cost per 1K words</p>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                  <DollarSign style={{ width: '1rem', height: '1rem', color: '#10b981' }} />
+                  <DollarSign style={{ width: '1rem', height: '1rem', color: model.cost_per_1k === 0 ? '#10b981' : '#6b7280' }} />
                   <p style={{ fontSize: '1.25rem', fontWeight: 600, color: '#1f2937' }}>
-                    {model.cost_per_1k}
+                    {model.cost_per_1k === 0 ? 'Free (local)' : model.cost_per_1k}
                   </p>
                 </div>
+                {model.cost_per_1k === 0 && (
+                  <p style={{ fontSize: '0.7rem', color: '#10b981', marginTop: '0.25rem' }}>Runs on your server, no API costs</p>
+                )}
               </div>
             </div>
 
-            {!model.is_active_query && (
+            {model.is_active_query ? (
+              <div style={{
+                width: '100%',
+                padding: '0.75rem',
+                background: '#f3f4f6',
+                color: '#6b7280',
+                borderRadius: '0.5rem',
+                fontWeight: 500,
+                textAlign: 'center',
+                fontSize: '0.875rem'
+              }}>
+                Currently active
+              </div>
+            ) : (
               <button
                 onClick={() => handleSetActive(model.key)}
                 style={{

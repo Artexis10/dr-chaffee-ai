@@ -1,42 +1,54 @@
 import React, { useState, useEffect } from 'react';
 
 export const DarkModeToggle: React.FC = () => {
-  // Initialize to dark mode by default (will be updated by useEffect if needed)
-  const [isDarkMode, setIsDarkMode] = useState(true);
+  // Initialize to null to prevent hydration mismatch, then update on client
+  const [isDarkMode, setIsDarkMode] = useState<boolean | null>(null);
 
-  // Initialize dark mode - ALWAYS default to dark
+  // Initialize theme on mount - check localStorage first, default to dark
   useEffect(() => {
     const storedTheme = localStorage.getItem('theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     
-    // Default to dark mode (sophisticated black theme)
-    if (storedTheme === 'light') {
-      setIsDarkMode(false);
-      document.documentElement.classList.remove('dark-mode');
-    } else {
-      // Always start with dark mode
-      setIsDarkMode(true);
+    // Determine initial theme: stored > system preference > default dark
+    const shouldBeDark = storedTheme === 'light' ? false : (storedTheme === 'dark' ? true : prefersDark || true);
+    
+    setIsDarkMode(shouldBeDark);
+    
+    // Apply the theme classes
+    if (shouldBeDark) {
       document.documentElement.classList.add('dark-mode');
-      // Set default theme to dark if not already set
-      if (!storedTheme) {
-        localStorage.setItem('theme', 'dark');
-      }
+      document.documentElement.classList.remove('light-mode');
+    } else {
+      document.documentElement.classList.remove('dark-mode');
+      document.documentElement.classList.add('light-mode');
+    }
+    
+    // Persist if not already stored
+    if (!storedTheme) {
+      localStorage.setItem('theme', shouldBeDark ? 'dark' : 'light');
     }
   }, []);
 
   // Toggle dark mode
   const toggleDarkMode = () => {
-    if (isDarkMode) {
-      document.documentElement.classList.remove('dark-mode');
-      document.documentElement.classList.add('light-mode'); // Add this line
-      localStorage.setItem('theme', 'light');
-    } else {
-      document.documentElement.classList.add('dark-mode');
-      document.documentElement.classList.remove('light-mode'); // Add this line
-      localStorage.setItem('theme', 'dark');
-    }
+    const newMode = !isDarkMode;
+    setIsDarkMode(newMode);
     
-    setIsDarkMode(!isDarkMode);
+    if (newMode) {
+      document.documentElement.classList.add('dark-mode');
+      document.documentElement.classList.remove('light-mode');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark-mode');
+      document.documentElement.classList.add('light-mode');
+      localStorage.setItem('theme', 'light');
+    }
   };
+
+  // Don't render until we know the theme (prevents hydration mismatch)
+  if (isDarkMode === null) {
+    return null;
+  }
 
   return (
     <button 

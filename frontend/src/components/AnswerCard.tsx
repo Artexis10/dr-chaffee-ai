@@ -85,19 +85,12 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
   }, [loading, answerStyle]);
 
   if (loading) {
-    // Loading messages that change based on elapsed time (using dynamic stats)
+    // Simplified loading messages for unified progress display
     const loadingMessages = [
-      { threshold: 0, message: "Generating query embedding for semantic search..." },
-      { threshold: 3, message: statsLoaded 
-          ? `Searching ${stats.segments.toLocaleString()} segments across ${stats.videos} videos...`
-          : "Searching database..." 
-      },
+      { threshold: 0, message: "Loading database statistics..." },
+      { threshold: 3, message: "Preparing semantic search..." },
       { threshold: 7, message: "Ranking segments by semantic similarity..." },
-      { threshold: 12, message: "Analyzing transcript excerpts..." },
-      { threshold: 18, message: "Synthesizing answer with AI..." },
-      { threshold: 25, message: "Generating citations with timestamps..." },
-      { threshold: 35, message: "Complex synthesis in progress..." },
-      { threshold: 45, message: "Finalizing AI-emulated response..." }
+      { threshold: 12, message: "Finalizing AI-emulated response..." }
     ];
     
     // Get appropriate message based on loading time
@@ -115,36 +108,18 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
             <div className="spinner"></div>
           </div>
           <div className="loading-text">
-            <h3>AI Answer Generator</h3>
+            <h3>Generating Answer</h3>
             <p>{currentMessage}</p>
-            <div className="loading-meta">
-              <div className="loading-timer">{loadingTime}s</div>
-              {estimatedTimeRemaining !== null && estimatedTimeRemaining > 0 && (
-                <div className="loading-eta">~{estimatedTimeRemaining}s remaining</div>
-              )}
-            </div>
           </div>
         </div>
         <div className="loading-progress">
-          <div className="progress-bar" style={{ width: `${progressPercentage}%`, animation: 'none' }}></div>
+          <div className="progress-bar" style={{ width: `${progressPercentage}%` }}></div>
         </div>
-        <div className="loading-tips">
-          <p>While you wait:</p>
-          <ul>
-            {statsLoaded ? (
-              <>
-                <li>Searching {stats.segments.toLocaleString()} segments across {stats.videos} videos</li>
-                <li>AI is analyzing transcript content and ranking by relevance</li>
-                <li>Synthesizing answer with citations and timestamps</li>
-              </>
-            ) : (
-              <>
-                <li>Loading database statistics...</li>
-                <li>Preparing semantic search...</li>
-                <li>Initializing AI answer generator...</li>
-              </>
-            )}
-          </ul>
+        <div className="loading-meta">
+          <span className="loading-timer">{loadingTime}s elapsed</span>
+          {estimatedTimeRemaining !== null && estimatedTimeRemaining > 0 && (
+            <span className="loading-eta">~{estimatedTimeRemaining}s remaining</span>
+          )}
         </div>
         
         {/* Show cancel button after 15 seconds */}
@@ -160,126 +135,88 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
         )}
         <style jsx>{`
           .modern-answer-card {
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
+            background: var(--color-card, #171717);
+            border: 1px solid var(--color-border, #262626);
             border-radius: 16px;
             padding: 32px;
             margin-bottom: 32px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
             transition: all 0.3s ease;
           }
           .loading-header {
             display: flex;
             align-items: center;
             gap: 16px;
-            margin-bottom: 24px;
+            margin-bottom: 20px;
           }
           .loading-avatar {
-            width: 48px;
-            height: 48px;
+            width: 44px;
+            height: 44px;
             border-radius: 12px;
-            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            background: var(--color-border, #262626);
             display: flex;
             align-items: center;
             justify-content: center;
             position: relative;
           }
           .spinner {
-            width: 24px;
-            height: 24px;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-top: 2px solid white;
+            width: 22px;
+            height: 22px;
+            border: 2px solid var(--color-border-light, #333);
+            border-top: 2px solid var(--color-text, #fff);
             border-radius: 50%;
             animation: spin 1s linear infinite;
           }
           .loading-text h3 {
             margin: 0 0 4px 0;
-            font-size: 18px;
+            font-size: 17px;
             font-weight: 600;
-            color: #111827;
+            color: var(--color-text, #fafafa);
           }
           .loading-text p {
             margin: 0;
             font-size: 14px;
-            color: #6b7280;
+            color: var(--color-text-light, #a3a3a3);
             line-height: 1.4;
           }
-          .loading-meta {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            margin-top: 8px;
-            flex-wrap: wrap;
-          }
-          
-          .loading-timer {
-            display: inline-block;
-            background: rgba(59, 130, 246, 0.1);
-            color: #3b82f6;
-            font-size: 12px;
-            font-weight: 600;
-            padding: 4px 10px;
-            border-radius: 12px;
-          }
-          
-          .loading-eta {
-            display: inline-block;
-            background: rgba(16, 185, 129, 0.1);
-            color: #10b981;
-            font-size: 12px;
-            font-weight: 600;
-            padding: 4px 10px;
-            border-radius: 12px;
-          }
           .loading-progress {
-            height: 4px;
-            background: #f3f4f6;
+            height: 3px;
+            background: var(--color-border, #262626);
             border-radius: 2px;
             overflow: hidden;
-            margin-bottom: 24px;
+            margin-bottom: 12px;
           }
           .progress-bar {
             height: 100%;
-            background: linear-gradient(90deg, #3b82f6, #1d4ed8);
+            background: var(--color-text-light, #737373);
             border-radius: 2px;
             transition: width 0.5s ease;
           }
-          .loading-tips {
-            background: rgba(59, 130, 246, 0.05);
-            border: 1px solid rgba(59, 130, 246, 0.1);
-            border-radius: 12px;
-            padding: 16px;
-            margin-top: 24px;
+          .loading-meta {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+            font-size: 13px;
+            color: var(--color-text-muted, #737373);
           }
-          .loading-tips p {
-            margin: 0 0 8px 0;
-            font-weight: 600;
-            color: #4b5563;
+          .loading-timer {
+            font-weight: 500;
           }
-          .loading-tips ul {
-            margin: 0;
-            padding-left: 20px;
-          }
-          .loading-tips li {
-            margin-bottom: 6px;
-            font-size: 14px;
-            color: #6b7280;
-          }
-          .loading-tips li:last-child {
-            margin-bottom: 0;
+          .loading-eta {
+            font-weight: 500;
           }
           .loading-actions {
             display: flex;
             justify-content: center;
-            margin-top: 24px;
+            margin-top: 20px;
           }
           .cancel-button {
             display: flex;
             align-items: center;
             gap: 8px;
             background: transparent;
-            border: 1px solid #e5e7eb;
-            color: #6b7280;
+            border: 1px solid var(--color-border, #262626);
+            color: var(--color-text-light, #a3a3a3);
             font-size: 14px;
             font-weight: 500;
             padding: 8px 16px;
@@ -288,21 +225,16 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
             transition: all 0.2s ease;
           }
           .cancel-button:hover {
-            background: #f9fafb;
-            border-color: #d1d5db;
-            color: #4b5563;
+            background: var(--color-border-light, #1a1a1a);
+            border-color: var(--color-text-muted, #525252);
+            color: var(--color-text, #fafafa);
           }
           .cancel-button svg {
-            color: #9ca3af;
+            color: var(--color-text-muted, #737373);
           }
           @keyframes spin {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
-          }
-          @keyframes loading-progress {
-            0% { width: 0%; transform: translateX(-100%); }
-            50% { width: 100%; transform: translateX(0%); }
-            100% { width: 0%; transform: translateX(100%); }
           }
         `}</style>
       </div>
@@ -645,11 +577,12 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
     });
   };
 
+  // Use subtle monochrome colors for confidence badges
   const confidenceColor = answer.confidence >= 0.8 
-    ? '#10b981' 
+    ? '#404040' 
     : answer.confidence >= 0.6 
-    ? '#f59e0b' 
-    : '#ef4444';
+    ? '#666666' 
+    : '#888888';
 
   const confidenceLabel = answer.confidence >= 0.8
     ? 'High'
@@ -796,18 +729,16 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
 
       <style jsx>{`
         .modern-answer-card {
-          background: #ffffff;
-          border: 1px solid #e5e7eb;
+          background: var(--color-card, #171717);
+          border: 1px solid var(--color-border, #262626);
           border-radius: 16px;
           padding: 32px;
           margin-bottom: 32px;
-          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
           transition: all 0.3s ease;
         }
 
         .modern-answer-card:hover {
-          box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-          transform: translateY(-1px);
+          border-color: var(--color-text-muted, #404040);
         }
 
         .answer-header {
@@ -818,10 +749,10 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
         }
 
         .doctor-avatar {
-          width: 48px;
-          height: 48px;
+          width: 44px;
+          height: 44px;
           border-radius: 12px;
-          background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+          background: var(--color-border, #e5e7eb);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -849,9 +780,9 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
 
         .title-row h3 {
           margin: 0;
-          font-size: 20px;
+          font-size: 18px;
           font-weight: 700;
-          color: #111827;
+          color: var(--color-text, #fafafa);
           line-height: 1.3;
         }
 
@@ -860,8 +791,9 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
           align-items: center;
           gap: 4px;
           padding: 4px 10px;
-          background: linear-gradient(135deg, #f3e8ff, #e9d5ff);
-          color: #7c3aed;
+          background: var(--color-border, #262626);
+          color: var(--color-text-light, #a3a3a3);
+          border: 1px solid var(--color-border, #333);
           border-radius: 12px;
           font-size: 11px;
           font-weight: 600;
@@ -872,8 +804,7 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
         }
 
         .ai-badge:hover {
-          background: linear-gradient(135deg, #e9d5ff, #ddd6fe);
-          transform: scale(1.05);
+          background: var(--color-border-light, #333);
         }
 
         .ai-badge svg {
@@ -883,7 +814,7 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
         .subtitle {
           margin: 0;
           font-size: 14px;
-          color: #6b7280;
+          color: var(--color-text-muted, #737373);
           font-weight: 500;
         }
 
@@ -915,8 +846,8 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
           border-radius: 20px;
           font-size: 12px;
           font-weight: 500;
-          background: #f3f4f6;
-          color: #6b7280;
+          background: var(--color-border, #262626);
+          color: var(--color-text-muted, #737373);
         }
 
         .answer-content {
@@ -924,18 +855,18 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
         }
 
         .answer-text {
-          font-size: 17px;
-          line-height: 1.7;
-          color: #374151;
+          font-size: 16px;
+          line-height: 1.85;
+          color: var(--color-text-light, #d4d4d4);
           margin: 0;
-          white-space: pre-wrap; /* Preserve line breaks and spacing */
+          white-space: pre-wrap;
         }
 
         .answer-content .answer-text p {
           display: block;
           margin-top: 0;
-          margin-bottom: 2.5em;
-          line-height: 1.8;
+          margin-bottom: 1.75em;
+          line-height: 1.85;
         }
 
         .answer-content .answer-text p:last-child {
@@ -943,9 +874,9 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
         }
 
         .answer-text h1 {
-          font-size: 1.5em;
+          font-size: 1.4em;
           font-weight: 700;
-          color: #1f2937;
+          color: var(--color-text, #fafafa);
           margin-top: 1.5em;
           margin-bottom: 0.75em;
           line-height: 1.3;
@@ -956,9 +887,9 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
         }
 
         .answer-text h2 {
-          font-size: 1.25em;
+          font-size: 1.2em;
           font-weight: 600;
-          color: #374151;
+          color: var(--color-text, #e5e5e5);
           margin-top: 1.5em;
           margin-bottom: 0.75em;
           line-height: 1.3;
@@ -971,7 +902,7 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
         .answer-text h3 {
           font-size: 1.1em;
           font-weight: 600;
-          color: #4b5563;
+          color: var(--color-text-light, #d4d4d4);
           margin-top: 1.25em;
           margin-bottom: 0.5em;
           line-height: 1.3;
@@ -1052,8 +983,8 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
           display: flex;
           align-items: flex-start;
           gap: 12px;
-          background: #f9fafb;
-          border: 1px solid #e5e7eb;
+          background: var(--color-border-light, #1a1a1a);
+          border: 1px solid var(--color-border, #262626);
           padding: 16px;
           border-radius: 12px;
           margin-top: 16px;
@@ -1067,14 +998,14 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
         .answer-notes p {
           margin: 0;
           font-size: 14px;
-          color: #6b7280;
+          color: var(--color-text-muted, #737373);
           line-height: 1.5;
         }
 
         .answer-footer {
-          margin-top: 24px;
-          padding-top: 24px;
-          border-top: 1px solid #e5e7eb;
+          margin-top: 20px;
+          padding-top: 20px;
+          border-top: 1px solid var(--color-border, #262626);
         }
 
         .sources-toggle {
@@ -1082,20 +1013,20 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
           justify-content: space-between;
           align-items: center;
           width: 100%;
-          background: #f9fafb;
-          border: 1px solid #e5e7eb;
-          border-radius: 12px;
-          padding: 16px;
+          background: var(--color-border-light, #1a1a1a);
+          border: 1px solid var(--color-border, #262626);
+          border-radius: 10px;
+          padding: 14px 16px;
           cursor: pointer;
-          font-size: 14px;
+          font-size: 13px;
           font-weight: 600;
-          color: #374151;
+          color: var(--color-text-light, #a3a3a3);
           transition: all 0.2s ease;
         }
 
         .sources-toggle:hover {
-          background: #f3f4f6;
-          border-color: #d1d5db;
+          background: var(--color-border, #262626);
+          border-color: var(--color-text-muted, #404040);
         }
 
         .toggle-content {
@@ -1105,13 +1036,13 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
         }
 
         .citation-count {
-          color: #6b7280;
+          color: var(--color-text-muted, #737373);
           font-weight: 500;
         }
 
         .toggle-arrow {
           transition: transform 0.2s ease;
-          color: #6b7280;
+          color: var(--color-text-muted, #737373);
         }
 
         .toggle-arrow.expanded {
@@ -1119,19 +1050,19 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
         }
 
         .sources-list {
-          margin-top: 16px;
-          background: #f9fafb;
-          border: 1px solid #e5e7eb;
-          border-radius: 12px;
-          padding: 16px;
+          margin-top: 12px;
+          background: var(--color-border-light, #1a1a1a);
+          border: 1px solid var(--color-border, #262626);
+          border-radius: 10px;
+          padding: 12px 16px;
         }
 
         .source-item {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 12px 0;
-          border-bottom: 1px solid #e5e7eb;
+          padding: 10px 0;
+          border-bottom: 1px solid var(--color-border, #262626);
         }
 
         .source-item:last-child {
@@ -1141,15 +1072,15 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
         .source-info {
           display: flex;
           align-items: center;
-          gap: 16px;
+          gap: 12px;
         }
 
         .play-button {
-          background: #10b981;
+          background: var(--color-text-muted, #525252);
           color: white;
           border: none;
-          border-radius: 8px;
-          padding: 8px;
+          border-radius: 6px;
+          padding: 6px;
           cursor: pointer;
           transition: all 0.2s ease;
           display: flex;
@@ -1158,16 +1089,15 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
         }
 
         .play-button:hover {
-          background: #059669;
-          transform: translateY(-1px);
+          background: var(--color-text-light, #737373);
         }
 
         .copy-link-button {
-          background: #e5e7eb;
-          color: #6b7280;
+          background: var(--color-border, #262626);
+          color: var(--color-text-muted, #737373);
           border: none;
-          border-radius: 8px;
-          padding: 8px;
+          border-radius: 6px;
+          padding: 6px;
           cursor: pointer;
           transition: all 0.2s ease;
           display: flex;
@@ -1176,41 +1106,40 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
         }
 
         .copy-link-button:hover {
-          background: #d1d5db;
-          color: #374151;
-          transform: translateY(-1px);
+          background: var(--color-text-muted, #404040);
+          color: var(--color-text, #fafafa);
         }
 
         .source-details {
           display: flex;
           flex-direction: column;
-          gap: 6px;
+          gap: 4px;
           flex: 1;
         }
 
         .source-title {
-          font-weight: 600;
-          font-size: 14px;
-          color: #111827;
+          font-weight: 500;
+          font-size: 13px;
+          color: var(--color-text-light, #d4d4d4);
           line-height: 1.4;
         }
 
         .source-meta {
           display: flex;
-          gap: 12px;
+          gap: 10px;
           align-items: center;
         }
 
         .source-timestamp {
           font-weight: 600;
           font-family: monospace;
-          font-size: 13px;
-          color: #3b82f6;
+          font-size: 12px;
+          color: var(--color-text-muted, #737373);
         }
 
         .source-date {
-          font-size: 12px;
-          color: #6b7280;
+          font-size: 11px;
+          color: var(--color-text-muted, #525252);
           font-weight: 500;
         }
 

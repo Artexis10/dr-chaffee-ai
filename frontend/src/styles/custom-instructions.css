@@ -1,9 +1,9 @@
-/* Override Tailwind classes for Custom Instructions Editor */
+/* Override Tailwind classes for Custom Instructions Editor - B&W Theme */
 
 /* Main container */
 .bg-slate-800\/50 {
   background: #ffffff !important;
-  border: 1px solid #d1d5db !important;
+  border: 1px solid #e5e7eb !important;
   border-radius: 0.75rem !important;
   padding: 1.5rem !important;
 }
@@ -12,35 +12,43 @@
   background: #f9fafb !important;
 }
 
-/* Text colors */
+/* Text colors - monochrome */
 .text-slate-400 {
   color: #6b7280 !important;
 }
 
 .text-slate-300 {
-  color: #d1d5db !important;
+  color: #9ca3af !important;
 }
 
 .text-blue-400 {
-  color: #000000 !important;
+  color: #1f2937 !important;
 }
 
 .text-purple-400 {
-  color: #000000 !important;
+  color: #1f2937 !important;
 }
 
 .text-white {
   color: #ffffff !important;
 }
 
-/* Backgrounds */
+.text-yellow-400 {
+  color: #4b5563 !important;
+}
+
+.text-red-400 {
+  color: #6b7280 !important;
+}
+
+/* Backgrounds - B&W */
 .bg-slate-700 {
   background: #ffffff !important;
   border: 1px solid #d1d5db !important;
 }
 
 .bg-slate-950 {
-  background: #ffffff !important;
+  background: #f9fafb !important;
   border: 1px solid #e5e7eb !important;
 }
 
@@ -49,7 +57,7 @@
 }
 
 .bg-blue-600:hover {
-  background: #333333 !important;
+  background: #1f2937 !important;
 }
 
 .bg-green-600 {
@@ -57,36 +65,61 @@
 }
 
 .bg-green-600:hover {
-  background: #333333 !important;
+  background: #1f2937 !important;
 }
 
 .bg-purple-600 {
-  background: #333333 !important;
+  background: #374151 !important;
 }
 
 .bg-purple-600:hover {
-  background: #555555 !important;
+  background: #4b5563 !important;
 }
 
 .bg-slate-600 {
-  background: #e5e5e5 !important;
-  color: #000000 !important;
+  background: #f3f4f6 !important;
+  color: #1f2937 !important;
+  border: 1px solid #d1d5db !important;
 }
 
 .bg-slate-600:hover {
-  background: #d0d0d0 !important;
+  background: #e5e7eb !important;
 }
 
+/* Active instruction highlight - subtle emerald */
 .bg-green-500\/10 {
-  background: #ecfdf5 !important;
+  background: #f0fdf4 !important;
+}
+
+.bg-green-500\/20 {
+  background: #dcfce7 !important;
 }
 
 .bg-slate-800\/30 {
-  background: #f9fafb !important;
+  background: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
 }
 
+/* Active badge */
 .bg-green-500 {
-  background: #10b981 !important;
+  background: #1f2937 !important;
+}
+
+/* Error/success message backgrounds */
+.bg-green-500\/20 {
+  background: #f0fdf4 !important;
+}
+
+.bg-red-500\/20 {
+  background: #fef2f2 !important;
+}
+
+.text-green-400 {
+  color: #166534 !important;
+}
+
+.text-red-400 {
+  color: #991b1b !important;
 }
 
 /* Borders */
@@ -99,7 +132,7 @@
 }
 
 .border-green-500 {
-  border-color: #10b981 !important;
+  border-color: #86efac !important;
 }
 
 /* Text sizes and weights */
@@ -125,6 +158,7 @@
 
 .font-bold {
   font-weight: 700 !important;
+  color: #1f2937 !important;
 }
 
 .font-semibold {
@@ -146,6 +180,14 @@ input[type="text"],
 input[type="checkbox"],
 textarea {
   font-size: 1rem !important;
+  color: #1f2937 !important;
+}
+
+input[type="text"]:focus,
+textarea:focus {
+  border-color: #9ca3af !important;
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(156, 163, 175, 0.2) !important;
 }
 
 textarea {
@@ -154,8 +196,14 @@ textarea {
 }
 
 /* Modals */
-.fixed {
-  background: rgba(0, 0, 0, 0.5) !important;
+.fixed.inset-0 {
+  background: rgba(0, 0, 0, 0.4) !important;
+}
+
+/* Modal content */
+.bg-slate-800 {
+  background: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
 }
 
 /* Pre-formatted text */
@@ -163,4 +211,18 @@ pre {
   font-family: monospace !important;
   white-space: pre-wrap !important;
   word-wrap: break-word !important;
+  color: #374151 !important;
+}
+
+/* Hover states for icon buttons */
+.hover\:text-blue-400:hover {
+  color: #1f2937 !important;
+}
+
+.hover\:text-yellow-400:hover {
+  color: #1f2937 !important;
+}
+
+.hover\:text-red-400:hover {
+  color: #6b7280 !important;
 }
