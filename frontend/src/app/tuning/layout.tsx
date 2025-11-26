@@ -15,18 +15,42 @@ export default function TuningLayout({
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user has tuning_auth cookie with correct value
-    const cookies = document.cookie.split(';').map(c => c.trim());
-    const tuningCookie = cookies.find(c => c.startsWith('tuning_auth='));
-    const isAuthed = tuningCookie === 'tuning_auth=authenticated';
+    // Check authentication by calling a protected endpoint
+    // We can't read httpOnly cookies from JavaScript, so we verify via API
+    const checkAuth = async () => {
+      // Skip auth check if we're on the auth page
+      if (pathname === '/tuning/auth') {
+        setIsLoading(false);
+        return;
+      }
+      
+      try {
+        // Call a lightweight protected endpoint to verify auth
+        const res = await fetch('/api/tuning/models', {
+          method: 'GET',
+          credentials: 'include',  // Send httpOnly cookie
+        });
+        
+        if (res.ok) {
+          setIsAuthenticated(true);
+        } else if (res.status === 401 || res.status === 403) {
+          setIsAuthenticated(false);
+          router.replace('/tuning/auth');
+        } else {
+          // Other errors (503, 500) - still redirect to auth for now
+          setIsAuthenticated(false);
+          router.replace('/tuning/auth');
+        }
+      } catch (error) {
+        console.error('[Tuning Layout] Auth check failed:', error);
+        setIsAuthenticated(false);
+        router.replace('/tuning/auth');
+      } finally {
+        setIsLoading(false);
+      }
+    };
     
-    setIsAuthenticated(isAuthed);
-    setIsLoading(false);
-    
-    // If not authenticated and not already on auth page, redirect to tuning login
-    if (!isAuthed && pathname !== '/tuning/auth') {
-      router.replace('/tuning/auth');
-    }
+    checkAuth();
   }, [pathname, router]);
   
   // Extract current tab from pathname
@@ -41,8 +65,15 @@ export default function TuningLayout({
 
   const activeTab = getCurrentTab() || 'overview';
 
-  const handleLogout = () => {
-    document.cookie = 'tuning_auth=; path=/tuning; max-age=0';
+  const handleLogout = async () => {
+    // Clear the httpOnly cookie by calling a logout endpoint or just redirect
+    // Since we can't clear httpOnly cookies from JS, we'll redirect and let the cookie expire
+    // Or call a logout endpoint that clears it
+    try {
+      await fetch('/api/tuning/auth/logout', { method: 'POST', credentials: 'include' });
+    } catch (e) {
+      // Ignore errors, just redirect
+    }
     window.location.href = '/';
   };
 

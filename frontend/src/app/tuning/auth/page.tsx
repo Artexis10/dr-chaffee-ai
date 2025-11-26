@@ -21,6 +21,7 @@ export default function TuningAuth() {
       const response = await fetch('/api/tuning/auth/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',  // CRITICAL: Required to receive and store httpOnly cookies
         body: JSON.stringify({ password })
       });
 

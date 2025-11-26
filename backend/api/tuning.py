@@ -59,6 +59,8 @@ class EmbeddingModelInfo(BaseModel):
     description: str
     is_active_query: bool = False
     is_active_ingestion: bool = False
+    
+    model_config = {"protected_namespaces": ()}  # Allow model_name field
 
 
 class SearchConfig(BaseModel):
@@ -1034,9 +1036,63 @@ class SearchConfigResponse(BaseModel):
     error_code: Optional[str] = None
 
 
-def get_search_config_from_db() -> tuple[SearchConfigDB, Optional[str], Optional[str]]:
+def get_search_config_from_db() -> SearchConfigDB:
     """
     Get search configuration from database, with defaults if not found.
+    
+    This function ALWAYS returns a valid SearchConfigDB object with defaults
+    if the table is missing or any error occurs. This ensures /search and /answer
+    never 500 due to missing migrations.
+    
+    Returns:
+        SearchConfigDB: Configuration object (defaults if table missing)
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT top_k, min_similarity, enable_reranker, rerank_top_k, return_top_k
+            FROM search_config
+            WHERE id = 1
+        """)
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if row:
+            return SearchConfigDB(
+                top_k=row['top_k'],
+                min_similarity=row['min_similarity'],
+                enable_reranker=row['enable_reranker'],
+                rerank_top_k=row['rerank_top_k'],
+                return_top_k=row['return_top_k']
+            )
+        else:
+            # Table exists but no row - return defaults
+            logger.info("search_config table exists but has no row, using defaults")
+            return SearchConfigDB()
+            
+    except psycopg2.errors.UndefinedTable:
+        logger.warning("search_config table does not exist - migration 015 needs to be applied. Using defaults.")
+        return SearchConfigDB()
+    except psycopg2.ProgrammingError as e:
+        if "does not exist" in str(e):
+            logger.warning(f"search_config table missing: {e}. Using defaults.")
+            return SearchConfigDB()
+        logger.error(f"Database programming error: {e}. Using defaults.")
+        return SearchConfigDB()
+    except Exception as e:
+        logger.warning(f"Failed to load search config from DB: {e}. Using defaults.")
+        return SearchConfigDB()
+
+
+def get_search_config_with_status() -> tuple[SearchConfigDB, Optional[str], Optional[str]]:
+    """
+    Get search configuration with error status for the tuning UI.
+    
+    This function returns both the config and any error information so the
+    tuning UI can display migration warnings to the user.
     
     Returns:
         tuple: (config, error_message, error_code)
@@ -1095,7 +1151,7 @@ async def get_search_config(request: Request):
     
     Returns config with optional error info if table is missing.
     """
-    config, error, error_code = get_search_config_from_db()
+    config, error, error_code = get_search_config_with_status()
     return SearchConfigResponse(config=config, error=error, error_code=error_code)
 
 

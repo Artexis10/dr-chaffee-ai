@@ -50,14 +50,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (response.ok) {
       // Backend validated the password - set our own cookie for the frontend domain
       // This is necessary because backend cookies won't work cross-origin
+      // Path=/ ensures cookie is sent to all routes including /tuning/*
       const isProduction = process.env.NODE_ENV === 'production';
       
       res.setHeader('Set-Cookie', [
         `tuning_auth=authenticated; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400${isProduction ? '; Secure' : ''}`
       ]);
       
-      console.log('[Tuning Auth] Authentication successful, cookie set for frontend domain');
-      return res.status(200).json({ success: true });
+      console.log('[Tuning Auth] Authentication successful, cookie set with Path=/');
+      return res.status(200).json({ success: true, message: 'Authentication successful' });
     } else if (response.status === 401) {
       console.log('[Tuning Auth] Invalid password');
       return res.status(401).json({ error: 'Invalid password' });
