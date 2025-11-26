@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Save, Loader2, RefreshCw } from 'lucide-react';
+import { Save, Loader2, RefreshCw, AlertTriangle } from 'lucide-react';
 
 interface SearchConfig {
   top_k: number;
@@ -9,6 +9,12 @@ interface SearchConfig {
   enable_reranker: boolean;
   rerank_top_k: number;
   return_top_k: number;
+}
+
+interface SearchConfigResponse {
+  config: SearchConfig | null;
+  error: string | null;
+  error_code: string | null;
 }
 
 export default function SearchPage() {
@@ -22,7 +28,8 @@ export default function SearchPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
-  const [messageType, setMessageType] = useState<'success' | 'error'>('success');
+  const [messageType, setMessageType] = useState<'success' | 'error' | 'warning'>('success');
+  const [dbError, setDbError] = useState<string | null>(null);
   const [testQuery, setTestQuery] = useState('');
   const [testResults, setTestResults] = useState<any>(null);
   const [testing, setTesting] = useState(false);
@@ -33,16 +40,25 @@ export default function SearchPage() {
 
   const loadConfig = async () => {
     setLoading(true);
+    setDbError(null);
     try {
       const res = await fetch('/api/tuning/search-config');
       if (res.ok) {
-        const data = await res.json();
-        setConfig(data);
+        const data: SearchConfigResponse = await res.json();
+        if (data.config) {
+          setConfig(data.config);
+        }
+        if (data.error) {
+          setDbError(data.error);
+          if (data.error_code === 'MIGRATION_REQUIRED') {
+            setMessage('Database migration required - using default values');
+            setMessageType('warning');
+          }
+        }
       } else if (res.status === 401) {
         setMessage('Please authenticate to access search configuration');
         setMessageType('error');
       } else {
-        // Use defaults if config doesn't exist yet
         console.warn('Failed to load config from backend, using defaults');
       }
     } catch (error) {
@@ -66,11 +82,22 @@ export default function SearchPage() {
       });
       
       if (res.ok) {
-        const data = await res.json();
-        setConfig(data);
-        setMessageType('success');
-        setMessage('Configuration saved to database');
-        setTimeout(() => setMessage(''), 3000);
+        const data: SearchConfigResponse = await res.json();
+        if (data.config) {
+          setConfig(data.config);
+        }
+        if (data.error) {
+          setDbError(data.error);
+          setMessageType('warning');
+          setMessage(data.error_code === 'MIGRATION_REQUIRED' 
+            ? 'Configuration could not be saved - database migration required'
+            : data.error);
+        } else {
+          setDbError(null);
+          setMessageType('success');
+          setMessage('Configuration saved to database');
+          setTimeout(() => setMessage(''), 3000);
+        }
       } else if (res.status === 401) {
         setMessageType('error');
         setMessage('Authentication required. Please log in again.');
@@ -143,15 +170,40 @@ export default function SearchPage() {
         </p>
       </div>
 
-      {/* Message */}
-      {message && (
+      {/* Database Migration Warning Banner */}
+      {dbError && (
         <div style={{
-          background: messageType === 'success' ? 'var(--bg-card, #f0fdf4)' : '#fef2f2',
-          color: messageType === 'success' ? '#059669' : '#dc2626',
+          background: '#fffbeb',
+          color: '#92400e',
+          padding: '1rem 1.25rem',
+          borderRadius: '0.5rem',
+          marginBottom: '1.5rem',
+          border: '1px solid #fcd34d',
+          fontSize: '0.875rem',
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '0.75rem'
+        }}>
+          <AlertTriangle style={{ width: '1.25rem', height: '1.25rem', flexShrink: 0, marginTop: '0.125rem' }} />
+          <div>
+            <p style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Database Migration Required</p>
+            <p style={{ color: '#a16207' }}>
+              Search configuration could not be saved — the database migration for search_config must be applied.
+              Please run migration 015_search_config.sql on your database.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Message */}
+      {message && !dbError && (
+        <div style={{
+          background: messageType === 'success' ? '#f0fdf4' : messageType === 'warning' ? '#fffbeb' : '#fef2f2',
+          color: messageType === 'success' ? '#059669' : messageType === 'warning' ? '#92400e' : '#dc2626',
           padding: '0.75rem 1rem',
           borderRadius: '0.5rem',
           marginBottom: '1.5rem',
-          border: `1px solid ${messageType === 'success' ? '#d1fae5' : '#fecaca'}`,
+          border: `1px solid ${messageType === 'success' ? '#d1fae5' : messageType === 'warning' ? '#fcd34d' : '#fecaca'}`,
           fontSize: '0.875rem',
           fontWeight: 500,
           display: 'flex',

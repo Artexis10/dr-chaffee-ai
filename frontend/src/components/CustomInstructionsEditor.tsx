@@ -286,10 +286,11 @@ export default function CustomInstructionsEditor() {
           background: 'var(--bg-card, #ffffff)',
           border: '2px solid var(--accent, #000000)',
           borderRadius: '0.75rem',
-          padding: '1.5rem'
+          padding: '1.5rem 2rem'
         }}>
-          <div style={{ marginBottom: '1.5rem' }}>
-            <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-primary, #1f2937)', marginBottom: '0.25rem' }}>
+          {/* Header */}
+          <div style={{ marginBottom: '2rem' }}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary, #1f2937)', marginBottom: '0.5rem' }}>
               {formData.id ? 'Edit Instruction Set' : 'New Instruction Set'}
             </h3>
             <p style={{ fontSize: '0.875rem', color: 'var(--text-muted, #6b7280)' }}>
@@ -297,98 +298,108 @@ export default function CustomInstructionsEditor() {
             </p>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary, #374151)', marginBottom: '0.5rem' }}>
-                Name *
-              </label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="e.g., 'Enhanced Medical Focus'"
-                maxLength={255}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  border: '1px solid var(--border-subtle, #d1d5db)',
-                  borderRadius: '0.5rem',
-                  fontSize: '1rem',
-                  background: 'var(--bg-card-elevated, #f9fafb)',
-                  color: 'var(--text-primary, #1f2937)'
-                }}
-              />
+          {/* Form fields with consistent spacing */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            {/* Name and Description row */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary, #374151)', marginBottom: '0.5rem' }}>
+                  Name *
+                </label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="e.g., 'Enhanced Medical Focus'"
+                  maxLength={255}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: '1px solid var(--border-subtle, #d1d5db)',
+                    borderRadius: '0.5rem',
+                    fontSize: '1rem',
+                    background: 'var(--bg-card-elevated, #f9fafb)',
+                    color: 'var(--text-primary, #1f2937)',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+              
+              <div>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary, #374151)', marginBottom: '0.5rem' }}>
+                  Description
+                </label>
+                <input
+                  type="text"
+                  value={formData.description || ''}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="What these instructions do"
+                  maxLength={500}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: '1px solid var(--border-subtle, #d1d5db)',
+                    borderRadius: '0.5rem',
+                    fontSize: '1rem',
+                    background: 'var(--bg-card-elevated, #f9fafb)',
+                    color: 'var(--text-primary, #1f2937)',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
             </div>
-            
-            <div>
-              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary, #374151)', marginBottom: '0.5rem' }}>
-                Description
-              </label>
-              <input
-                type="text"
-                value={formData.description || ''}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="What these instructions do"
-                maxLength={500}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  border: '1px solid var(--border-subtle, #d1d5db)',
-                  borderRadius: '0.5rem',
-                  fontSize: '1rem',
-                  background: 'var(--bg-card-elevated, #f9fafb)',
-                  color: 'var(--text-primary, #1f2937)'
-                }}
-              />
-            </div>
-          </div>
 
-          <div style={{ marginBottom: '1rem' }}>
-            <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary, #374151)', marginBottom: '0.5rem' }}>
-              Custom Instructions * <span style={{ fontWeight: 400, color: 'var(--text-muted, #6b7280)' }}>({formData.instructions.length}/10000)</span>
-            </label>
-            <textarea
-              value={formData.instructions}
-              onChange={(e) => setFormData({ ...formData, instructions: e.target.value })}
-              placeholder="Add your custom guidance here. Examples:
+            {/* Custom Instructions textarea */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary, #374151)', marginBottom: '0.5rem' }}>
+                Custom Instructions * <span style={{ fontWeight: 400, color: 'var(--text-muted, #6b7280)' }}>({formData.instructions.length}/10000)</span>
+              </label>
+              <textarea
+                value={formData.instructions}
+                onChange={(e) => setFormData({ ...formData, instructions: e.target.value })}
+                placeholder="Add your custom guidance here. Examples:
 - Emphasize specific topics
 - Adjust tone or depth
 - Add citation preferences
 - Focus on particular health conditions"
-              rows={10}
-              maxLength={10000}
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                border: '1px solid var(--border-subtle, #d1d5db)',
-                borderRadius: '0.5rem',
-                fontSize: '0.875rem',
-                fontFamily: 'monospace',
-                background: 'var(--bg-card-elevated, #f9fafb)',
-                color: 'var(--text-primary, #1f2937)',
-                resize: 'vertical',
-                minHeight: '200px'
-              }}
-            />
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted, #6b7280)', marginTop: '0.5rem' }}>
-              These will be layered on top of baseline safety rules (which remain protected)
-            </p>
+                rows={10}
+                maxLength={10000}
+                style={{
+                  width: '100%',
+                  padding: '1rem',
+                  border: '1px solid var(--border-subtle, #d1d5db)',
+                  borderRadius: '0.5rem',
+                  fontSize: '0.875rem',
+                  fontFamily: 'monospace',
+                  background: 'var(--bg-card-elevated, #f9fafb)',
+                  color: 'var(--text-primary, #1f2937)',
+                  resize: 'vertical',
+                  minHeight: '200px',
+                  boxSizing: 'border-box'
+                }}
+              />
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted, #6b7280)', marginTop: '0.5rem' }}>
+                These will be layered on top of baseline safety rules (which remain protected)
+              </p>
+            </div>
+
+            {/* Activate checkbox */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <input
+                type="checkbox"
+                id="is_active"
+                checked={formData.is_active}
+                onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                style={{ width: '1rem', height: '1rem', cursor: 'pointer' }}
+              />
+              <label htmlFor="is_active" style={{ fontSize: '0.875rem', color: 'var(--text-primary, #374151)', cursor: 'pointer' }}>
+                Activate immediately after saving
+              </label>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
-            <input
-              type="checkbox"
-              id="is_active"
-              checked={formData.is_active}
-              onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-              style={{ width: '1rem', height: '1rem', cursor: 'pointer' }}
-            />
-            <label htmlFor="is_active" style={{ fontSize: '0.875rem', color: 'var(--text-primary, #374151)', cursor: 'pointer' }}>
-              Activate immediately after saving
-            </label>
-          </div>
-
-          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+          {/* Buttons */}
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '2rem' }}>
             <button
               onClick={saveInstructions}
               disabled={loading || !formData.name || !formData.instructions}

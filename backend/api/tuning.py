@@ -26,10 +26,14 @@ router = APIRouter(prefix="/api/tuning", tags=["tuning"])
 # Path to embedding models config
 EMBEDDING_MODELS_PATH = Path(__file__).parent.parent / "config" / "embedding_models.json"
 
-# Tuning password from environment (must be set)
+# Tuning password from environment (must be set for security)
 TUNING_PASSWORD = os.getenv('TUNING_PASSWORD')
 if not TUNING_PASSWORD:
-    logger.warning("⚠️ TUNING_PASSWORD not set - tuning dashboard will be inaccessible")
+    logger.warning("=" * 70)
+    logger.warning("⚠️  WARNING: TUNING_PASSWORD is not set.")
+    logger.warning("⚠️  Tuning endpoints are NOT protected.")
+    logger.warning("⚠️  Do NOT use in production without setting TUNING_PASSWORD!")
+    logger.warning("=" * 70)
 
 
 class PasswordRequest(BaseModel):
@@ -163,10 +167,26 @@ async def require_tuning_auth(request: Request):
     
     All sensitive tuning endpoints MUST use this dependency to ensure
     only authenticated users can access configuration and instructions.
+    
+    Security checks:
+    1. TUNING_PASSWORD must be configured in environment
+    2. Client must have valid tuning_auth cookie set to "authenticated"
     """
+    # Check if tuning password is configured
+    if not TUNING_PASSWORD:
+        logger.error("Tuning endpoint accessed but TUNING_PASSWORD is not configured")
+        raise HTTPException(
+            status_code=503, 
+            detail="Tuning dashboard not configured. TUNING_PASSWORD must be set."
+        )
+    
+    # Check for valid authentication cookie
     cookie = request.cookies.get("tuning_auth")
     if cookie != "authenticated":
-        raise HTTPException(status_code=401, detail="Tuning dashboard access denied. Please authenticate first.")
+        raise HTTPException(
+            status_code=401, 
+            detail="Tuning dashboard access denied. Please authenticate first."
+        )
 
 
 @router.get(
@@ -1007,8 +1027,23 @@ class SearchConfigDB(BaseModel):
     return_top_k: int = Field(default=20, ge=1, le=100, description="Final results to return")
 
 
-def get_search_config_from_db() -> SearchConfigDB:
-    """Get search configuration from database, with defaults if not found"""
+class SearchConfigResponse(BaseModel):
+    """Response wrapper for search config with error info"""
+    config: Optional[SearchConfigDB] = None
+    error: Optional[str] = None
+    error_code: Optional[str] = None
+
+
+def get_search_config_from_db() -> tuple[SearchConfigDB, Optional[str], Optional[str]]:
+    """
+    Get search configuration from database, with defaults if not found.
+    
+    Returns:
+        tuple: (config, error_message, error_code)
+        - config: SearchConfigDB with values (defaults if table missing)
+        - error_message: Human-readable error or None
+        - error_code: Error code for frontend handling or None
+    """
     try:
         conn = get_db_connection()
         cur = conn.cursor()
@@ -1029,32 +1064,44 @@ def get_search_config_from_db() -> SearchConfigDB:
                 enable_reranker=row['enable_reranker'],
                 rerank_top_k=row['rerank_top_k'],
                 return_top_k=row['return_top_k']
-            )
+            ), None, None
         else:
-            # Return defaults if no config exists
-            return SearchConfigDB()
+            # Table exists but no row - return defaults
+            return SearchConfigDB(), None, None
             
+    except psycopg2.errors.UndefinedTable:
+        logger.warning("search_config table does not exist - migration 015 needs to be applied")
+        return SearchConfigDB(), "Database migration required: search_config table does not exist. Please apply migration 015_search_config.sql", "MIGRATION_REQUIRED"
+    except psycopg2.ProgrammingError as e:
+        if "does not exist" in str(e):
+            logger.warning(f"search_config table missing: {e}")
+            return SearchConfigDB(), "Database migration required: search_config table does not exist. Please apply migration 015_search_config.sql", "MIGRATION_REQUIRED"
+        logger.error(f"Database programming error: {e}")
+        return SearchConfigDB(), f"Database error: {str(e)}", "DB_ERROR"
     except Exception as e:
         logger.warning(f"Failed to load search config from DB: {e}, using defaults")
-        return SearchConfigDB()
+        return SearchConfigDB(), None, None
 
 
 @router.get(
     "/search-config",
-    response_model=SearchConfigDB,
+    response_model=SearchConfigResponse,
     dependencies=[Depends(require_tuning_auth)],
 )
 async def get_search_config(request: Request):
     """
     Get current search configuration from database.
     Protected: requires tuning_auth cookie.
+    
+    Returns config with optional error info if table is missing.
     """
-    return get_search_config_from_db()
+    config, error, error_code = get_search_config_from_db()
+    return SearchConfigResponse(config=config, error=error, error_code=error_code)
 
 
 @router.put(
     "/search-config",
-    response_model=SearchConfigDB,
+    response_model=SearchConfigResponse,
     dependencies=[Depends(require_tuning_auth)],
 )
 async def update_search_config(config: SearchConfigDB, request: Request):
@@ -1087,14 +1134,33 @@ async def update_search_config(config: SearchConfigDB, request: Request):
         
         logger.info(f"Search config updated: top_k={config.top_k}, min_similarity={config.min_similarity}")
         
-        return SearchConfigDB(
-            top_k=row['top_k'],
-            min_similarity=row['min_similarity'],
-            enable_reranker=row['enable_reranker'],
-            rerank_top_k=row['rerank_top_k'],
-            return_top_k=row['return_top_k']
+        return SearchConfigResponse(
+            config=SearchConfigDB(
+                top_k=row['top_k'],
+                min_similarity=row['min_similarity'],
+                enable_reranker=row['enable_reranker'],
+                rerank_top_k=row['rerank_top_k'],
+                return_top_k=row['return_top_k']
+            )
         )
         
+    except psycopg2.errors.UndefinedTable:
+        logger.error("Cannot save search config - table does not exist")
+        return SearchConfigResponse(
+            config=config,
+            error="Database migration required: search_config table does not exist. Please apply migration 015_search_config.sql",
+            error_code="MIGRATION_REQUIRED"
+        )
+    except psycopg2.ProgrammingError as e:
+        if "does not exist" in str(e):
+            logger.error(f"Cannot save search config - table missing: {e}")
+            return SearchConfigResponse(
+                config=config,
+                error="Database migration required: search_config table does not exist. Please apply migration 015_search_config.sql",
+                error_code="MIGRATION_REQUIRED"
+            )
+        logger.error(f"Failed to update search config: {e}")
+        return SearchConfigResponse(config=config, error=f"Database error: {str(e)}", error_code="DB_ERROR")
     except Exception as e:
         logger.error(f"Failed to update search config: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to save configuration: {str(e)}")
+        return SearchConfigResponse(config=config, error=f"Failed to save configuration: {str(e)}", error_code="SAVE_ERROR")
