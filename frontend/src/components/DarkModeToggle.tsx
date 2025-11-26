@@ -1,53 +1,76 @@
 import React, { useState, useEffect } from 'react';
 
+const THEME_KEY = 'askdrchaffee.theme';
+
 export const DarkModeToggle: React.FC = () => {
   // Initialize to null to prevent hydration mismatch, then update on client
   const [isDarkMode, setIsDarkMode] = useState<boolean | null>(null);
+  const [mounted, setMounted] = useState(false);
 
-  // Initialize theme on mount - check localStorage first, default to dark
+  // Initialize theme on mount - check localStorage first, then system preference, then default to light
   useEffect(() => {
-    const storedTheme = localStorage.getItem('theme');
+    setMounted(true);
+    
+    const storedTheme = localStorage.getItem(THEME_KEY);
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     
-    // Determine initial theme: stored > system preference > default dark
-    const shouldBeDark = storedTheme === 'light' ? false : (storedTheme === 'dark' ? true : prefersDark || true);
+    // Determine initial theme: stored > system preference > default light
+    let shouldBeDark: boolean;
+    if (storedTheme === 'dark') {
+      shouldBeDark = true;
+    } else if (storedTheme === 'light') {
+      shouldBeDark = false;
+    } else {
+      // No stored preference - use system preference, default to light
+      shouldBeDark = prefersDark;
+    }
     
     setIsDarkMode(shouldBeDark);
-    
-    // Apply the theme classes
-    if (shouldBeDark) {
-      document.documentElement.classList.add('dark-mode');
-      document.documentElement.classList.remove('light-mode');
-    } else {
-      document.documentElement.classList.remove('dark-mode');
-      document.documentElement.classList.add('light-mode');
-    }
+    applyTheme(shouldBeDark);
     
     // Persist if not already stored
     if (!storedTheme) {
-      localStorage.setItem('theme', shouldBeDark ? 'dark' : 'light');
+      localStorage.setItem(THEME_KEY, shouldBeDark ? 'dark' : 'light');
     }
   }, []);
+
+  // Apply theme classes to document
+  const applyTheme = (dark: boolean) => {
+    const root = document.documentElement;
+    if (dark) {
+      root.classList.add('dark-mode');
+      root.classList.remove('light-mode');
+    } else {
+      root.classList.remove('dark-mode');
+      root.classList.add('light-mode');
+    }
+  };
 
   // Toggle dark mode
   const toggleDarkMode = () => {
     const newMode = !isDarkMode;
     setIsDarkMode(newMode);
-    
-    if (newMode) {
-      document.documentElement.classList.add('dark-mode');
-      document.documentElement.classList.remove('light-mode');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark-mode');
-      document.documentElement.classList.add('light-mode');
-      localStorage.setItem('theme', 'light');
-    }
+    applyTheme(newMode);
+    localStorage.setItem(THEME_KEY, newMode ? 'dark' : 'light');
   };
 
-  // Don't render until we know the theme (prevents hydration mismatch)
-  if (isDarkMode === null) {
-    return null;
+  // Don't render until mounted (prevents hydration mismatch)
+  if (!mounted || isDarkMode === null) {
+    // Return a placeholder with same dimensions to prevent layout shift
+    return (
+      <div 
+        className="dark-mode-toggle-placeholder"
+        style={{
+          position: 'fixed',
+          bottom: 24,
+          right: 24,
+          width: 52,
+          height: 52,
+          borderRadius: '50%',
+          background: 'transparent'
+        }}
+      />
+    );
   }
 
   return (
