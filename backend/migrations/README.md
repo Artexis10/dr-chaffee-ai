@@ -201,6 +201,52 @@ def downgrade() -> None:
     op.drop_column('segments', 'language')
 ```
 
+## Docker / Coolify Deployment
+
+### Automatic Migrations
+
+**In Docker/Coolify deployments, migrations run automatically.**
+
+The API service uses `backend/entrypoint.sh` which:
+1. Runs `alembic upgrade head` before starting the server
+2. Uses the same `DATABASE_URL` as the application
+3. Exits cleanly if the database is unreachable
+
+```bash
+# entrypoint.sh (simplified)
+#!/usr/bin/env bash
+set -e
+alembic upgrade head
+exec uvicorn api.main:app --host 0.0.0.0 --port "${PORT:-8000}"
+```
+
+### Migration Ownership
+
+**Only the API service runs migrations.** This prevents race conditions when multiple services start concurrently.
+
+| Service | Runs Alembic? | Notes |
+|---------|---------------|-------|
+| API (backend) | ✅ Yes | Owns schema migrations via entrypoint.sh |
+| Ingestion scripts | ❌ No | Run manually, assume schema is up-to-date |
+| Future workers | ❌ No | Must NOT run Alembic |
+
+### Adding a New Worker Service
+
+If you add a background worker service in the future:
+
+1. **Do NOT** copy the API entrypoint
+2. Create a separate entrypoint that skips Alembic:
+
+```bash
+#!/usr/bin/env bash
+# worker-entrypoint.sh
+# NOTE: Migrations are owned by the API service. Do NOT add alembic here.
+set -e
+exec python -m backend.worker
+```
+
+3. Document that migrations are handled by the API service
+
 ## Production Workflow
 
 ### 1. Development
@@ -233,10 +279,11 @@ git push
 
 ### 3. Production Deployment
 
+**Docker/Coolify:** Migrations run automatically when the API container starts.
+
+**Manual (without Docker):**
 ```bash
-# On production server
-git pull
-pip install -r requirements.txt
+cd backend
 alembic upgrade head
 ```
 

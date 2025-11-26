@@ -101,6 +101,11 @@ COPY backend/ .
 # Environment variables are provided at runtime by Coolify / the host.
 # COPY .env .env
 
+# Copy and make entrypoint executable
+# The entrypoint runs Alembic migrations before starting uvicorn
+COPY backend/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
 # Create directories for temporary files
 RUN mkdir -p /tmp/whisper_cache /tmp/audio_downloads
 
@@ -118,7 +123,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 # Expose port 8000 (Coolify will map 80/443 -> 8000 via reverse proxy)
 EXPOSE 8000
 
-# Run the FastAPI application
+# Run the FastAPI application via entrypoint
+# The entrypoint runs Alembic migrations before starting uvicorn
 # Coolify sets PORT env var, but we default to 8000
-CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["/app/entrypoint.sh"]
 
