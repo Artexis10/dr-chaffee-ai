@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Save, Loader2, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Save, Loader2, AlertTriangle, CheckCircle, AlertCircle, Info } from 'lucide-react';
 
 interface SearchConfig {
   top_k: number;
@@ -28,7 +28,7 @@ export default function SearchPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
-  const [messageType, setMessageType] = useState<'success' | 'error' | 'warning'>('success');
+  const [messageType, setMessageType] = useState<'success' | 'error' | 'warning' | 'info'>('success');
   const [dbError, setDbError] = useState<string | null>(null);
   const [testQuery, setTestQuery] = useState('');
   const [testResults, setTestResults] = useState<any>(null);
@@ -51,8 +51,9 @@ export default function SearchPage() {
         if (data.error) {
           setDbError(data.error);
           if (data.error_code === 'MIGRATION_REQUIRED') {
-            setMessage('Database migration required - using default values');
-            setMessageType('warning');
+            // Don't show as error - just info that we're using defaults
+            setMessage('Using default search settings. Database storage is not configured.');
+            setMessageType('info');
           }
         }
       } else if (res.status === 401) {
@@ -88,14 +89,18 @@ export default function SearchPage() {
         }
         if (data.error) {
           setDbError(data.error);
-          setMessageType('warning');
-          setMessage(data.error_code === 'MIGRATION_REQUIRED' 
-            ? 'Configuration could not be saved - database migration required'
-            : data.error);
+          if (data.error_code === 'MIGRATION_REQUIRED') {
+            // Settings work at runtime, just can't persist
+            setMessageType('info');
+            setMessage('Settings applied for this session. Database storage is not configured, so settings will reset on server restart.');
+          } else {
+            setMessageType('warning');
+            setMessage(data.error);
+          }
         } else {
           setDbError(null);
           setMessageType('success');
-          setMessage('Configuration saved to database');
+          setMessage('Configuration saved successfully');
           setTimeout(() => setMessage(''), 3000);
         }
       } else if (res.status === 401) {
@@ -152,44 +157,41 @@ export default function SearchPage() {
 
   if (loading) {
     return (
-      <div style={{ padding: '2rem', textAlign: 'center' }}>
-        <p style={{ color: '#6b7280' }}>Loading configuration...</p>
+      <div className="tuning-page">
+        <div className="tuning-loading">Loading configuration...</div>
       </div>
     );
   }
 
+  const getMessageIcon = () => {
+    switch (messageType) {
+      case 'success': return <CheckCircle />;
+      case 'error': return <AlertCircle />;
+      case 'warning': return <AlertTriangle />;
+      case 'info': return <Info />;
+      default: return null;
+    }
+  };
+
   return (
-    <div style={{ padding: '2rem' }}>
+    <div className="tuning-page">
       {/* Header */}
-      <div style={{ marginBottom: '2rem' }}>
-        <h1 style={{ fontSize: '2rem', fontWeight: 700, color: '#1f2937', marginBottom: '0.5rem' }}>
-          Search Configuration
-        </h1>
-        <p style={{ color: '#6b7280' }}>
+      <div className="tuning-page-header">
+        <h1 className="tuning-page-title">Search Configuration</h1>
+        <p className="tuning-page-description">
           Tune search parameters and test queries
         </p>
       </div>
 
-      {/* Database Migration Warning Banner */}
+      {/* Info Banner for migration status */}
       {dbError && (
-        <div style={{
-          background: '#fffbeb',
-          color: '#92400e',
-          padding: '1rem 1.25rem',
-          borderRadius: '0.5rem',
-          marginBottom: '1.5rem',
-          border: '1px solid #fcd34d',
-          fontSize: '0.875rem',
-          display: 'flex',
-          alignItems: 'flex-start',
-          gap: '0.75rem'
-        }}>
-          <AlertTriangle style={{ width: '1.25rem', height: '1.25rem', flexShrink: 0, marginTop: '0.125rem' }} />
+        <div className="tuning-message tuning-message-info" style={{ marginBottom: '1.5rem', alignItems: 'flex-start' }}>
+          <Info style={{ flexShrink: 0, marginTop: '0.125rem' }} />
           <div>
-            <p style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Database Migration Required</p>
-            <p style={{ color: '#a16207' }}>
-              Search configuration could not be saved — the database migration for search_config must be applied.
-              Please run migration 015_search_config.sql on your database.
+            <p style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Using Default Settings</p>
+            <p style={{ opacity: 0.9 }}>
+              Search settings are working but won't persist between server restarts. 
+              This is fine for testing. For permanent settings, ask your developer to run the database migration.
             </p>
           </div>
         </div>
@@ -197,143 +199,95 @@ export default function SearchPage() {
 
       {/* Message */}
       {message && !dbError && (
-        <div style={{
-          background: messageType === 'success' ? '#f0fdf4' : messageType === 'warning' ? '#fffbeb' : '#fef2f2',
-          color: messageType === 'success' ? '#059669' : messageType === 'warning' ? '#92400e' : '#dc2626',
-          padding: '0.75rem 1rem',
-          borderRadius: '0.5rem',
-          marginBottom: '1.5rem',
-          border: `1px solid ${messageType === 'success' ? '#d1fae5' : messageType === 'warning' ? '#fcd34d' : '#fecaca'}`,
-          fontSize: '0.875rem',
-          fontWeight: 500,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem'
-        }}>
-          {messageType === 'success' ? '✓' : '⚠'} {message}
+        <div className={`tuning-message tuning-message-${messageType}`}>
+          {getMessageIcon()}
+          {message}
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+      <div className="tuning-two-col">
         {/* Configuration Panel */}
-        <div style={{
-          background: 'white',
-          border: '1px solid #e5e7eb',
-          borderRadius: '0.75rem',
-          padding: '1.5rem'
-        }}>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#1f2937', marginBottom: '1.5rem' }}>
+        <div className="tuning-card">
+          <h2 className="tuning-card-title" style={{ marginBottom: '1.5rem' }}>
             Parameters
           </h2>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             {/* top_k */}
-            <div>
-              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: '#374151', marginBottom: '0.5rem' }}>
-                Initial results to consider
-              </label>
+            <div className="tuning-form-group">
+              <label className="tuning-label">Initial results to consider</label>
               <input
                 type="number"
                 value={config.top_k}
-                onChange={(e) => setConfig({ ...config, top_k: parseInt(e.target.value) })}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '0.5rem',
-                  fontSize: '1rem'
-                }}
+                onChange={(e) => setConfig({ ...config, top_k: parseInt(e.target.value) || 100 })}
+                className="tuning-input"
               />
-              <p style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
+              <p className="tuning-input-hint">
                 How many clips to look at before ranking them. Higher = more accurate but slightly slower.
               </p>
             </div>
 
             {/* min_score */}
-            <div>
-              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: '#374151', marginBottom: '0.5rem' }}>
-                Minimum relevance
-              </label>
+            <div className="tuning-form-group">
+              <label className="tuning-label">Minimum relevance</label>
               <input
                 type="number"
                 step="0.01"
                 min="0"
                 max="1"
                 value={config.min_similarity}
-                onChange={(e) => setConfig({ ...config, min_similarity: parseFloat(e.target.value) })}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '0.5rem',
-                  fontSize: '1rem'
-                }}
+                onChange={(e) => setConfig({ ...config, min_similarity: parseFloat(e.target.value) || 0 })}
+                className="tuning-input"
               />
-              <p style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
+              <p className="tuning-input-hint">
                 Only show clips that are at least this relevant to the question (0-1).
               </p>
             </div>
 
             {/* enable_reranker */}
-            <div>
+            <div className="tuning-form-group">
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}>
                 <input
                   type="checkbox"
                   checked={config.enable_reranker}
                   onChange={(e) => setConfig({ ...config, enable_reranker: e.target.checked })}
-                  style={{ width: '1rem', height: '1rem', cursor: 'pointer' }}
+                  style={{ width: '1.25rem', height: '1.25rem', cursor: 'pointer' }}
                 />
-                <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#374151' }}>
+                <span className="tuning-label" style={{ marginBottom: 0 }}>
                   Use extra AI step to improve ranking
                 </span>
               </label>
-              <p style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.5rem' }}>
+              <p className="tuning-input-hint" style={{ marginTop: '0.5rem' }}>
                 More accurate ordering of clips, but a bit slower and may cost more if using paid models.
               </p>
             </div>
 
             {/* rerank_top_k */}
             {config.enable_reranker && (
-              <div>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: '#374151', marginBottom: '0.5rem' }}>
-                  Results to rerank
-                </label>
+              <div className="tuning-form-group">
+                <label className="tuning-label">Results to rerank</label>
                 <input
                   type="number"
                   value={config.rerank_top_k}
-                  onChange={(e) => setConfig({ ...config, rerank_top_k: parseInt(e.target.value) })}
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '0.5rem',
-                    fontSize: '1rem'
-                  }}
+                  onChange={(e) => setConfig({ ...config, rerank_top_k: parseInt(e.target.value) || 200 })}
+                  className="tuning-input"
                 />
-                <p style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
+                <p className="tuning-input-hint">
                   How many results to pass through the extra ranking step.
                 </p>
               </div>
             )}
 
             {/* return_top_k */}
-            <div>
-              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: '#374151', marginBottom: '0.5rem' }}>
-                Number of clips to use in answer
-              </label>
+            <div className="tuning-form-group">
+              <label className="tuning-label">Number of clips to use in answer</label>
               <input
                 type="number"
                 value={config.return_top_k}
-                onChange={(e) => setConfig({ ...config, return_top_k: parseInt(e.target.value) })}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '0.5rem',
-                  fontSize: '1rem'
-                }}
+                onChange={(e) => setConfig({ ...config, return_top_k: parseInt(e.target.value) || 20 })}
+                className="tuning-input"
               />
-              <p style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
+              <p className="tuning-input-hint">
                 How many top clips the AI uses when building an answer.
               </p>
             </div>
@@ -342,31 +296,12 @@ export default function SearchPage() {
             <button
               onClick={handleSave}
               disabled={saving}
-              style={{
-                padding: '0.75rem 1.5rem',
-                background: saving ? '#6b7280' : 'var(--accent, #000000)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '0.5rem',
-                fontWeight: 600,
-                cursor: saving ? 'not-allowed' : 'pointer',
-                transition: 'background 0.2s',
-                marginTop: '1rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.5rem'
-              }}
-              onMouseEnter={(e) => {
-                if (!saving) e.currentTarget.style.background = 'var(--accent-hover, #333333)';
-              }}
-              onMouseLeave={(e) => {
-                if (!saving) e.currentTarget.style.background = 'var(--accent, #000000)';
-              }}
+              className="tuning-btn tuning-btn-primary"
+              style={{ marginTop: '0.5rem' }}
             >
               {saving ? (
                 <>
-                  <Loader2 style={{ width: '1rem', height: '1rem', animation: 'spin 1s linear infinite' }} />
+                  <Loader2 className="tuning-spinner" style={{ width: '1rem', height: '1rem' }} />
                   Saving...
                 </>
               ) : (
@@ -380,82 +315,60 @@ export default function SearchPage() {
         </div>
 
         {/* Test Panel */}
-        <div style={{
-          background: 'white',
-          border: '1px solid #e5e7eb',
-          borderRadius: '0.75rem',
-          padding: '1.5rem'
-        }}>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#1f2937', marginBottom: '1.5rem' }}>
+        <div className="tuning-card">
+          <h2 className="tuning-card-title" style={{ marginBottom: '1.5rem' }}>
             Test Search
           </h2>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: '#374151', marginBottom: '0.5rem' }}>
-                Query
-              </label>
+            <div className="tuning-form-group">
+              <label className="tuning-label">Query</label>
               <input
                 type="text"
                 value={testQuery}
                 onChange={(e) => setTestQuery(e.target.value)}
                 placeholder="Enter a search query..."
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '0.5rem',
-                  fontSize: '1rem'
-                }}
+                className="tuning-input"
               />
             </div>
 
             <button
               onClick={handleTestSearch}
               disabled={testing}
-              style={{
-                padding: '0.75rem 1.5rem',
-                background: '#333333',
-                color: 'white',
-                border: 'none',
-                borderRadius: '0.5rem',
-                fontWeight: 600,
-                cursor: testing ? 'not-allowed' : 'pointer',
-                transition: 'background 0.2s',
-                opacity: testing ? 0.7 : 1
-              }}
-              onMouseEnter={(e) => {
-                if (!testing) e.currentTarget.style.background = '#555555';
-              }}
-              onMouseLeave={(e) => {
-                if (!testing) e.currentTarget.style.background = '#333333';
-              }}
+              className="tuning-btn tuning-btn-secondary"
             >
-              {testing ? 'Testing...' : 'Test Search'}
+              {testing ? (
+                <>
+                  <Loader2 className="tuning-spinner" style={{ width: '1rem', height: '1rem' }} />
+                  Testing...
+                </>
+              ) : (
+                'Test Search'
+              )}
             </button>
 
             {testResults && (
               <div style={{
-                background: '#f3f4f6',
+                background: 'var(--bg-card-elevated, #f3f4f6)',
                 borderRadius: '0.5rem',
                 padding: '1rem',
-                marginTop: '1rem'
+                marginTop: '0.5rem'
               }}>
-                <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1f2937', marginBottom: '0.75rem' }}>
+                <h3 className="tuning-label" style={{ marginBottom: '0.75rem' }}>
                   Results ({testResults.results?.length || 0})
                 </h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '300px', overflowY: 'auto' }}>
                   {testResults.results?.map((result: any, idx: number) => (
                     <div key={idx} style={{
-                      background: 'white',
+                      background: 'var(--bg-card, white)',
                       padding: '0.75rem',
                       borderRadius: '0.375rem',
-                      borderLeft: '3px solid #000000'
+                      borderLeft: '3px solid var(--accent, #000000)'
                     }}>
-                      <p style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>
+                      <p className="tuning-input-hint" style={{ marginBottom: '0.25rem' }}>
                         Score: {result.score?.toFixed(3)}
                       </p>
-                      <p style={{ fontSize: '0.875rem', color: '#1f2937', lineHeight: '1.4' }}>
+                      <p style={{ fontSize: '0.875rem', lineHeight: '1.4' }}>
                         {result.text?.substring(0, 150)}...
                       </p>
                     </div>

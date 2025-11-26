@@ -2,7 +2,8 @@
 
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Settings, BarChart3, Zap, Search, Home, LogOut } from 'lucide-react';
+import { Settings, BarChart3, Zap, Search, Home, LogOut, Menu, X } from 'lucide-react';
+import '../../styles/tuning.css';
 
 export default function TuningLayout({
   children,
@@ -13,22 +14,19 @@ export default function TuningLayout({
   const pathname = usePathname();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
-    // Check authentication by calling a protected endpoint
-    // We can't read httpOnly cookies from JavaScript, so we verify via API
     const checkAuth = async () => {
-      // Skip auth check if we're on the auth page
       if (pathname === '/tuning/auth') {
         setIsLoading(false);
         return;
       }
       
       try {
-        // Call a lightweight protected endpoint to verify auth
         const res = await fetch('/api/tuning/models', {
           method: 'GET',
-          credentials: 'include',  // Send httpOnly cookie
+          credentials: 'include',
         });
         
         if (res.ok) {
@@ -37,7 +35,6 @@ export default function TuningLayout({
           setIsAuthenticated(false);
           router.replace('/tuning/auth');
         } else {
-          // Other errors (503, 500) - still redirect to auth for now
           setIsAuthenticated(false);
           router.replace('/tuning/auth');
         }
@@ -52,8 +49,21 @@ export default function TuningLayout({
     
     checkAuth();
   }, [pathname, router]);
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [pathname]);
+
+  // Close mobile menu on escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsMobileMenuOpen(false);
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, []);
   
-  // Extract current tab from pathname
   const getCurrentTab = () => {
     if (!pathname) return 'overview';
     if (pathname === '/tuning' || pathname === '/tuning/') return 'overview';
@@ -66,15 +76,17 @@ export default function TuningLayout({
   const activeTab = getCurrentTab() || 'overview';
 
   const handleLogout = async () => {
-    // Clear the httpOnly cookie by calling a logout endpoint or just redirect
-    // Since we can't clear httpOnly cookies from JS, we'll redirect and let the cookie expire
-    // Or call a logout endpoint that clears it
     try {
       await fetch('/api/tuning/auth/logout', { method: 'POST', credentials: 'include' });
     } catch (e) {
-      // Ignore errors, just redirect
+      // Ignore errors
     }
     window.location.href = '/';
+  };
+
+  const handleNavClick = (href: string) => {
+    router.push(href);
+    setIsMobileMenuOpen(false);
   };
 
   const navItems = [
@@ -86,143 +98,106 @@ export default function TuningLayout({
 
   if (isLoading) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        minHeight: '100vh',
-        background: 'linear-gradient(to bottom right, #f8fafc, #f1f5f9)'
-      }}>
-        <div style={{ color: '#6b7280' }}>Loading...</div>
+      <div className="tuning-layout">
+        <div className="tuning-loading" style={{ width: '100%', minHeight: '100vh' }}>
+          Loading...
+        </div>
       </div>
     );
   }
 
-  // If on auth page, render children directly (no sidebar)
+  // Auth page - no sidebar
   if (pathname === '/tuning/auth') {
     return (
-      <div style={{ minHeight: '100vh', background: 'linear-gradient(to bottom right, #f8fafc, #f1f5f9)', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
+      <div className="tuning-layout">
         {children}
       </div>
     );
   }
 
-  // If not authenticated and not on auth page, show nothing (redirect is happening)
+  // Not authenticated - redirect happening
   if (!isAuthenticated) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        minHeight: '100vh',
-        background: 'linear-gradient(to bottom right, #f8fafc, #f1f5f9)'
-      }}>
-        <div style={{ color: '#6b7280' }}>Redirecting to login...</div>
+      <div className="tuning-layout">
+        <div className="tuning-loading" style={{ width: '100%', minHeight: '100vh' }}>
+          Redirecting to login...
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: 'linear-gradient(to bottom right, #f8fafc, #f1f5f9)', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
-      {/* Sidebar - only show if authenticated */}
-      <aside style={{ width: '256px', background: 'white', borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', position: 'fixed', height: '100vh', overflowY: 'auto' }}>
-        <div style={{ padding: '1.5rem', borderBottom: '1px solid #e2e8f0' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <div style={{ padding: '0.5rem', background: 'linear-gradient(to bottom right, #3b82f6, #a855f7)', borderRadius: '0.5rem' }}>
-              <Settings style={{ width: '1.5rem', height: '1.5rem', color: 'white' }} />
+    <div className="tuning-layout">
+      {/* Mobile Header */}
+      <header className="tuning-mobile-header">
+        <div className="tuning-mobile-brand">
+          <div className="tuning-mobile-brand-icon">
+            <Settings />
+          </div>
+          <h1 className="tuning-mobile-title">AI Tuning</h1>
+        </div>
+        <button 
+          className="tuning-hamburger"
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
+        >
+          {isMobileMenuOpen ? <X /> : <Menu />}
+        </button>
+      </header>
+
+      {/* Mobile Overlay */}
+      <div 
+        className={`tuning-overlay ${isMobileMenuOpen ? 'visible' : ''}`}
+        onClick={() => setIsMobileMenuOpen(false)}
+      />
+
+      {/* Sidebar */}
+      <aside className={`tuning-sidebar ${isMobileMenuOpen ? 'open' : ''}`}>
+        <div className="tuning-sidebar-header">
+          <div className="tuning-sidebar-brand">
+            <div className="tuning-sidebar-icon">
+              <Settings />
             </div>
             <div>
-              <h1 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#1f2937' }}>AI Tuning</h1>
-              <p style={{ fontSize: '0.75rem', color: '#6b7280' }}>Dashboard</p>
+              <h1 className="tuning-sidebar-title">AI Tuning</h1>
+              <p className="tuning-sidebar-subtitle">Dashboard</p>
             </div>
           </div>
         </div>
 
-        <nav style={{ flex: 1, padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        <nav className="tuning-nav">
           {navItems.map(({ id, label, icon: Icon, href }) => (
             <button
               key={id}
-              onClick={() => router.push(href)}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.75rem',
-                padding: '0.75rem 1rem',
-                borderRadius: '0.5rem',
-                border: 'none',
-                background: activeTab === id ? '#eff6ff' : 'transparent',
-                color: activeTab === id ? '#2563eb' : '#4b5563',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                fontSize: '0.95rem',
-                fontWeight: activeTab === id ? 600 : 500
-              }}
-              onMouseEnter={(e) => {
-                if (activeTab !== id) e.currentTarget.style.background = '#f3f4f6';
-              }}
-              onMouseLeave={(e) => {
-                if (activeTab !== id) e.currentTarget.style.background = 'transparent';
-              }}
+              onClick={() => handleNavClick(href)}
+              className={`tuning-nav-item ${activeTab === id ? 'active' : ''}`}
             >
-              <Icon style={{ width: '1.25rem', height: '1.25rem' }} />
+              <Icon />
               <span>{label}</span>
             </button>
           ))}
         </nav>
 
-        <div style={{ padding: '1rem', borderTop: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        <div className="tuning-sidebar-footer">
           <button
-            onClick={() => window.location.href = '/'}
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.75rem',
-              padding: '0.75rem 1rem',
-              borderRadius: '0.5rem',
-              border: 'none',
-              background: 'transparent',
-              color: '#4b5563',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              fontSize: '0.95rem',
-              fontWeight: 500
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
-            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            onClick={() => { window.location.href = '/'; }}
+            className="tuning-footer-btn"
           >
-            <Home style={{ width: '1.25rem', height: '1.25rem' }} />
+            <Home />
             <span>Back to App</span>
           </button>
           <button
             onClick={handleLogout}
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.75rem',
-              padding: '0.75rem 1rem',
-              borderRadius: '0.5rem',
-              border: 'none',
-              background: 'transparent',
-              color: '#dc2626',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              fontSize: '0.95rem',
-              fontWeight: 500
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.background = '#fee2e2'}
-            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            className="tuning-footer-btn logout"
           >
-            <LogOut style={{ width: '1.25rem', height: '1.25rem' }} />
+            <LogOut />
             <span>Logout</span>
           </button>
         </div>
       </aside>
 
       {/* Main Content */}
-      <main style={{ marginLeft: '256px', flex: 1, overflow: 'auto' }}>
+      <main className="tuning-main">
         {children}
       </main>
     </div>
