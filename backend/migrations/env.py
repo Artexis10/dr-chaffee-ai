@@ -29,6 +29,11 @@ target_metadata = None
 # Override sqlalchemy.url from .env
 database_url = os.getenv('DATABASE_URL')
 if database_url:
+    # Fix legacy postgres:// scheme for SQLAlchemy 2.x
+    # SQLAlchemy 2.x removed the "postgres" dialect alias; it requires "postgresql"
+    # Many providers (Heroku, Render, Coolify) still use postgres:// in DATABASE_URL
+    if database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql+psycopg2://", 1)
     config.set_main_option('sqlalchemy.url', database_url)
 
 # other values from the config, defined by the needs of env.py,
