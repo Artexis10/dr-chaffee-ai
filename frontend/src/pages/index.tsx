@@ -40,6 +40,9 @@ export default function Home() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const copyNotificationTimeout = useRef<NodeJS.Timeout | null>(null);
 
+  // Unified search state - true when any search operation is in progress
+  const isSearching = loading || answerLoading;
+
   // Global error handlers to prevent popup errors
   useEffect(() => {
     const handleError = (event: ErrorEvent) => {
@@ -749,14 +752,34 @@ export default function Home() {
               </span>
             </div>
           </div>
-          <div className="topics-container">
+          <div className={`topics-container ${isSearching ? 'disabled' : ''}`}>
             <div className="topics-title">Popular topics:</div>
             <div className="topics">
-              <button onClick={() => setQuery('carnivore diet benefits')}>Carnivore Diet</button>
-              <button onClick={() => setQuery('autoimmune conditions treatment')}>Autoimmune Conditions</button>
-              <button onClick={() => setQuery('ketosis explained')}>Ketosis</button>
-              <button onClick={() => setQuery('plant toxins in food')}>Plant Toxins</button>
-              <button onClick={() => setQuery('mental health and depression')}>Mental Health</button>
+              <button 
+                onClick={() => !isSearching && setQuery('carnivore diet benefits')}
+                disabled={isSearching}
+                aria-disabled={isSearching}
+              >Carnivore Diet</button>
+              <button 
+                onClick={() => !isSearching && setQuery('autoimmune conditions treatment')}
+                disabled={isSearching}
+                aria-disabled={isSearching}
+              >Autoimmune Conditions</button>
+              <button 
+                onClick={() => !isSearching && setQuery('ketosis explained')}
+                disabled={isSearching}
+                aria-disabled={isSearching}
+              >Ketosis</button>
+              <button 
+                onClick={() => !isSearching && setQuery('plant toxins in food')}
+                disabled={isSearching}
+                aria-disabled={isSearching}
+              >Plant Toxins</button>
+              <button 
+                onClick={() => !isSearching && setQuery('mental health and depression')}
+                disabled={isSearching}
+                aria-disabled={isSearching}
+              >Mental Health</button>
             </div>
           </div>
         </div>
@@ -771,7 +794,7 @@ export default function Home() {
             loading={loading}
             answerStyle={answerStyle}
             onAnswerStyleChange={setAnswerStyle}
-            disabled={answerLoading}
+            disabled={isSearching}
           />
         </ErrorBoundary>
 
@@ -782,7 +805,7 @@ export default function Home() {
             yearFilter={yearFilter} 
             setYearFilter={setYearFilter} 
             availableYears={availableYears}
-            disabled={loading || answerLoading}
+            disabled={isSearching}
           />
         </ErrorBoundary>
 
@@ -1011,10 +1034,20 @@ export default function Home() {
             transition: all var(--transition-normal);
           }
           
-          .topics button:hover {
+          .topics button:hover:not(:disabled) {
             background: rgba(59, 130, 246, 0.1);
             border-color: var(--color-primary-light);
             transform: translateY(-1px);
+          }
+          
+          .topics button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+          }
+          
+          .topics-container.disabled {
+            pointer-events: none;
           }
           
           @media (max-width: 768px) {
