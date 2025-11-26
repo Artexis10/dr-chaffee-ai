@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Save, Loader2 } from 'lucide-react';
+import { Save, Loader2, RefreshCw } from 'lucide-react';
 
 interface SearchConfig {
   top_k: number;
-  min_score: number;
+  min_similarity: number;
   enable_reranker: boolean;
   rerank_top_k: number;
   return_top_k: number;
@@ -14,7 +14,7 @@ interface SearchConfig {
 export default function SearchPage() {
   const [config, setConfig] = useState<SearchConfig>({
     top_k: 100,
-    min_score: 0.65,
+    min_similarity: 0.3,
     enable_reranker: false,
     rerank_top_k: 200,
     return_top_k: 20,
@@ -32,15 +32,23 @@ export default function SearchPage() {
   }, []);
 
   const loadConfig = async () => {
+    setLoading(true);
     try {
-      // Load from localStorage first (client-side persistence)
-      const stored = localStorage.getItem('search-config');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        setConfig(parsed);
+      const res = await fetch('/api/tuning/search-config');
+      if (res.ok) {
+        const data = await res.json();
+        setConfig(data);
+      } else if (res.status === 401) {
+        setMessage('Please authenticate to access search configuration');
+        setMessageType('error');
+      } else {
+        // Use defaults if config doesn't exist yet
+        console.warn('Failed to load config from backend, using defaults');
       }
     } catch (error) {
-      console.warn('Failed to load config from localStorage:', error);
+      console.warn('Failed to load config from backend:', error);
+      setMessage('Could not connect to backend. Using default values.');
+      setMessageType('error');
     } finally {
       setLoading(false);
     }
@@ -51,18 +59,29 @@ export default function SearchPage() {
     setMessage('');
     
     try {
-      // Save to localStorage for persistence
-      localStorage.setItem('search-config', JSON.stringify(config));
+      const res = await fetch('/api/tuning/search-config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config)
+      });
       
-      setMessageType('success');
-      setMessage('Configuration saved');
-      
-      // Clear success message after 3 seconds
-      setTimeout(() => setMessage(''), 3000);
-    } catch (error) {
+      if (res.ok) {
+        const data = await res.json();
+        setConfig(data);
+        setMessageType('success');
+        setMessage('Configuration saved to database');
+        setTimeout(() => setMessage(''), 3000);
+      } else if (res.status === 401) {
+        setMessageType('error');
+        setMessage('Authentication required. Please log in again.');
+      } else {
+        const error = await res.json();
+        throw new Error(error.detail || 'Failed to save');
+      }
+    } catch (error: any) {
       console.error('Error saving config:', error);
       setMessageType('error');
-      setMessage('Failed to save configuration. Please try again.');
+      setMessage(error.message || 'Failed to save configuration. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -83,7 +102,7 @@ export default function SearchPage() {
         body: JSON.stringify({
           query: testQuery,
           top_k: config.top_k,
-          min_score: config.min_score,
+          min_similarity: config.min_similarity,
           enable_reranker: config.enable_reranker,
           rerank_top_k: config.rerank_top_k,
           return_top_k: config.return_top_k
@@ -188,8 +207,8 @@ export default function SearchPage() {
                 step="0.01"
                 min="0"
                 max="1"
-                value={config.min_score}
-                onChange={(e) => setConfig({ ...config, min_score: parseFloat(e.target.value) })}
+                value={config.min_similarity}
+                onChange={(e) => setConfig({ ...config, min_similarity: parseFloat(e.target.value) })}
                 style={{
                   width: '100%',
                   padding: '0.75rem',

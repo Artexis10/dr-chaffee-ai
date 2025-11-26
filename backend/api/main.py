@@ -36,8 +36,8 @@ from scripts.common.database_upsert import DatabaseUpserter
 from scripts.common.transcript_common import TranscriptSegment
 from scripts.common.embeddings import EmbeddingGenerator, resolve_embedding_config
 
-# Import tuning router
-from .tuning import router as tuning_router
+# Import tuning router and search config helper
+from .tuning import router as tuning_router, get_search_config_from_db
 
 app = FastAPI(
     title="Ask Dr. Chaffee API",
@@ -367,9 +367,9 @@ class UploadRequest(BaseModel):
 
 class SearchRequest(BaseModel):
     query: str
-    top_k: Optional[int] = 50
-    min_similarity: Optional[float] = 0.5
-    rerank: Optional[bool] = True
+    top_k: Optional[int] = None  # If None, use database config
+    min_similarity: Optional[float] = None  # If None, use database config
+    rerank: Optional[bool] = None  # If None, use database config
 
 class SearchResult(BaseModel):
     id: int
@@ -575,16 +575,25 @@ async def semantic_search(request: SearchRequest):
     """
     Semantic search with optional reranking
     
-    1. Detect available embeddings in database
-    2. Generate query embedding with matching model
-    3. Search database using vector similarity
-    4. Optionally rerank results for better quality
+    1. Load search config from database (or use defaults)
+    2. Detect available embeddings in database
+    3. Generate query embedding with matching model
+    4. Search database using vector similarity
+    5. Optionally rerank results for better quality
     """
     import logging
     logger = logging.getLogger(__name__)
     
     try:
-        logger.info(f"Search request: {request.query}")
+        # Load search config from database
+        db_config = get_search_config_from_db()
+        
+        # Use request values if provided, otherwise use database config
+        top_k = request.top_k if request.top_k is not None else db_config.top_k
+        min_similarity = request.min_similarity if request.min_similarity is not None else db_config.min_similarity
+        use_rerank = request.rerank if request.rerank is not None else db_config.enable_reranker
+        
+        logger.info(f"Search request: {request.query} (top_k={top_k}, min_sim={min_similarity}, rerank={use_rerank})")
         
         # First, detect what embeddings are available in the database
         available_models = get_available_embedding_models()
@@ -675,8 +684,8 @@ async def semantic_search(request: SearchRequest):
         query_params = [
             str(embedding_list),
             str(embedding_list),
-            request.min_similarity,
-            request.top_k
+            min_similarity,
+            top_k
         ]
         
         # Execute query with appropriate parameters
@@ -687,7 +696,7 @@ async def semantic_search(request: SearchRequest):
         conn.close()
         
         # Optional reranking
-        if request.rerank and len(results) > 0:
+        if use_rerank and len(results) > 0:
             query_lower = request.query.lower()
             query_words = set(query_lower.split())
             

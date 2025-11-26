@@ -992,3 +992,109 @@ async def preview_instructions(instruction: CustomInstruction, request: Request)
     except Exception as e:
         logger.error(f"Failed to preview instructions: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# Search Configuration Endpoints (Database-backed)
+# =============================================================================
+
+class SearchConfigDB(BaseModel):
+    """Search configuration stored in database"""
+    top_k: int = Field(default=100, ge=1, le=500, description="Initial results to consider")
+    min_similarity: float = Field(default=0.3, ge=0.0, le=1.0, description="Minimum relevance threshold")
+    enable_reranker: bool = Field(default=False, description="Use reranking step")
+    rerank_top_k: int = Field(default=200, ge=1, le=500, description="Candidates for reranking")
+    return_top_k: int = Field(default=20, ge=1, le=100, description="Final results to return")
+
+
+def get_search_config_from_db() -> SearchConfigDB:
+    """Get search configuration from database, with defaults if not found"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT top_k, min_similarity, enable_reranker, rerank_top_k, return_top_k
+            FROM search_config
+            WHERE id = 1
+        """)
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if row:
+            return SearchConfigDB(
+                top_k=row['top_k'],
+                min_similarity=row['min_similarity'],
+                enable_reranker=row['enable_reranker'],
+                rerank_top_k=row['rerank_top_k'],
+                return_top_k=row['return_top_k']
+            )
+        else:
+            # Return defaults if no config exists
+            return SearchConfigDB()
+            
+    except Exception as e:
+        logger.warning(f"Failed to load search config from DB: {e}, using defaults")
+        return SearchConfigDB()
+
+
+@router.get(
+    "/search-config",
+    response_model=SearchConfigDB,
+    dependencies=[Depends(require_tuning_auth)],
+)
+async def get_search_config(request: Request):
+    """
+    Get current search configuration from database.
+    Protected: requires tuning_auth cookie.
+    """
+    return get_search_config_from_db()
+
+
+@router.put(
+    "/search-config",
+    response_model=SearchConfigDB,
+    dependencies=[Depends(require_tuning_auth)],
+)
+async def update_search_config(config: SearchConfigDB, request: Request):
+    """
+    Update search configuration in database.
+    Protected: requires tuning_auth cookie.
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Upsert the config (insert or update)
+        cur.execute("""
+            INSERT INTO search_config (id, top_k, min_similarity, enable_reranker, rerank_top_k, return_top_k)
+            VALUES (1, %s, %s, %s, %s, %s)
+            ON CONFLICT (id) DO UPDATE SET
+                top_k = EXCLUDED.top_k,
+                min_similarity = EXCLUDED.min_similarity,
+                enable_reranker = EXCLUDED.enable_reranker,
+                rerank_top_k = EXCLUDED.rerank_top_k,
+                return_top_k = EXCLUDED.return_top_k,
+                updated_at = NOW()
+            RETURNING top_k, min_similarity, enable_reranker, rerank_top_k, return_top_k
+        """, (config.top_k, config.min_similarity, config.enable_reranker, config.rerank_top_k, config.return_top_k))
+        
+        row = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        logger.info(f"Search config updated: top_k={config.top_k}, min_similarity={config.min_similarity}")
+        
+        return SearchConfigDB(
+            top_k=row['top_k'],
+            min_similarity=row['min_similarity'],
+            enable_reranker=row['enable_reranker'],
+            rerank_top_k=row['rerank_top_k'],
+            return_top_k=row['return_top_k']
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to update search config: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save configuration: {str(e)}")
