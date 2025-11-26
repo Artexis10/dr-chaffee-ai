@@ -141,7 +141,7 @@ export default function ModelsPage() {
               transition: 'all 0.2s',
               display: 'flex',
               flexDirection: 'column',
-              minHeight: '280px'
+              minHeight: '320px'
             }}
             onMouseEnter={(e) => {
               if (!model.is_active_query) {
@@ -181,30 +181,62 @@ export default function ModelsPage() {
             </div>
 
             {/* Card body - flex-grow to push button to bottom */}
-            <div style={{ flex: 1 }}>
-              <p style={{ color: 'var(--text-muted, #4b5563)', marginBottom: '1rem', fontSize: '0.875rem', lineHeight: 1.5 }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+              {/* Description - fixed height area */}
+              <p style={{ 
+                color: 'var(--text-muted, #4b5563)', 
+                marginBottom: '1rem', 
+                fontSize: '0.875rem', 
+                lineHeight: 1.5,
+                minHeight: '3rem',
+                overflow: 'hidden',
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical'
+              }}>
                 {model.description}
               </p>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border-subtle, #e5e7eb)' }}>
+              {/* Stats grid - consistent 2-column layout */}
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: '1fr 1fr', 
+                gap: '1rem', 
+                paddingTop: '1rem',
+                paddingBottom: '1rem', 
+                borderTop: '1px solid var(--border-subtle, #e5e7eb)',
+                borderBottom: '1px solid var(--border-subtle, #e5e7eb)',
+                marginTop: 'auto'
+              }}>
                 <div>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted, #6b7280)', marginBottom: '0.25rem' }}>Dimensions</p>
-                  <p style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary, #1f2937)' }}>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted, #6b7280)', marginBottom: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Dimensions</p>
+                  <p style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary, #1f2937)' }}>
                     {model.dimensions}
                   </p>
                 </div>
                 <div>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted, #6b7280)', marginBottom: '0.25rem' }}>Cost per 1K words</p>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                    <DollarSign style={{ width: '1rem', height: '1rem', color: model.cost_per_1k === 0 ? '#059669' : 'var(--text-muted, #6b7280)' }} />
-                    <p style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary, #1f2937)' }}>
-                      {model.cost_per_1k === 0 ? 'Free' : `$${model.cost_per_1k}`}
-                    </p>
-                  </div>
-                  {model.cost_per_1k === 0 && (
-                    <p style={{ fontSize: '0.7rem', color: '#059669', marginTop: '0.25rem' }}>Runs locally</p>
-                  )}
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted, #6b7280)', marginBottom: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cost</p>
+                  <p style={{ 
+                    fontSize: '1.5rem', 
+                    fontWeight: 700, 
+                    color: model.cost_per_1k === 0 ? '#059669' : 'var(--text-primary, #1f2937)' 
+                  }}>
+                    {model.cost_per_1k === 0 ? 'Free' : `$${model.cost_per_1k}`}
+                  </p>
                 </div>
+              </div>
+              
+              {/* Helper text - consistent height */}
+              <div style={{ 
+                minHeight: '2rem', 
+                paddingTop: '0.5rem',
+                fontSize: '0.75rem', 
+                color: model.cost_per_1k === 0 ? '#059669' : 'var(--text-muted, #6b7280)'
+              }}>
+                {model.cost_per_1k === 0 
+                  ? '✓ Runs on your server, no API costs' 
+                  : `Per 1,000 words processed`
+                }
               </div>
             </div>
 
