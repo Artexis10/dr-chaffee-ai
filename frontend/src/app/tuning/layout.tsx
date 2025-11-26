@@ -31,9 +31,6 @@ export default function TuningLayout({
         
         if (res.ok) {
           setIsAuthenticated(true);
-        } else if (res.status === 401 || res.status === 403) {
-          setIsAuthenticated(false);
-          router.replace('/tuning/auth');
         } else {
           setIsAuthenticated(false);
           router.replace('/tuning/auth');
@@ -73,7 +70,7 @@ export default function TuningLayout({
     return 'overview';
   };
 
-  const activeTab = getCurrentTab() || 'overview';
+  const activeTab = getCurrentTab();
 
   const handleLogout = async () => {
     try {
@@ -96,38 +93,32 @@ export default function TuningLayout({
     { id: 'instructions', label: 'Instructions', icon: Settings, href: '/tuning/instructions' }
   ];
 
+  // Loading state - simple centered spinner
   if (isLoading) {
     return (
-      <div className="tuning-layout">
-        <div className="tuning-loading" style={{ width: '100%', minHeight: '100vh' }}>
-          Loading...
-        </div>
+      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-neutral-950">
+        <p className="text-gray-500">Loading...</p>
       </div>
     );
   }
 
-  // Auth page - no sidebar
+  // Auth page - render children directly without dashboard wrapper
   if (pathname === '/tuning/auth') {
-    return (
-      <div className="tuning-layout">
-        {children}
-      </div>
-    );
+    return <>{children}</>;
   }
 
   // Not authenticated - redirect happening
   if (!isAuthenticated) {
     return (
-      <div className="tuning-layout">
-        <div className="tuning-loading" style={{ width: '100%', minHeight: '100vh' }}>
-          Redirecting to login...
-        </div>
+      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-neutral-950">
+        <p className="text-gray-500">Redirecting to login...</p>
       </div>
     );
   }
 
+  // Authenticated dashboard with sidebar
   return (
-    <div className="tuning-layout">
+    <div className="tuning-dashboard">
       {/* Mobile Header */}
       <header className="tuning-mobile-header">
         <div className="tuning-mobile-brand">

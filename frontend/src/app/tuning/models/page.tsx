@@ -58,7 +58,7 @@ export default function ModelsPage() {
       const data = await res.json();
       
       if (res.ok) {
-        setMessage(`Model "${modelKey}" is now active. Note: A server restart may be required for full effect.`);
+        setMessage(`Model "${modelKey}" is now active. Changes take effect immediately for new queries.`);
         setMessageType('success');
         await loadModels();
       } else {
@@ -77,8 +77,8 @@ export default function ModelsPage() {
 
   if (loading) {
     return (
-      <div className="tuning-page">
-        <div className="tuning-loading">Loading models...</div>
+      <div className="p-6 flex items-center justify-center min-h-[300px]">
+        <p className="text-gray-500">Loading models...</p>
       </div>
     );
   }
@@ -86,142 +86,117 @@ export default function ModelsPage() {
   const activeModel = models.find(m => m.is_active_query);
 
   return (
-    <div className="tuning-page">
+    <div className="p-6 max-w-5xl mx-auto">
       {/* Header */}
-      <div className="tuning-page-header">
-        <h1 className="tuning-page-title">Embedding Models</h1>
-        <p className="tuning-page-description">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
+          Embedding Models
+        </h1>
+        <p className="text-gray-500 dark:text-gray-400">
           Manage and configure embedding models for semantic search
         </p>
       </div>
 
       {/* Message */}
       {message && (
-        <div className={`tuning-message tuning-message-${messageType}`}>
-          {messageType === 'success' ? <CheckCircle /> : <AlertCircle />}
+        <div className={`flex items-center gap-2 p-4 rounded-lg mb-6 ${
+          messageType === 'success' 
+            ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' 
+            : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
+        }`}>
+          {messageType === 'success' ? <CheckCircle className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
           {message}
         </div>
       )}
 
       {/* Active Model Info */}
       {activeModel && (
-        <div className="tuning-stat-card" style={{ marginBottom: '2rem' }}>
-          <div className="tuning-stat-header">
-            <Zap />
-            <span className="tuning-stat-label">Active Model</span>
+        <div className="bg-black dark:bg-neutral-800 rounded-xl p-5 text-white mb-8">
+          <div className="flex items-center gap-2 mb-3 opacity-80">
+            <Zap className="w-5 h-5" />
+            <span className="text-sm font-medium">Active Model</span>
           </div>
-          <div className="tuning-stat-value" style={{ fontSize: '1.5rem' }}>
-            {activeModel.key}
-          </div>
-          <p className="tuning-stat-description" style={{ marginBottom: '1rem' }}>
-            {activeModel.description}
-          </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '1rem' }}>
+          <div className="text-2xl font-bold mb-2">{activeModel.key}</div>
+          <p className="text-sm opacity-80 mb-4">{activeModel.description}</p>
+          <div className="grid grid-cols-3 gap-4">
             <div>
-              <p style={{ fontSize: '0.75rem', opacity: 0.8, marginBottom: '0.25rem' }}>Provider</p>
-              <p style={{ fontSize: '1rem', fontWeight: 600 }}>{activeModel.provider}</p>
+              <p className="text-xs opacity-60 mb-1">Provider</p>
+              <p className="font-semibold">{activeModel.provider}</p>
             </div>
             <div>
-              <p style={{ fontSize: '0.75rem', opacity: 0.8, marginBottom: '0.25rem' }}>Dimensions</p>
-              <p style={{ fontSize: '1rem', fontWeight: 600 }}>{activeModel.dimensions}</p>
+              <p className="text-xs opacity-60 mb-1">Dimensions</p>
+              <p className="font-semibold">{activeModel.dimensions}</p>
             </div>
             <div>
-              <p style={{ fontSize: '0.75rem', opacity: 0.8, marginBottom: '0.25rem' }}>Cost/1K words</p>
-              <p style={{ fontSize: '1rem', fontWeight: 600 }}>{activeModel.cost_per_1k === 0 ? 'Free' : `$${activeModel.cost_per_1k}`}</p>
+              <p className="text-xs opacity-60 mb-1">Cost</p>
+              <p className="font-semibold">{activeModel.cost_per_1k === 0 ? 'Free' : `$${activeModel.cost_per_1k}/1K`}</p>
             </div>
           </div>
         </div>
       )}
 
       {/* Models Grid */}
-      <div className="tuning-models-grid">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {models.map((model) => (
           <div
             key={model.key}
-            className={`tuning-model-card ${model.is_active_query ? 'active' : ''}`}
+            className={`bg-white dark:bg-neutral-900 border rounded-xl p-5 flex flex-col ${
+              model.is_active_query 
+                ? 'border-black dark:border-white border-2' 
+                : 'border-gray-200 dark:border-neutral-800'
+            }`}
           >
             {/* Card header */}
-            <div style={{ display: 'flex', alignItems: 'start', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+            <div className="flex items-start justify-between mb-3">
               <div>
-                <h3 className="tuning-card-title" style={{ marginBottom: '0.25rem' }}>
-                  {model.key}
-                </h3>
-                <p className="tuning-input-hint">
-                  {model.provider}
-                </p>
+                <h3 className="font-semibold text-gray-900 dark:text-white">{model.key}</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{model.provider}</p>
               </div>
               {model.is_active_query && (
-                <span style={{
-                  background: 'var(--accent, #000000)',
-                  color: 'var(--accent-foreground, #ffffff)',
-                  padding: '0.25rem 0.75rem',
-                  borderRadius: '9999px',
-                  fontSize: '0.75rem',
-                  fontWeight: 600
-                }}>
+                <span className="bg-black dark:bg-white text-white dark:text-black px-2.5 py-0.5 rounded-full text-xs font-semibold">
                   Active
                 </span>
               )}
             </div>
 
-            {/* Card body */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-              <p className="tuning-input-hint" style={{ 
-                marginBottom: '1rem', 
-                minHeight: '2.5rem',
-                overflow: 'hidden',
-                display: '-webkit-box',
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: 'vertical'
-              }}>
-                {model.description}
-              </p>
+            {/* Description */}
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 line-clamp-2">
+              {model.description}
+            </p>
 
-              {/* Stats */}
-              <div style={{ 
-                display: 'grid', 
-                gridTemplateColumns: '1fr 1fr', 
-                gap: '1rem', 
-                padding: '1rem 0',
-                borderTop: '1px solid var(--border-subtle, #e5e7eb)',
-                borderBottom: '1px solid var(--border-subtle, #e5e7eb)',
-                marginTop: 'auto'
-              }}>
-                <div>
-                  <p className="tuning-input-hint" style={{ marginBottom: '0.25rem', textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.05em' }}>Dimensions</p>
-                  <p style={{ fontSize: '1.25rem', fontWeight: 700 }}>
-                    {model.dimensions}
-                  </p>
-                </div>
-                <div>
-                  <p className="tuning-input-hint" style={{ marginBottom: '0.25rem', textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.05em' }}>Cost</p>
-                  <p style={{ fontSize: '1.25rem', fontWeight: 700, color: model.cost_per_1k === 0 ? '#059669' : 'inherit' }}>
-                    {model.cost_per_1k === 0 ? 'Free' : `$${model.cost_per_1k}`}
-                  </p>
-                </div>
+            {/* Stats */}
+            <div className="grid grid-cols-2 gap-4 py-4 border-y border-gray-100 dark:border-neutral-800 mt-auto">
+              <div>
+                <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Dimensions</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white">{model.dimensions}</p>
               </div>
-              
-              <p className="tuning-input-hint" style={{ paddingTop: '0.5rem', fontSize: '0.75rem', color: model.cost_per_1k === 0 ? '#059669' : undefined }}>
-                {model.cost_per_1k === 0 ? '✓ Runs locally, no API costs' : 'Per 1,000 words processed'}
-              </p>
+              <div>
+                <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Cost</p>
+                <p className={`text-xl font-bold ${model.cost_per_1k === 0 ? 'text-green-600' : 'text-gray-900 dark:text-white'}`}>
+                  {model.cost_per_1k === 0 ? 'Free' : `$${model.cost_per_1k}`}
+                </p>
+              </div>
             </div>
+            
+            <p className={`text-xs mt-2 ${model.cost_per_1k === 0 ? 'text-green-600' : 'text-gray-400'}`}>
+              {model.cost_per_1k === 0 ? '✓ Runs locally, no API costs' : 'Per 1,000 words processed'}
+            </p>
 
-            {/* Card footer */}
-            <div style={{ marginTop: '1rem' }}>
+            {/* Button */}
+            <div className="mt-4">
               {model.is_active_query ? (
-                <div className="tuning-btn tuning-btn-secondary" style={{ cursor: 'default', opacity: 0.7 }}>
+                <div className="w-full py-2.5 px-4 bg-gray-100 dark:bg-neutral-800 text-gray-500 dark:text-gray-400 text-center font-medium rounded-lg">
                   Currently active
                 </div>
               ) : (
                 <button
                   onClick={() => handleSetActive(model.key)}
                   disabled={settingActive !== null}
-                  className="tuning-btn tuning-btn-primary"
-                  style={{ width: '100%' }}
+                  className="w-full py-2.5 px-4 bg-black dark:bg-white text-white dark:text-black font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {settingActive === model.key ? (
                     <>
-                      <Loader2 className="tuning-spinner" style={{ width: '1rem', height: '1rem' }} />
+                      <Loader2 className="w-4 h-4 tuning-spinner" />
                       Setting...
                     </>
                   ) : (

@@ -157,41 +157,50 @@ export default function SearchPage() {
 
   if (loading) {
     return (
-      <div className="tuning-page">
-        <div className="tuning-loading">Loading configuration...</div>
+      <div className="p-6 flex items-center justify-center min-h-[300px]">
+        <p className="text-gray-500">Loading configuration...</p>
       </div>
     );
   }
 
+  const messageStyles = {
+    success: 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400',
+    error: 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400',
+    warning: 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400',
+    info: 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400',
+  };
+
   const getMessageIcon = () => {
     switch (messageType) {
-      case 'success': return <CheckCircle />;
-      case 'error': return <AlertCircle />;
-      case 'warning': return <AlertTriangle />;
-      case 'info': return <Info />;
+      case 'success': return <CheckCircle className="w-5 h-5" />;
+      case 'error': return <AlertCircle className="w-5 h-5" />;
+      case 'warning': return <AlertTriangle className="w-5 h-5" />;
+      case 'info': return <Info className="w-5 h-5" />;
       default: return null;
     }
   };
 
   return (
-    <div className="tuning-page">
+    <div className="p-6 max-w-5xl mx-auto">
       {/* Header */}
-      <div className="tuning-page-header">
-        <h1 className="tuning-page-title">Search Configuration</h1>
-        <p className="tuning-page-description">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
+          Search Configuration
+        </h1>
+        <p className="text-gray-500 dark:text-gray-400">
           Tune search parameters and test queries
         </p>
       </div>
 
       {/* Info Banner for migration status */}
       {dbError && (
-        <div className="tuning-message tuning-message-info" style={{ marginBottom: '1.5rem', alignItems: 'flex-start' }}>
-          <Info style={{ flexShrink: 0, marginTop: '0.125rem' }} />
+        <div className="flex items-start gap-3 p-4 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg mb-6">
+          <Info className="w-5 h-5 mt-0.5 flex-shrink-0" />
           <div>
-            <p style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Using Default Settings</p>
-            <p style={{ opacity: 0.9 }}>
+            <p className="font-semibold mb-1">Using Default Settings</p>
+            <p className="text-sm opacity-90">
               Search settings are working but won't persist between server restarts. 
-              This is fine for testing. For permanent settings, ask your developer to run the database migration.
+              This is fine for testing.
             </p>
           </div>
         </div>
@@ -199,37 +208,39 @@ export default function SearchPage() {
 
       {/* Message */}
       {message && !dbError && (
-        <div className={`tuning-message tuning-message-${messageType}`}>
+        <div className={`flex items-center gap-2 p-4 rounded-lg mb-6 ${messageStyles[messageType]}`}>
           {getMessageIcon()}
           {message}
         </div>
       )}
 
-      <div className="tuning-two-col">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Configuration Panel */}
-        <div className="tuning-card">
-          <h2 className="tuning-card-title" style={{ marginBottom: '1.5rem' }}>
-            Parameters
-          </h2>
+        <div className="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl p-5">
+          <h2 className="font-semibold text-gray-900 dark:text-white mb-6">Parameters</h2>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <div className="space-y-5">
             {/* top_k */}
-            <div className="tuning-form-group">
-              <label className="tuning-label">Initial results to consider</label>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Initial results to consider
+              </label>
               <input
                 type="number"
                 value={config.top_k}
                 onChange={(e) => setConfig({ ...config, top_k: parseInt(e.target.value) || 100 })}
-                className="tuning-input"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent"
               />
-              <p className="tuning-input-hint">
-                How many clips to look at before ranking them. Higher = more accurate but slightly slower.
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                How many clips to look at before ranking them.
               </p>
             </div>
 
             {/* min_score */}
-            <div className="tuning-form-group">
-              <label className="tuning-label">Minimum relevance</label>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Minimum relevance
+              </label>
               <input
                 type="number"
                 step="0.01"
@@ -237,76 +248,73 @@ export default function SearchPage() {
                 max="1"
                 value={config.min_similarity}
                 onChange={(e) => setConfig({ ...config, min_similarity: parseFloat(e.target.value) || 0 })}
-                className="tuning-input"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent"
               />
-              <p className="tuning-input-hint">
-                Only show clips that are at least this relevant to the question (0-1).
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Only show clips at least this relevant (0-1).
               </p>
             </div>
 
             {/* enable_reranker */}
-            <div className="tuning-form-group">
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}>
+            <div>
+              <label className="flex items-center gap-3 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={config.enable_reranker}
                   onChange={(e) => setConfig({ ...config, enable_reranker: e.target.checked })}
-                  style={{ width: '1.25rem', height: '1.25rem', cursor: 'pointer' }}
+                  className="w-5 h-5 rounded border-gray-300 dark:border-neutral-600 text-black dark:text-white focus:ring-black dark:focus:ring-white"
                 />
-                <span className="tuning-label" style={{ marginBottom: 0 }}>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   Use extra AI step to improve ranking
                 </span>
               </label>
-              <p className="tuning-input-hint" style={{ marginTop: '0.5rem' }}>
-                More accurate ordering of clips, but a bit slower and may cost more if using paid models.
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 ml-8">
+                More accurate but slower.
               </p>
             </div>
 
             {/* rerank_top_k */}
             {config.enable_reranker && (
-              <div className="tuning-form-group">
-                <label className="tuning-label">Results to rerank</label>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                  Results to rerank
+                </label>
                 <input
                   type="number"
                   value={config.rerank_top_k}
                   onChange={(e) => setConfig({ ...config, rerank_top_k: parseInt(e.target.value) || 200 })}
-                  className="tuning-input"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent"
                 />
-                <p className="tuning-input-hint">
-                  How many results to pass through the extra ranking step.
-                </p>
               </div>
             )}
 
             {/* return_top_k */}
-            <div className="tuning-form-group">
-              <label className="tuning-label">Number of clips to use in answer</label>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Number of clips to use in answer
+              </label>
               <input
                 type="number"
                 value={config.return_top_k}
                 onChange={(e) => setConfig({ ...config, return_top_k: parseInt(e.target.value) || 20 })}
-                className="tuning-input"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent"
               />
-              <p className="tuning-input-hint">
-                How many top clips the AI uses when building an answer.
-              </p>
             </div>
 
             {/* Save Button */}
             <button
               onClick={handleSave}
               disabled={saving}
-              className="tuning-btn tuning-btn-primary"
-              style={{ marginTop: '0.5rem' }}
+              className="w-full py-2.5 px-4 bg-black dark:bg-white text-white dark:text-black font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2 mt-2"
             >
               {saving ? (
                 <>
-                  <Loader2 className="tuning-spinner" style={{ width: '1rem', height: '1rem' }} />
+                  <Loader2 className="w-4 h-4 tuning-spinner" />
                   Saving...
                 </>
               ) : (
                 <>
-                  <Save style={{ width: '1rem', height: '1rem' }} />
+                  <Save className="w-4 h-4" />
                   Save Configuration
                 </>
               )}
@@ -315,31 +323,31 @@ export default function SearchPage() {
         </div>
 
         {/* Test Panel */}
-        <div className="tuning-card">
-          <h2 className="tuning-card-title" style={{ marginBottom: '1.5rem' }}>
-            Test Search
-          </h2>
+        <div className="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl p-5">
+          <h2 className="font-semibold text-gray-900 dark:text-white mb-6">Test Search</h2>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div className="tuning-form-group">
-              <label className="tuning-label">Query</label>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Query
+              </label>
               <input
                 type="text"
                 value={testQuery}
                 onChange={(e) => setTestQuery(e.target.value)}
                 placeholder="Enter a search query..."
-                className="tuning-input"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent"
               />
             </div>
 
             <button
               onClick={handleTestSearch}
               disabled={testing}
-              className="tuning-btn tuning-btn-secondary"
+              className="w-full py-2.5 px-4 bg-gray-100 dark:bg-neutral-800 text-gray-900 dark:text-white font-medium rounded-lg hover:bg-gray-200 dark:hover:bg-neutral-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {testing ? (
                 <>
-                  <Loader2 className="tuning-spinner" style={{ width: '1rem', height: '1rem' }} />
+                  <Loader2 className="w-4 h-4 tuning-spinner" />
                   Testing...
                 </>
               ) : (
@@ -348,27 +356,17 @@ export default function SearchPage() {
             </button>
 
             {testResults && (
-              <div style={{
-                background: 'var(--bg-card-elevated, #f3f4f6)',
-                borderRadius: '0.5rem',
-                padding: '1rem',
-                marginTop: '0.5rem'
-              }}>
-                <h3 className="tuning-label" style={{ marginBottom: '0.75rem' }}>
+              <div className="bg-gray-50 dark:bg-neutral-800 rounded-lg p-4 mt-2">
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
                   Results ({testResults.results?.length || 0})
                 </h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '300px', overflowY: 'auto' }}>
+                <div className="space-y-3 max-h-[300px] overflow-y-auto">
                   {testResults.results?.map((result: any, idx: number) => (
-                    <div key={idx} style={{
-                      background: 'var(--bg-card, white)',
-                      padding: '0.75rem',
-                      borderRadius: '0.375rem',
-                      borderLeft: '3px solid var(--accent, #000000)'
-                    }}>
-                      <p className="tuning-input-hint" style={{ marginBottom: '0.25rem' }}>
+                    <div key={idx} className="bg-white dark:bg-neutral-900 p-3 rounded-md border-l-3 border-black dark:border-white">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
                         Score: {result.score?.toFixed(3)}
                       </p>
-                      <p style={{ fontSize: '0.875rem', lineHeight: '1.4' }}>
+                      <p className="text-sm text-gray-700 dark:text-gray-300">
                         {result.text?.substring(0, 150)}...
                       </p>
                     </div>

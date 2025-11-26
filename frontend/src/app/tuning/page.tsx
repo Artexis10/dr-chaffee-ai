@@ -41,17 +41,17 @@ export default function OverviewPage() {
 
   if (loading) {
     return (
-      <div className="tuning-page">
-        <div className="tuning-loading">Loading stats...</div>
+      <div className="p-6 flex items-center justify-center min-h-[300px]">
+        <p className="text-gray-500">Loading stats...</p>
       </div>
     );
   }
 
   if (error || !stats) {
     return (
-      <div className="tuning-page">
-        <div className="tuning-message tuning-message-error">
-          <AlertCircle />
+      <div className="p-6">
+        <div className="flex items-center gap-2 p-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-lg">
+          <AlertCircle className="w-5 h-5" />
           {error || 'Failed to load stats'}
         </div>
       </div>
@@ -62,99 +62,108 @@ export default function OverviewPage() {
   const isCoverageGood = coveragePct >= 95;
 
   return (
-    <div className="tuning-page">
+    <div className="p-6 max-w-5xl mx-auto">
       {/* Header */}
-      <div className="tuning-page-header">
-        <h1 className="tuning-page-title">Dashboard Overview</h1>
-        <p className="tuning-page-description">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
+          Dashboard Overview
+        </h1>
+        <p className="text-gray-500 dark:text-gray-400">
           Real-time statistics and embedding coverage
         </p>
       </div>
 
       {/* Stats Grid */}
-      <div className="tuning-stats-grid">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         {/* Total Videos */}
-        <div className="tuning-stat-card">
-          <div className="tuning-stat-header">
-            <Database />
-            <span className="tuning-stat-label">Videos</span>
+        <div className="bg-black dark:bg-neutral-800 rounded-xl p-5 text-white">
+          <div className="flex items-center gap-2 mb-3 opacity-80">
+            <Database className="w-5 h-5" />
+            <span className="text-sm font-medium">Videos</span>
           </div>
-          <div className="tuning-stat-value">
+          <div className="text-3xl font-bold mb-1">
             {stats.total_videos.toLocaleString()}
           </div>
-          <div className="tuning-stat-description">Total Videos Indexed</div>
+          <div className="text-sm opacity-70">Total Videos Indexed</div>
         </div>
 
         {/* Total Segments */}
-        <div className="tuning-stat-card">
-          <div className="tuning-stat-header">
-            <TrendingUp />
-            <span className="tuning-stat-label">Segments</span>
+        <div className="bg-black dark:bg-neutral-800 rounded-xl p-5 text-white">
+          <div className="flex items-center gap-2 mb-3 opacity-80">
+            <TrendingUp className="w-5 h-5" />
+            <span className="text-sm font-medium">Segments</span>
           </div>
-          <div className="tuning-stat-value">
+          <div className="text-3xl font-bold mb-1">
             {stats.total_segments.toLocaleString()}
           </div>
-          <div className="tuning-stat-description">Total Segments</div>
+          <div className="text-sm opacity-70">Total Segments</div>
         </div>
 
         {/* Embedding Coverage */}
-        <div className="tuning-stat-card">
-          <div className="tuning-stat-header">
-            {isCoverageGood ? <CheckCircle /> : <AlertCircle />}
-            <span className="tuning-stat-label">Embedding Coverage</span>
+        <div className="bg-black dark:bg-neutral-800 rounded-xl p-5 text-white">
+          <div className="flex items-center gap-2 mb-3 opacity-80">
+            {isCoverageGood ? <CheckCircle className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+            <span className="text-sm font-medium">Coverage</span>
           </div>
-          <div className="tuning-stat-value">
+          <div className="text-3xl font-bold mb-1">
             {stats.embedding_coverage}
           </div>
-          <div className="tuning-stat-description">
-            {stats.segments_with_embeddings.toLocaleString()} of {stats.total_segments.toLocaleString()} segments
+          <div className="text-sm opacity-70">
+            {stats.segments_with_embeddings.toLocaleString()} of {stats.total_segments.toLocaleString()}
           </div>
         </div>
       </div>
 
       {/* Missing Embeddings Alert */}
       {stats.segments_missing_embeddings > 0 && (
-        <div className="tuning-message tuning-message-warning" style={{ marginBottom: '2rem', alignItems: 'flex-start' }}>
-          <AlertCircle style={{ marginTop: '0.125rem' }} />
+        <div className="flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 rounded-lg mb-8">
+          <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
           <div>
-            <strong style={{ display: 'block', marginBottom: '0.25rem' }}>Missing Embeddings</strong>
-            <span>
-              {stats.segments_missing_embeddings.toLocaleString()} segments don't have embeddings yet and won't be searchable.
+            <p className="font-semibold mb-1">Missing Embeddings</p>
+            <p className="text-sm opacity-90">
+              {stats.segments_missing_embeddings.toLocaleString()} segments don't have embeddings yet.
               Run the embedding pipeline to process these segments.
-            </span>
+            </p>
           </div>
         </div>
       )}
 
       {/* Info Cards */}
-      <div className="tuning-two-col">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Embedding Info */}
-        <div className="tuning-card">
-          <h3 className="tuning-card-title">Embedding Configuration</h3>
-          <div className="tuning-form-group" style={{ marginBottom: 0 }}>
-            <p className="tuning-input-hint" style={{ marginBottom: '0.25rem' }}>Dimensions</p>
-            <p style={{ fontSize: '1.25rem', fontWeight: 600 }}>
+        <div className="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl p-5">
+          <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Embedding Configuration</h3>
+          <div className="mb-3">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Dimensions</p>
+            <p className="text-xl font-bold text-gray-900 dark:text-white">
               {stats.embedding_dimensions}
             </p>
           </div>
-          <div style={{ paddingTop: '0.75rem', marginTop: '0.75rem', borderTop: '1px solid var(--border-subtle, #e5e7eb)' }}>
-            <p className="tuning-input-hint">
-              Embeddings help the AI find the most relevant clips. 384 is a good balance of speed and accuracy.
-            </p>
-          </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400 pt-3 border-t border-gray-100 dark:border-neutral-800">
+            Embeddings help the AI find the most relevant clips. 384 is a good balance of speed and accuracy.
+          </p>
         </div>
 
         {/* Quick Actions */}
-        <div className="tuning-card">
-          <h3 className="tuning-card-title">Quick Actions</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <Link href="/tuning/models" className="tuning-btn tuning-btn-primary">
+        <div className="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl p-5">
+          <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h3>
+          <div className="flex flex-col gap-3">
+            <Link 
+              href="/tuning/models" 
+              className="block w-full py-2.5 px-4 bg-black dark:bg-white text-white dark:text-black text-center font-medium rounded-lg hover:opacity-90 transition-opacity"
+            >
               View Embedding Models
             </Link>
-            <Link href="/tuning/search" className="tuning-btn tuning-btn-secondary">
+            <Link 
+              href="/tuning/search" 
+              className="block w-full py-2.5 px-4 bg-gray-100 dark:bg-neutral-800 text-gray-900 dark:text-white text-center font-medium rounded-lg hover:bg-gray-200 dark:hover:bg-neutral-700 transition-colors"
+            >
               Configure Search
             </Link>
-            <Link href="/tuning/instructions" className="tuning-btn tuning-btn-secondary">
+            <Link 
+              href="/tuning/instructions" 
+              className="block w-full py-2.5 px-4 bg-gray-100 dark:bg-neutral-800 text-gray-900 dark:text-white text-center font-medium rounded-lg hover:bg-gray-200 dark:hover:bg-neutral-700 transition-colors"
+            >
               Custom Instructions
             </Link>
           </div>

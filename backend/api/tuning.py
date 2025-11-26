@@ -260,7 +260,7 @@ async def get_config(request: Request):
 async def set_query_model(model_key: str, request: Request):
     """
     Set the active query model (instant switch if embeddings exist).
-    Updates .env file to persist change.
+    Updates runtime environment variables. Optionally persists to .env if available.
     Protected: requires tuning_auth cookie.
     """
     config = load_embedding_models()
@@ -271,44 +271,54 @@ async def set_query_model(model_key: str, request: Request):
     
     model_info = models[model_key]
     full_model_name = model_info.get("model_name", model_key)
+    dimensions = model_info.get("dimensions", 384)
     
-    # Update .env file
+    # Update runtime environment (always works)
+    os.environ["EMBEDDING_MODEL"] = full_model_name
+    os.environ["EMBEDDING_DIMENSIONS"] = str(dimensions)
+    
+    # Also update the JSON config file to track active model
+    try:
+        config["active_query_model"] = model_key
+        save_embedding_models(config)
+    except Exception as e:
+        logger.warning(f"Could not update embedding_models.json: {e}")
+    
+    # Try to update .env file if it exists (optional, for local dev)
+    env_persisted = False
     try:
         env_path = Path(__file__).parent.parent.parent / ".env"
-        env_content = env_path.read_text()
-        
-        # Replace EMBEDDING_MODEL line
-        import re
-        env_content = re.sub(
-            r'EMBEDDING_MODEL=.*',
-            f'EMBEDDING_MODEL={full_model_name}',
-            env_content
-        )
-        
-        # Replace EMBEDDING_DIMENSIONS line
-        env_content = re.sub(
-            r'EMBEDDING_DIMENSIONS=.*',
-            f'EMBEDDING_DIMENSIONS={model_info.get("dimensions", 384)}',
-            env_content
-        )
-        
-        env_path.write_text(env_content)
-        
-        # Update runtime environment
-        os.environ["EMBEDDING_MODEL"] = full_model_name
-        os.environ["EMBEDDING_DIMENSIONS"] = str(model_info.get("dimensions", 384))
-        
-        logger.info(f"Query model switched to '{model_key}' ({full_model_name})")
-        
-        return {
-            "success": True,
-            "message": f"Query model switched to '{model_key}'",
-            "model": model_info,
-            "note": "Changes persisted to .env. Restart application to apply."
-        }
+        if env_path.exists():
+            import re
+            env_content = env_path.read_text()
+            
+            # Replace or add EMBEDDING_MODEL line
+            if 'EMBEDDING_MODEL=' in env_content:
+                env_content = re.sub(r'EMBEDDING_MODEL=.*', f'EMBEDDING_MODEL={full_model_name}', env_content)
+            else:
+                env_content += f'\nEMBEDDING_MODEL={full_model_name}'
+            
+            # Replace or add EMBEDDING_DIMENSIONS line
+            if 'EMBEDDING_DIMENSIONS=' in env_content:
+                env_content = re.sub(r'EMBEDDING_DIMENSIONS=.*', f'EMBEDDING_DIMENSIONS={dimensions}', env_content)
+            else:
+                env_content += f'\nEMBEDDING_DIMENSIONS={dimensions}'
+            
+            env_path.write_text(env_content)
+            env_persisted = True
+            logger.info(f"Query model switched to '{model_key}' and persisted to .env")
     except Exception as e:
-        logger.error(f"Failed to update .env: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to update configuration: {e}")
+        logger.info(f"Could not persist to .env (this is normal in containers): {e}")
+    
+    logger.info(f"Query model switched to '{model_key}' ({full_model_name})")
+    
+    return {
+        "success": True,
+        "message": f"Query model switched to '{model_key}'",
+        "model": model_info,
+        "persisted": env_persisted,
+        "note": "Changes applied to runtime." + (" Also saved to .env." if env_persisted else " Restart will reset to default.")
+    }
 
 
 @router.post(
@@ -318,7 +328,7 @@ async def set_query_model(model_key: str, request: Request):
 async def set_ingestion_models(model_keys: List[str], request: Request):
     """
     Set the active ingestion models (requires re-ingestion to generate embeddings).
-    Updates .env file to persist change.
+    Updates runtime environment variables. Optionally persists to .env if available.
     Protected: requires tuning_auth cookie.
     """
     config = load_embedding_models()
@@ -330,51 +340,57 @@ async def set_ingestion_models(model_keys: List[str], request: Request):
             raise HTTPException(status_code=404, detail=f"Model '{key}' not found")
     
     # For now, we only support single ingestion model (same as query model)
-    # This keeps things simple and consistent
     if len(model_keys) > 1:
         logger.warning(f"Multiple ingestion models requested: {model_keys}. Using first: {model_keys[0]}")
     
     primary_model_key = model_keys[0]
     model_info = models[primary_model_key]
     full_model_name = model_info.get("model_name", primary_model_key)
+    dimensions = model_info.get("dimensions", 384)
     
-    # Update .env file
+    # Update runtime environment (always works)
+    os.environ["EMBEDDING_MODEL"] = full_model_name
+    os.environ["EMBEDDING_DIMENSIONS"] = str(dimensions)
+    
+    # Also update the JSON config file to track active model
+    try:
+        config["active_ingestion_models"] = [primary_model_key]
+        save_embedding_models(config)
+    except Exception as e:
+        logger.warning(f"Could not update embedding_models.json: {e}")
+    
+    # Try to update .env file if it exists (optional, for local dev)
+    env_persisted = False
     try:
         env_path = Path(__file__).parent.parent.parent / ".env"
-        env_content = env_path.read_text()
-        
-        # Replace EMBEDDING_MODEL line
-        import re
-        env_content = re.sub(
-            r'EMBEDDING_MODEL=.*',
-            f'EMBEDDING_MODEL={full_model_name}',
-            env_content
-        )
-        
-        # Replace EMBEDDING_DIMENSIONS line
-        env_content = re.sub(
-            r'EMBEDDING_DIMENSIONS=.*',
-            f'EMBEDDING_DIMENSIONS={model_info.get("dimensions", 384)}',
-            env_content
-        )
-        
-        env_path.write_text(env_content)
-        
-        # Update runtime environment
-        os.environ["EMBEDDING_MODEL"] = full_model_name
-        os.environ["EMBEDDING_DIMENSIONS"] = str(model_info.get("dimensions", 384))
-        
-        logger.info(f"Ingestion model set to '{primary_model_key}' ({full_model_name})")
-        
-        return {
-            "success": True,
-            "message": f"Ingestion model set to: {primary_model_key}",
-            "model": model_info,
-            "note": "Changes persisted to .env. Run ingestion to generate embeddings."
-        }
+        if env_path.exists():
+            import re
+            env_content = env_path.read_text()
+            
+            if 'EMBEDDING_MODEL=' in env_content:
+                env_content = re.sub(r'EMBEDDING_MODEL=.*', f'EMBEDDING_MODEL={full_model_name}', env_content)
+            else:
+                env_content += f'\nEMBEDDING_MODEL={full_model_name}'
+            
+            if 'EMBEDDING_DIMENSIONS=' in env_content:
+                env_content = re.sub(r'EMBEDDING_DIMENSIONS=.*', f'EMBEDDING_DIMENSIONS={dimensions}', env_content)
+            else:
+                env_content += f'\nEMBEDDING_DIMENSIONS={dimensions}'
+            
+            env_path.write_text(env_content)
+            env_persisted = True
     except Exception as e:
-        logger.error(f"Failed to update .env: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to update configuration: {e}")
+        logger.info(f"Could not persist to .env (this is normal in containers): {e}")
+    
+    logger.info(f"Ingestion model set to '{primary_model_key}' ({full_model_name})")
+    
+    return {
+        "success": True,
+        "message": f"Ingestion model set to: {primary_model_key}",
+        "model": model_info,
+        "persisted": env_persisted,
+        "note": "Changes applied to runtime. Run ingestion to generate embeddings."
+    }
 
 
 @router.post(
