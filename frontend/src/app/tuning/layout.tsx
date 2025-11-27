@@ -96,8 +96,15 @@ export default function TuningLayout({
   // Loading state - simple centered spinner
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-neutral-950">
-        <p className="text-gray-500">Loading...</p>
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        minHeight: '100vh',
+        background: 'var(--bg-body)',
+        color: 'var(--text-muted)'
+      }}>
+        <p>Loading...</p>
       </div>
     );
   }
@@ -110,8 +117,15 @@ export default function TuningLayout({
   // Not authenticated - redirect happening
   if (!isAuthenticated) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-neutral-950">
-        <p className="text-gray-500">Redirecting to login...</p>
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        minHeight: '100vh',
+        background: 'var(--bg-body)',
+        color: 'var(--text-muted)'
+      }}>
+        <p>Redirecting to login...</p>
       </div>
     );
   }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Zap, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+import '../tuning-pages.css';
 
 interface EmbeddingModel {
   key: string;
@@ -77,8 +78,8 @@ export default function ModelsPage() {
 
   if (loading) {
     return (
-      <div className="p-6 flex items-center justify-center min-h-[300px]">
-        <p className="text-gray-500">Loading models...</p>
+      <div className="tuning-page tuning-centered">
+        <p className="tuning-text-muted">Loading models...</p>
       </div>
     );
   }
@@ -86,117 +87,99 @@ export default function ModelsPage() {
   const activeModel = models.find(m => m.is_active_query);
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="tuning-page">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
-          Embedding Models
-        </h1>
-        <p className="text-gray-500 dark:text-gray-400">
-          Manage and configure embedding models for semantic search
-        </p>
+      <div className="tuning-header">
+        <h1 className="tuning-title">Embedding Models</h1>
+        <p className="tuning-text-muted">Manage and configure embedding models for semantic search</p>
       </div>
 
       {/* Message */}
       {message && (
-        <div className={`flex items-center gap-2 p-4 rounded-lg mb-6 ${
-          messageType === 'success' 
-            ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' 
-            : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
-        }`}>
-          {messageType === 'success' ? <CheckCircle className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+        <div className={`tuning-alert ${messageType === 'success' ? 'tuning-alert-success' : 'tuning-alert-error'}`}>
+          {messageType === 'success' ? <CheckCircle style={{ width: 20, height: 20 }} /> : <AlertCircle style={{ width: 20, height: 20 }} />}
           {message}
         </div>
       )}
 
       {/* Active Model Info */}
       {activeModel && (
-        <div className="bg-black dark:bg-neutral-800 rounded-xl p-5 text-white mb-8">
-          <div className="flex items-center gap-2 mb-3 opacity-80">
-            <Zap className="w-5 h-5" />
-            <span className="text-sm font-medium">Active Model</span>
+        <div className="tuning-stat-card" style={{ marginBottom: '2rem' }}>
+          <div className="tuning-stat-header">
+            <Zap style={{ width: 20, height: 20 }} />
+            <span>Active Model</span>
           </div>
-          <div className="text-2xl font-bold mb-2">{activeModel.key}</div>
-          <p className="text-sm opacity-80 mb-4">{activeModel.description}</p>
-          <div className="grid grid-cols-3 gap-4">
+          <div style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.5rem' }}>{activeModel.key}</div>
+          <p style={{ fontSize: '0.875rem', opacity: 0.8, marginBottom: '1rem' }}>{activeModel.description}</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
             <div>
-              <p className="text-xs opacity-60 mb-1">Provider</p>
-              <p className="font-semibold">{activeModel.provider}</p>
+              <p style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.25rem' }}>Provider</p>
+              <p style={{ fontWeight: 600 }}>{activeModel.provider}</p>
             </div>
             <div>
-              <p className="text-xs opacity-60 mb-1">Dimensions</p>
-              <p className="font-semibold">{activeModel.dimensions}</p>
+              <p style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.25rem' }}>Dimensions</p>
+              <p style={{ fontWeight: 600 }}>{activeModel.dimensions}</p>
             </div>
             <div>
-              <p className="text-xs opacity-60 mb-1">Cost</p>
-              <p className="font-semibold">{activeModel.cost_per_1k === 0 ? 'Free' : `$${activeModel.cost_per_1k}/1K`}</p>
+              <p style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.25rem' }}>Cost</p>
+              <p style={{ fontWeight: 600 }}>{activeModel.cost_per_1k === 0 ? 'Free' : `$${activeModel.cost_per_1k}/1K`}</p>
             </div>
           </div>
         </div>
       )}
 
       {/* Models Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="tuning-model-grid">
         {models.map((model) => (
-          <div
-            key={model.key}
-            className={`bg-white dark:bg-neutral-900 border rounded-xl p-5 flex flex-col ${
-              model.is_active_query 
-                ? 'border-black dark:border-white border-2' 
-                : 'border-gray-200 dark:border-neutral-800'
-            }`}
-          >
+          <div key={model.key} className={`tuning-model-card ${model.is_active_query ? 'active' : ''}`}>
             {/* Card header */}
-            <div className="flex items-start justify-between mb-3">
+            <div className="tuning-model-header">
               <div>
-                <h3 className="font-semibold text-gray-900 dark:text-white">{model.key}</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{model.provider}</p>
+                <h3 className="tuning-model-name">{model.key}</h3>
+                <p className="tuning-model-provider">{model.provider}</p>
               </div>
-              {model.is_active_query && (
-                <span className="bg-black dark:bg-white text-white dark:text-black px-2.5 py-0.5 rounded-full text-xs font-semibold">
-                  Active
-                </span>
-              )}
+              {model.is_active_query && <span className="tuning-badge">Active</span>}
             </div>
 
             {/* Description */}
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 line-clamp-2">
+            <p className="tuning-text-muted" style={{ fontSize: '0.875rem', marginBottom: '1rem', minHeight: '2.5rem' }}>
               {model.description}
             </p>
 
             {/* Stats */}
-            <div className="grid grid-cols-2 gap-4 py-4 border-y border-gray-100 dark:border-neutral-800 mt-auto">
+            <div className="tuning-model-stats">
               <div>
-                <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Dimensions</p>
-                <p className="text-xl font-bold text-gray-900 dark:text-white">{model.dimensions}</p>
+                <p className="tuning-model-stat-label">Dimensions</p>
+                <p className="tuning-model-stat-value">{model.dimensions}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Cost</p>
-                <p className={`text-xl font-bold ${model.cost_per_1k === 0 ? 'text-green-600' : 'text-gray-900 dark:text-white'}`}>
+                <p className="tuning-model-stat-label">Cost</p>
+                <p className={`tuning-model-stat-value ${model.cost_per_1k === 0 ? 'free' : ''}`}>
                   {model.cost_per_1k === 0 ? 'Free' : `$${model.cost_per_1k}`}
                 </p>
               </div>
             </div>
             
-            <p className={`text-xs mt-2 ${model.cost_per_1k === 0 ? 'text-green-600' : 'text-gray-400'}`}>
+            <p style={{ fontSize: '0.75rem', marginTop: '0.5rem', color: model.cost_per_1k === 0 ? '#059669' : 'var(--text-muted)' }}>
               {model.cost_per_1k === 0 ? '✓ Runs locally, no API costs' : 'Per 1,000 words processed'}
             </p>
 
             {/* Button */}
-            <div className="mt-4">
+            <div style={{ marginTop: '1rem' }}>
               {model.is_active_query ? (
-                <div className="w-full py-2.5 px-4 bg-gray-100 dark:bg-neutral-800 text-gray-500 dark:text-gray-400 text-center font-medium rounded-lg">
+                <div className="tuning-btn tuning-btn-secondary" style={{ opacity: 0.7, cursor: 'default' }}>
                   Currently active
                 </div>
               ) : (
                 <button
                   onClick={() => handleSetActive(model.key)}
                   disabled={settingActive !== null}
-                  className="w-full py-2.5 px-4 bg-black dark:bg-white text-white dark:text-black font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="tuning-btn tuning-btn-primary"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
                 >
                   {settingActive === model.key ? (
                     <>
-                      <Loader2 className="w-4 h-4 tuning-spinner" />
+                      <Loader2 style={{ width: 16, height: 16 }} className="tuning-spinner" />
                       Setting...
                     </>
                   ) : (
