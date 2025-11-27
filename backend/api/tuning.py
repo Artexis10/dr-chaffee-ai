@@ -474,9 +474,11 @@ async def update_summarizer_config(config: SummarizerConfig, request: Request):
     """
     # Whitelist of approved models
     allowed_models = {
-        "gpt-4-turbo": {"cost": "$0.01/$0.03", "quality": "highest", "speed": "fast"},
-        "gpt-4": {"cost": "$0.03/$0.06", "quality": "highest", "speed": "slow"},
-        "gpt-3.5-turbo": {"cost": "$0.0005/$0.0015", "quality": "good", "speed": "fastest"}
+        "gpt-4.1": {"cost": "$0.002/$0.008", "quality": "best", "speed": "fast"},
+        "gpt-4.1-mini": {"cost": "$0.0004/$0.0016", "quality": "high", "speed": "fastest"},
+        "gpt-4.1-nano": {"cost": "$0.0001/$0.0004", "quality": "good", "speed": "fastest"},
+        "gpt-4-turbo": {"cost": "$0.01/$0.03", "quality": "high", "speed": "fast"},
+        "gpt-3.5-turbo": {"cost": "$0.0005/$0.0015", "quality": "budget", "speed": "fast"}
     }
     
     if config.model not in allowed_models:
@@ -505,39 +507,107 @@ async def update_summarizer_config(config: SummarizerConfig, request: Request):
 @router.get("/summarizer/models")
 async def list_summarizer_models():
     """
-    List available summarizer models with cost and quality info
+    List available summarizer models with cost and quality info.
+    These models are used for answer generation only - they do not affect search or embeddings.
     """
     models = {
-        "gpt-4-turbo": {
-            "name": "GPT-4 Turbo",
-            "cost_input": "$0.01/1k tokens",
-            "cost_output": "$0.03/1k tokens",
-            "quality": "highest",
+        "gpt-4.1": {
+            "name": "GPT-4.1",
+            "provider": "OpenAI",
+            "quality_tier": "Best",
+            "cost_input": "$0.002/1k",
+            "cost_output": "$0.008/1k",
             "speed": "fast",
             "recommended": True,
-            "description": "Best quality, balanced cost and speed. Recommended for production."
+            "pros": [
+                "Highest quality answers",
+                "Best reasoning and nuance",
+                "Great cost/quality ratio"
+            ],
+            "cons": [
+                "Higher cost than mini models"
+            ],
+            "description": "Best quality for production. Excellent reasoning with competitive pricing."
         },
-        "gpt-4": {
-            "name": "GPT-4",
-            "cost_input": "$0.03/1k tokens",
-            "cost_output": "$0.06/1k tokens",
-            "quality": "highest",
-            "speed": "slow",
+        "gpt-4.1-mini": {
+            "name": "GPT-4.1 Mini",
+            "provider": "OpenAI",
+            "quality_tier": "High",
+            "cost_input": "$0.0004/1k",
+            "cost_output": "$0.0016/1k",
+            "speed": "fastest",
             "recommended": False,
-            "description": "Highest quality but slower and more expensive. Use for critical summaries."
+            "pros": [
+                "Very fast responses",
+                "Excellent cost efficiency",
+                "Good quality for most queries"
+            ],
+            "cons": [
+                "Slightly less nuanced than full 4.1"
+            ],
+            "description": "Great balance of speed, cost, and quality. Ideal for high-volume use."
+        },
+        "gpt-4.1-nano": {
+            "name": "GPT-4.1 Nano",
+            "provider": "OpenAI",
+            "quality_tier": "Budget",
+            "cost_input": "$0.0001/1k",
+            "cost_output": "$0.0004/1k",
+            "speed": "fastest",
+            "recommended": False,
+            "pros": [
+                "Extremely low cost",
+                "Very fast responses",
+                "Good for simple queries"
+            ],
+            "cons": [
+                "Less detailed answers",
+                "May miss nuance"
+            ],
+            "description": "Ultra-budget option. Best for testing or simple Q&A."
+        },
+        "gpt-4-turbo": {
+            "name": "GPT-4 Turbo",
+            "provider": "OpenAI",
+            "quality_tier": "High",
+            "cost_input": "$0.01/1k",
+            "cost_output": "$0.03/1k",
+            "speed": "fast",
+            "recommended": False,
+            "pros": [
+                "Proven reliability",
+                "Strong reasoning",
+                "Good for complex queries"
+            ],
+            "cons": [
+                "Higher cost than 4.1 series",
+                "Older model generation"
+            ],
+            "description": "Legacy high-quality option. Consider GPT-4.1 for better value."
         },
         "gpt-3.5-turbo": {
             "name": "GPT-3.5 Turbo",
-            "cost_input": "$0.0005/1k tokens",
-            "cost_output": "$0.0015/1k tokens",
-            "quality": "good",
-            "speed": "fastest",
+            "provider": "OpenAI",
+            "quality_tier": "Budget",
+            "cost_input": "$0.0005/1k",
+            "cost_output": "$0.0015/1k",
+            "speed": "fast",
             "recommended": False,
-            "description": "Fastest and cheapest. Good for testing and non-critical summaries."
+            "pros": [
+                "Very low cost",
+                "Fast responses",
+                "Good for testing"
+            ],
+            "cons": [
+                "Lower quality answers",
+                "May hallucinate more",
+                "Legacy model"
+            ],
+            "description": "Legacy budget option. Consider GPT-4.1-nano for better quality."
         }
     }
     
-    current_model = os.getenv("SUMMARIZER_MODEL", "gpt-4-turbo")
+    current_model = os.getenv("SUMMARIZER_MODEL", "gpt-4.1")
     
     return {
         "current_model": current_model,

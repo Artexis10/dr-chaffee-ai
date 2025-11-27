@@ -1,20 +1,31 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Zap, AlertCircle, CheckCircle, Loader2, Info } from 'lucide-react';
+import { Sparkles, AlertCircle, CheckCircle, Loader2, Info, Check, X } from 'lucide-react';
 import '../tuning-pages.css';
 
-interface EmbeddingModel {
+interface SummarizerModel {
   key: string;
+  name: string;
   provider: string;
-  dimensions: number;
-  cost_per_1k: number;
+  quality_tier: string;
+  cost_input: string;
+  cost_output: string;
+  speed: string;
+  recommended: boolean;
+  pros: string[];
+  cons: string[];
   description: string;
-  is_active_query: boolean;
+}
+
+interface SummarizerModelsResponse {
+  current_model: string;
+  models: Record<string, Omit<SummarizerModel, 'key'>>;
 }
 
 export default function ModelsPage() {
-  const [models, setModels] = useState<EmbeddingModel[]>([]);
+  const [models, setModels] = useState<SummarizerModel[]>([]);
+  const [currentModel, setCurrentModel] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [settingActive, setSettingActive] = useState<string | null>(null);
   const [message, setMessage] = useState('');
@@ -26,30 +37,73 @@ export default function ModelsPage() {
 
   const loadModels = async () => {
     try {
-      const res = await fetch('/api/embedding-models');
+      const res = await fetch('/api/tuning/summarizer/models');
       if (!res.ok) {
         throw new Error(`Failed to load models: ${res.status}`);
       }
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        setModels(data);
-      } else {
-        throw new Error('Invalid response format');
-      }
+      const data: SummarizerModelsResponse = await res.json();
+      
+      // Convert models object to array with keys
+      const modelArray: SummarizerModel[] = Object.entries(data.models).map(([key, model]) => ({
+        key,
+        ...model
+      }));
+      
+      setModels(modelArray);
+      setCurrentModel(data.current_model);
     } catch (error) {
       console.error('Failed to load models:', error);
-      setMessage('Failed to load embedding models. Please try again.');
+      setMessage('Failed to load summarizer models. Please try again.');
       setMessageType('error');
     } finally {
       setLoading(false);
     }
   };
 
-  // Model switching is disabled - show tooltip message instead
-  const handleSetActive = (modelKey: string) => {
-    // Do not make API call - switching is disabled
-    setMessage('Model switching is temporarily disabled. A re-embedding service is required to safely switch embedding models.');
-    setMessageType('info');
+  const handleSetActive = async (modelKey: string) => {
+    if (modelKey === currentModel) return;
+    
+    try {
+      setSettingActive(modelKey);
+      setMessage('');
+      
+      const res = await fetch('/api/tuning/summarizer/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          model: modelKey,
+          temperature: 0.1,
+          max_tokens: 2000
+        })
+      });
+      
+      const data = await res.json();
+      
+      if (res.ok && data.success) {
+        setCurrentModel(modelKey);
+        setMessage(`Summarizer model changed to "${modelKey}". Changes take effect immediately.`);
+        setMessageType('success');
+      } else {
+        const errorMsg = data.error || data.detail || 'Failed to update model';
+        setMessage(errorMsg);
+        setMessageType('error');
+      }
+    } catch (error) {
+      console.error('Error setting active model:', error);
+      setMessage('Network error. Please check your connection and try again.');
+      setMessageType('error');
+    } finally {
+      setSettingActive(null);
+    }
+  };
+
+  const getQualityBadgeClass = (tier: string) => {
+    switch (tier.toLowerCase()) {
+      case 'best': return 'tuning-quality-best';
+      case 'high': return 'tuning-quality-high';
+      case 'budget': return 'tuning-quality-budget';
+      default: return '';
+    }
   };
 
   if (loading) {
@@ -60,32 +114,31 @@ export default function ModelsPage() {
     );
   }
 
-  const activeModel = models.find(m => m.is_active_query);
+  const activeModel = models.find(m => m.key === currentModel);
 
   return (
     <div className="tuning-page">
       {/* Header */}
       <div className="tuning-header">
-        <h1 className="tuning-title">Embedding Models</h1>
-        <p className="tuning-text-muted">View configured embedding models for semantic search</p>
+        <h1 className="tuning-title">Summarizer Model</h1>
+        <p className="tuning-text-muted">Choose the AI model used for generating answers</p>
       </div>
 
-      {/* Model Switching Disabled Banner */}
+      {/* Info Banner */}
       <div className="tuning-alert tuning-alert-info">
         <Info style={{ width: 20, height: 20, flexShrink: 0, marginTop: 2 }} />
         <div>
-          <p style={{ fontWeight: 600, marginBottom: 4 }}>Model Switching Disabled</p>
+          <p style={{ fontWeight: 600, marginBottom: 4 }}>Answer Generation Only</p>
           <p style={{ fontSize: '0.875rem', opacity: 0.9, margin: 0 }}>
-            Embedding model switching is currently disabled. A full re-embedding process is required 
-            to safely change models, as different models produce incompatible embeddings. 
-            Contact your developer if you need to change models.
+            This setting controls which OpenAI model generates answers from search results. 
+            It does <strong>not</strong> affect search quality or embeddings — those use a separate local model.
           </p>
         </div>
       </div>
 
       {/* Message */}
       {message && (
-        <div className={`tuning-alert ${messageType === 'success' ? 'tuning-alert-success' : 'tuning-alert-error'}`}>
+        <div className={`tuning-alert ${messageType === 'success' ? 'tuning-alert-success' : messageType === 'error' ? 'tuning-alert-error' : 'tuning-alert-info'}`}>
           {messageType === 'success' ? <CheckCircle style={{ width: 20, height: 20 }} /> : <AlertCircle style={{ width: 20, height: 20 }} />}
           {message}
         </div>
@@ -95,10 +148,10 @@ export default function ModelsPage() {
       {activeModel && (
         <div className="tuning-stat-card" style={{ marginBottom: '2rem' }}>
           <div className="tuning-stat-header">
-            <Zap style={{ width: 20, height: 20 }} />
-            <span>Active Model</span>
+            <Sparkles style={{ width: 20, height: 20 }} />
+            <span>Active Summarizer</span>
           </div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.5rem' }}>{activeModel.key}</div>
+          <div style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.5rem' }}>{activeModel.name}</div>
           <p style={{ fontSize: '0.875rem', opacity: 0.8, marginBottom: '1rem' }}>{activeModel.description}</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
             <div>
@@ -106,12 +159,12 @@ export default function ModelsPage() {
               <p style={{ fontWeight: 600 }}>{activeModel.provider}</p>
             </div>
             <div>
-              <p style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.25rem' }}>Dimensions</p>
-              <p style={{ fontWeight: 600 }}>{activeModel.dimensions}</p>
+              <p style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.25rem' }}>Quality</p>
+              <p style={{ fontWeight: 600 }}>{activeModel.quality_tier}</p>
             </div>
             <div>
-              <p style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.25rem' }}>Cost</p>
-              <p style={{ fontWeight: 600 }}>{activeModel.cost_per_1k === 0 ? 'Free' : `$${activeModel.cost_per_1k}/1K`}</p>
+              <p style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.25rem' }}>Speed</p>
+              <p style={{ fontWeight: 600, textTransform: 'capitalize' }}>{activeModel.speed}</p>
             </div>
           </div>
         </div>
@@ -120,53 +173,75 @@ export default function ModelsPage() {
       {/* Models Grid */}
       <div className="tuning-model-grid">
         {models.map((model) => (
-          <div key={model.key} className={`tuning-model-card ${model.is_active_query ? 'active' : ''}`}>
+          <div key={model.key} className={`tuning-model-card ${model.key === currentModel ? 'active' : ''}`}>
             {/* Card header */}
             <div className="tuning-model-header">
               <div>
-                <h3 className="tuning-model-name">{model.key}</h3>
+                <h3 className="tuning-model-name">{model.name}</h3>
                 <p className="tuning-model-provider">{model.provider}</p>
               </div>
-              {model.is_active_query && <span className="tuning-badge">Active</span>}
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <span className={`tuning-quality-badge ${getQualityBadgeClass(model.quality_tier)}`}>
+                  {model.quality_tier}
+                </span>
+                {model.key === currentModel && <span className="tuning-badge">Active</span>}
+              </div>
             </div>
 
             {/* Description */}
-            <p className="tuning-text-muted" style={{ fontSize: '0.875rem', marginBottom: '1rem', minHeight: '2.5rem' }}>
+            <p className="tuning-text-muted" style={{ fontSize: '0.875rem', marginBottom: '1rem' }}>
               {model.description}
             </p>
 
-            {/* Stats */}
+            {/* Pros/Cons */}
+            <div style={{ marginBottom: '1rem' }}>
+              {model.pros.map((pro, idx) => (
+                <div key={`pro-${idx}`} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', marginBottom: '0.25rem' }}>
+                  <Check style={{ width: 14, height: 14, color: '#059669', flexShrink: 0 }} />
+                  <span style={{ color: 'var(--text-muted)' }}>{pro}</span>
+                </div>
+              ))}
+              {model.cons.map((con, idx) => (
+                <div key={`con-${idx}`} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', marginBottom: '0.25rem' }}>
+                  <X style={{ width: 14, height: 14, color: '#dc2626', flexShrink: 0 }} />
+                  <span style={{ color: 'var(--text-muted)' }}>{con}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Cost Stats */}
             <div className="tuning-model-stats">
               <div>
-                <p className="tuning-model-stat-label">Dimensions</p>
-                <p className="tuning-model-stat-value">{model.dimensions}</p>
+                <p className="tuning-model-stat-label">Input Cost</p>
+                <p className="tuning-model-stat-value" style={{ fontSize: '1rem' }}>{model.cost_input}</p>
               </div>
               <div>
-                <p className="tuning-model-stat-label">Cost</p>
-                <p className={`tuning-model-stat-value ${model.cost_per_1k === 0 ? 'free' : ''}`}>
-                  {model.cost_per_1k === 0 ? 'Free' : `$${model.cost_per_1k}`}
-                </p>
+                <p className="tuning-model-stat-label">Output Cost</p>
+                <p className="tuning-model-stat-value" style={{ fontSize: '1rem' }}>{model.cost_output}</p>
               </div>
             </div>
-            
-            <p style={{ fontSize: '0.75rem', marginTop: '0.5rem', color: model.cost_per_1k === 0 ? '#059669' : 'var(--text-muted)' }}>
-              {model.cost_per_1k === 0 ? '✓ Runs locally, no API costs' : 'Per 1,000 words processed'}
-            </p>
 
             {/* Button */}
             <div style={{ marginTop: '1rem' }}>
-              {model.is_active_query ? (
+              {model.key === currentModel ? (
                 <div className="tuning-btn tuning-btn-secondary" style={{ opacity: 0.7, cursor: 'default' }}>
                   Currently active
                 </div>
               ) : (
                 <button
-                  disabled={true}
-                  className="tuning-btn tuning-btn-primary tuning-btn-disabled"
-                  title="Model switching is temporarily disabled. A re-embedding service is required to safely switch embedding models."
+                  onClick={() => handleSetActive(model.key)}
+                  disabled={settingActive !== null}
+                  className="tuning-btn tuning-btn-primary"
                   style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
                 >
-                  Set as Active
+                  {settingActive === model.key ? (
+                    <>
+                      <Loader2 style={{ width: 16, height: 16 }} className="tuning-spinner" />
+                      Setting...
+                    </>
+                  ) : (
+                    'Set as Active'
+                  )}
                 </button>
               )}
             </div>

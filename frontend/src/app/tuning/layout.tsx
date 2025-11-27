@@ -2,7 +2,7 @@
 
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Settings, BarChart3, Zap, Search, Home, LogOut, Menu, X, Sun, Moon } from 'lucide-react';
+import { Settings, BarChart3, Sparkles, Search, Home, LogOut, Menu, X, Sun, Moon } from 'lucide-react';
 import '../../styles/tuning.css';
 
 // Theme constants - must match DarkModeToggle.tsx
@@ -130,7 +130,7 @@ export default function TuningLayout({
 
   const navItems = [
     { id: 'overview', label: 'Overview', icon: BarChart3, href: '/tuning' },
-    { id: 'models', label: 'Models', icon: Zap, href: '/tuning/models' },
+    { id: 'models', label: 'Summarizer', icon: Sparkles, href: '/tuning/models' },
     { id: 'search', label: 'Search Config', icon: Search, href: '/tuning/search' },
     { id: 'instructions', label: 'Instructions', icon: Settings, href: '/tuning/instructions' }
   ];
