@@ -41,7 +41,7 @@ export const DisclaimerBanner: React.FC = () => {
         .disclaimer-card,
         .patreon-card {
           flex: 1;
-          min-width: 280px;
+          min-width: min(280px, 100%);
           display: flex;
           align-items: center;
           gap: var(--space-3);
@@ -104,34 +104,35 @@ export const DisclaimerBanner: React.FC = () => {
         @media (max-width: 768px) {
           .disclaimer-container {
             flex-direction: column;
-            gap: var(--space-3);
+            gap: var(--space-2);
             margin-bottom: var(--space-4);
           }
 
           .disclaimer-card,
           .patreon-card {
             min-width: 100%;
-            padding: var(--space-3) var(--space-3);
-            font-size: 0.9rem;
+            padding: var(--space-3);
+            font-size: 0.875rem;
           }
         }
 
         @media (max-width: 480px) {
           .disclaimer-container {
-            gap: var(--space-2);
+            gap: 0.375rem;
           }
 
           .disclaimer-card,
           .patreon-card {
-            padding: var(--space-3);
-            font-size: 0.85rem;
-            gap: var(--space-2);
+            padding: 0.625rem 0.75rem;
+            font-size: 0.8125rem;
+            gap: 0.5rem;
+            border-radius: var(--radius-md);
           }
 
           .disclaimer-icon svg,
           .patreon-icon svg {
-            width: 18px;
-            height: 18px;
+            width: 16px;
+            height: 16px;
           }
         }
 

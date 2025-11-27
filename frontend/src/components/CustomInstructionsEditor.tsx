@@ -218,14 +218,14 @@ export default function CustomInstructionsEditor() {
   };
 
   return (
-    <div style={{
+    <div className="custom-instructions-container" style={{
       background: 'var(--bg-card, #ffffff)',
       border: '1px solid var(--border-subtle, #e5e7eb)',
       borderRadius: '0.75rem',
       padding: '1.5rem'
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-        <div>
+      <div className="ci-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1.5rem', gap: '1rem', flexWrap: 'wrap' }}>
+        <div style={{ flex: '1 1 auto', minWidth: '200px' }}>
           <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary, #1f2937)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <FileText style={{ width: '1.5rem', height: '1.5rem', color: 'var(--text-muted, #6b7280)' }} />
             Custom Instructions
@@ -238,18 +238,20 @@ export default function CustomInstructionsEditor() {
         {!editMode && (
           <button
             onClick={startNewInstruction}
+            className="ci-new-btn"
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '0.5rem',
               background: 'var(--accent, #000000)',
               color: 'var(--accent-foreground, white)',
-              padding: '0.5rem 1rem',
+              padding: '0.625rem 1rem',
               borderRadius: '0.5rem',
               border: 'none',
               fontWeight: 500,
               cursor: 'pointer',
-              transition: 'background 0.2s'
+              transition: 'background 0.2s',
+              whiteSpace: 'nowrap'
             }}
             onMouseEnter={(e) => e.currentTarget.style.background = 'var(--accent-hover, #333333)'}
             onMouseLeave={(e) => e.currentTarget.style.background = 'var(--accent, #000000)'}
@@ -301,7 +303,7 @@ export default function CustomInstructionsEditor() {
           {/* Form fields with consistent spacing */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             {/* Name and Description row */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+            <div className="ci-form-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary, #374151)', marginBottom: '0.5rem' }}>
                   Name *
@@ -399,7 +401,7 @@ export default function CustomInstructionsEditor() {
           </div>
 
           {/* Buttons */}
-          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '2rem' }}>
+          <div className="ci-buttons" style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '1.5rem' }}>
             <button
               onClick={saveInstructions}
               disabled={loading || !formData.name || !formData.instructions}
@@ -502,7 +504,7 @@ export default function CustomInstructionsEditor() {
         </div>
       ) : (
         /* List Mode - Card Grid */
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1rem' }}>
+        <div className="ci-card-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
           {instructions.map((instruction) => (
             <div
               key={instruction.id}
@@ -513,7 +515,6 @@ export default function CustomInstructionsEditor() {
                 padding: '1.25rem',
                 display: 'flex',
                 flexDirection: 'column',
-                minHeight: '260px',
                 transition: 'all 0.2s'
               }}
             >

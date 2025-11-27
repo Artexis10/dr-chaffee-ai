@@ -226,3 +226,80 @@ pre {
 .hover\:text-red-400:hover {
   color: #6b7280 !important;
 }
+
+/* Mobile responsive styles for Custom Instructions */
+@media (max-width: 768px) {
+  .custom-instructions-container {
+    padding: 1rem !important;
+    border-radius: 0.625rem !important;
+    /* Prevent overflow */
+    overflow-x: hidden !important;
+    box-sizing: border-box !important;
+  }
+  
+  .ci-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.875rem !important;
+  }
+  
+  .ci-header h2 {
+    font-size: 1.25rem !important;
+  }
+  
+  .ci-new-btn {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 0.75rem 1rem !important;
+  }
+  
+  .ci-form-row {
+    grid-template-columns: 1fr !important;
+    gap: 0.875rem !important;
+  }
+  
+  .ci-buttons {
+    flex-direction: column !important;
+    gap: 0.5rem !important;
+  }
+  
+  .ci-buttons button {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 0.75rem 1rem !important;
+  }
+  
+  .ci-card-grid {
+    grid-template-columns: 1fr !important;
+    gap: 0.875rem !important;
+  }
+  
+  /* Fix instruction card overflow */
+  .ci-card-grid > div {
+    min-height: auto !important;
+    overflow: hidden !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .custom-instructions-container {
+    padding: 0.875rem !important;
+  }
+  
+  .ci-header {
+    gap: 0.75rem !important;
+  }
+  
+  .ci-header h2 {
+    font-size: 1.125rem !important;
+  }
+  
+  .ci-header p {
+    font-size: 0.8125rem !important;
+  }
+  
+  .ci-buttons button {
+    padding: 0.625rem 0.875rem !important;
+    font-size: 0.875rem !important;
+  }
+}

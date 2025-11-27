@@ -153,7 +153,7 @@ export default function ModelsPage() {
           </div>
           <div style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.5rem' }}>{activeModel.name}</div>
           <p style={{ fontSize: '0.875rem', opacity: 0.8, marginBottom: '1rem' }}>{activeModel.description}</p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
+          <div className="tuning-active-model-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '1rem' }}>
             <div>
               <p style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.25rem' }}>Provider</p>
               <p style={{ fontWeight: 600 }}>{activeModel.provider}</p>

@@ -241,11 +241,26 @@ export const Footer: React.FC = () => {
             flex-direction: column;
             align-items: center;
             text-align: center;
+            gap: var(--space-4);
           }
           
           .footer-links-container {
             width: 100%;
-            justify-content: space-around;
+            justify-content: center;
+            gap: var(--space-5);
+          }
+          
+          .footer-links-column {
+            text-align: center;
+          }
+          
+          .footer-links {
+            align-items: center;
+          }
+          
+          .footer-text-info {
+            max-width: 100%;
+            text-align: center;
           }
           
           .footer-bottom {
@@ -255,6 +270,44 @@ export const Footer: React.FC = () => {
           
           .footer-credits {
             align-items: center;
+          }
+          
+          .copyright,
+          .support-link {
+            font-size: 0.85rem;
+          }
+        }
+        
+        @media (max-width: 480px) {
+          .footer-top {
+            gap: var(--space-3);
+          }
+          
+          .footer-links-container {
+            flex-direction: column;
+            gap: var(--space-4);
+          }
+          
+          .footer-logo-text h3 {
+            font-size: 1.1rem;
+          }
+          
+          .footer-logo-text p {
+            font-size: 0.85rem;
+          }
+          
+          .footer-link {
+            font-size: 0.85rem;
+          }
+          
+          .footer-text-info {
+            font-size: 0.8rem;
+            padding: var(--space-2);
+          }
+          
+          .copyright,
+          .support-link {
+            font-size: 0.8rem;
           }
         }
       `}</style>

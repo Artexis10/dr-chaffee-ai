@@ -1052,17 +1052,34 @@ export default function Home() {
           
           @media (max-width: 768px) {
             .container {
-              padding: var(--space-3) var(--space-4);
+              padding: var(--space-4);
               max-width: 100%;
+              overflow-x: hidden;
             }
 
             .header {
-              padding: var(--space-5) 0;
-              margin-bottom: var(--space-5);
+              padding: var(--space-4) 0;
+              margin-bottom: var(--space-4);
+            }
+            
+            .header-top-bar {
+              margin-bottom: var(--space-3);
+              flex-wrap: wrap;
+              gap: var(--space-2);
+            }
+            
+            .tuning-link {
+              padding: 0.4rem 0.75rem;
+              font-size: 0.8rem;
+            }
+            
+            .tuning-link svg {
+              width: 16px;
+              height: 16px;
             }
 
             .header-content {
-              padding: 0 var(--space-2);
+              padding: 0;
             }
 
             .logo-container {
@@ -1070,19 +1087,19 @@ export default function Home() {
             }
 
             .header h1 {
-              font-size: 2rem;
+              font-size: 1.875rem;
               margin-bottom: var(--space-2);
             }
             
             .header p {
-              font-size: 1.05rem;
-              margin-bottom: var(--space-4);
+              font-size: 1rem;
+              margin-bottom: var(--space-3);
             }
 
             .search-hint {
-              padding: var(--space-3) var(--space-4);
-              font-size: 0.9rem;
-              margin: 0 var(--space-2);
+              padding: var(--space-3);
+              font-size: 0.875rem;
+              margin: 0;
             }
 
             .search-hint svg {
@@ -1091,8 +1108,8 @@ export default function Home() {
             }
 
             .topics-container {
-              margin-top: var(--space-5);
-              padding: 0 var(--space-2);
+              margin-top: var(--space-4);
+              padding: 0;
             }
             
             .topics {
@@ -1100,12 +1117,12 @@ export default function Home() {
             }
             
             .topics button {
-              font-size: 0.85rem;
+              font-size: 0.8rem;
               padding: var(--space-2) var(--space-3);
             }
 
             .supporting-clips-section h2 {
-              font-size: 1.3rem;
+              font-size: 1.25rem;
             }
 
             .copy-notification {
@@ -1113,18 +1130,28 @@ export default function Home() {
               right: 1rem;
               left: 1rem;
               padding: 0.75rem 1rem;
-              font-size: 0.9rem;
+              font-size: 0.875rem;
             }
           }
 
           @media (max-width: 480px) {
             .container {
-              padding: var(--space-3) var(--space-3);
+              padding: var(--space-3);
             }
 
             .header {
-              padding: var(--space-4) 0;
-              margin-bottom: var(--space-4);
+              padding: var(--space-3) 0;
+              margin-bottom: var(--space-3);
+            }
+            
+            .header-top-bar {
+              justify-content: center;
+              margin-bottom: var(--space-3);
+            }
+            
+            .tuning-link {
+              padding: 0.375rem 0.625rem;
+              font-size: 0.75rem;
             }
 
             .header-content {
@@ -1132,21 +1159,21 @@ export default function Home() {
             }
 
             .logo {
-              width: 64px;
-              height: 64px;
+              width: 60px;
+              height: 60px;
             }
 
             .logo-container {
-              margin-bottom: var(--space-3);
-            }
-
-            .header h1 {
-              font-size: 1.75rem;
               margin-bottom: var(--space-2);
             }
 
+            .header h1 {
+              font-size: 1.5rem;
+              margin-bottom: var(--space-1);
+            }
+
             .header p {
-              font-size: 0.95rem;
+              font-size: 0.9rem;
               margin-bottom: var(--space-3);
             }
 
@@ -1156,41 +1183,39 @@ export default function Home() {
               gap: var(--space-2);
               padding: var(--space-3);
               margin: 0;
-              font-size: 0.85rem;
+              font-size: 0.8125rem;
             }
 
             .topics-container {
-              margin-top: var(--space-4);
+              margin-top: var(--space-3);
               padding: 0;
             }
 
             .topics-title {
-              font-size: 0.85rem;
+              font-size: 0.8125rem;
               margin-bottom: var(--space-2);
             }
 
             .topics {
-              gap: var(--space-2);
+              gap: 0.375rem;
             }
 
             .topics button {
-              font-size: 0.8rem;
-              padding: var(--space-2) var(--space-2);
-              flex: 1 1 auto;
-              min-width: 0;
+              font-size: 0.75rem;
+              padding: 0.375rem 0.625rem;
             }
 
             .supporting-clips-section {
-              margin-top: var(--space-6);
-              padding-top: var(--space-4);
+              margin-top: var(--space-5);
+              padding-top: var(--space-3);
             }
 
             .supporting-clips-section h2 {
-              font-size: 1.2rem;
+              font-size: 1.125rem;
             }
 
             .supporting-clips-info {
-              font-size: 0.85rem;
+              font-size: 0.8125rem;
             }
           }
           
