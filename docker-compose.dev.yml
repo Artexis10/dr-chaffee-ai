@@ -64,6 +64,9 @@ services:
       - ./backend:/app
       - ./.env:/app/.env
       - ./cookies.txt:/app/cookies.txt:ro
+    # Explicitly run entrypoint.sh to ensure migrations run
+    # The volume mount overwrites /app, so we use bash to run the local entrypoint.sh
+    command: ["bash", "/app/entrypoint.sh"]
     depends_on:
       postgres:
         condition: service_healthy

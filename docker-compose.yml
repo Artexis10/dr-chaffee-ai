@@ -46,6 +46,9 @@ services:
       - whisper_cache:/tmp/whisper_cache
       - audio_temp:/tmp/audio_downloads
       - ./backend:/app
+    # Explicitly run entrypoint.sh to ensure migrations run
+    # The volume mount overwrites /app, so we use bash to run the local entrypoint.sh
+    command: ["bash", "/app/entrypoint.sh"]
     depends_on:
       postgres:
         condition: service_healthy

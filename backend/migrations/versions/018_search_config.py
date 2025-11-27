@@ -16,7 +16,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '018_search_config'
-down_revision = '017'
+down_revision = '017_drop_segment_embeddings'
 branch_labels = None
 depends_on = None
 

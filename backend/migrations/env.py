@@ -7,9 +7,17 @@ from sqlalchemy import pool
 from alembic import context
 from dotenv import load_dotenv
 
-# Load environment variables from project root
-env_path = Path(__file__).parent.parent.parent / ".env"
-load_dotenv(env_path)
+# Load environment variables from .env file if it exists
+# In Docker, environment variables are passed directly, so .env may not exist
+# Try multiple locations: project root (local dev), backend dir, current dir
+for env_path in [
+    Path(__file__).parent.parent.parent / ".env",  # project root (local dev)
+    Path(__file__).parent.parent / ".env",          # backend dir
+    Path(".env"),                                    # current dir
+]:
+    if env_path.exists():
+        load_dotenv(env_path)
+        break
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

@@ -415,6 +415,58 @@ This tells Alembic the database is up-to-date without running migrations.
 - [Alembic Tutorial](https://alembic.sqlalchemy.org/en/latest/tutorial.html)
 - [SQLAlchemy Documentation](https://docs.sqlalchemy.org/)
 
+## Verifying Migrations Run on Startup
+
+### Check Container Logs
+
+After deploying or starting the backend container, verify migrations ran:
+
+```bash
+# Docker Compose
+docker-compose logs api | head -30
+
+# Coolify / Production
+# Check the deployment logs in Coolify dashboard
+```
+
+You should see:
+```
+==============================================
+🚀 Dr. Chaffee AI Backend Startup
+==============================================
+
+📦 Running Alembic migrations (alembic upgrade head)...
+   Database: postgresql://postgres@****
+✅ Alembic migrations completed successfully
+
+🚀 Starting API server on port 8000...
+==============================================
+```
+
+### Verify via UI
+
+1. **Search Config Page**: Visit `/tuning/search`
+   - ✅ Should NOT show "Database Migration Required" banner
+   - ✅ Changing values and refreshing should persist
+
+2. **Summarizer Page**: Visit `/tuning/models`
+   - ✅ Should show available summarizer models
+   - ✅ Changing active model should work
+
+### Manual Verification
+
+```bash
+# Connect to the database
+docker-compose exec postgres psql -U postgres -d askdrchaffee
+
+# Check migration status
+SELECT * FROM alembic_version;
+
+# Check search_config table exists
+\dt search_config
+SELECT * FROM search_config;
+```
+
 ## Support
 
 For questions or issues with migrations:

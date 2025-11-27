@@ -1234,12 +1234,12 @@ def get_search_config_with_status() -> tuple[SearchConfigDB, Optional[str], Opti
             return SearchConfigDB(), None, None
             
     except psycopg2.errors.UndefinedTable:
-        logger.warning("search_config table does not exist - migration 015 needs to be applied")
-        return SearchConfigDB(), "Database migration required: search_config table does not exist. Please apply migration 015_search_config.sql", "MIGRATION_REQUIRED"
+        logger.warning("search_config table does not exist - run 'alembic upgrade head' to apply migrations")
+        return SearchConfigDB(), "Database migration required: search_config table does not exist. Run 'alembic upgrade head' or restart the backend container.", "MIGRATION_REQUIRED"
     except psycopg2.ProgrammingError as e:
         if "does not exist" in str(e):
             logger.warning(f"search_config table missing: {e}")
-            return SearchConfigDB(), "Database migration required: search_config table does not exist. Please apply migration 015_search_config.sql", "MIGRATION_REQUIRED"
+            return SearchConfigDB(), "Database migration required: search_config table does not exist. Run 'alembic upgrade head' or restart the backend container.", "MIGRATION_REQUIRED"
         logger.error(f"Database programming error: {e}")
         return SearchConfigDB(), f"Database error: {str(e)}", "DB_ERROR"
     except Exception as e:
@@ -1312,7 +1312,7 @@ async def update_search_config(config: SearchConfigDB, request: Request):
         logger.error("Cannot save search config - table does not exist")
         return SearchConfigResponse(
             config=config,
-            error="Database migration required: search_config table does not exist. Please apply migration 015_search_config.sql",
+            error="Database migration required: search_config table does not exist. Run 'alembic upgrade head' or restart the backend container.",
             error_code="MIGRATION_REQUIRED"
         )
     except psycopg2.ProgrammingError as e:
@@ -1320,7 +1320,7 @@ async def update_search_config(config: SearchConfigDB, request: Request):
             logger.error(f"Cannot save search config - table missing: {e}")
             return SearchConfigResponse(
                 config=config,
-                error="Database migration required: search_config table does not exist. Please apply migration 015_search_config.sql",
+                error="Database migration required: search_config table does not exist. Run 'alembic upgrade head' or restart the backend container.",
                 error_code="MIGRATION_REQUIRED"
             )
         logger.error(f"Failed to update search config: {e}")
