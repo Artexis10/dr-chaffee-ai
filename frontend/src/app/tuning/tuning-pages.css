@@ -1,9 +1,17 @@
 /* Tuning Pages - Theme-aware styles using CSS variables from globals.css */
 
 .tuning-page {
-  padding: 1.5rem;
-  max-width: 1024px;
+  padding: 2rem 2.5rem;
+  max-width: 1100px;
   margin: 0 auto;
+}
+
+/* Wider layout on large screens */
+@media (min-width: 1400px) {
+  .tuning-page {
+    max-width: 1200px;
+    padding: 2.5rem 3rem;
+  }
 }
 
 .tuning-centered {

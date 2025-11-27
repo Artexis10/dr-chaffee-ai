@@ -207,6 +207,17 @@
   margin-left: var(--tuning-sidebar-width);
   flex: 1;
   min-height: 100vh;
+  /* Center content with max-width on large screens */
+  display: flex;
+  flex-direction: column;
+}
+
+/* Content wrapper for better desktop width */
+.tuning-main > * {
+  width: 100%;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 /* Mobile Header */
@@ -322,6 +333,10 @@
 
   .tuning-sidebar {
     transform: translateX(-100%);
+    /* Ensure sidebar attaches to viewport edges */
+    top: 0;
+    left: 0;
+    border-radius: 0;
   }
 
   .tuning-sidebar.open {
@@ -331,6 +346,11 @@
   .tuning-main {
     margin-left: 0;
     padding-top: var(--tuning-header-height);
+  }
+  
+  /* Tighter padding on mobile */
+  .tuning-main > * {
+    max-width: 100%;
   }
 }
 
