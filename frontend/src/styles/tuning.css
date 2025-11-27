@@ -333,10 +333,12 @@
 
   .tuning-sidebar {
     transform: translateX(-100%);
-    /* Ensure sidebar attaches to viewport edges */
+    /* Ensure sidebar attaches to viewport edges with no gaps */
     top: 0;
     left: 0;
     border-radius: 0;
+    width: 280px;
+    max-width: 85vw;
   }
 
   .tuning-sidebar.open {
@@ -348,9 +350,33 @@
     padding-top: var(--tuning-header-height);
   }
   
-  /* Tighter padding on mobile */
+  /* Full width content on mobile */
   .tuning-main > * {
     max-width: 100%;
+  }
+}
+
+/* Small mobile */
+@media (max-width: 480px) {
+  .tuning-mobile-header {
+    padding: 0 0.75rem;
+  }
+  
+  .tuning-sidebar {
+    width: 100%;
+    max-width: 100%;
+  }
+  
+  .tuning-sidebar-header {
+    padding: 1rem;
+  }
+  
+  .tuning-nav {
+    padding: 0.5rem;
+  }
+  
+  .tuning-nav-item {
+    padding: 0.75rem;
   }
 }
 

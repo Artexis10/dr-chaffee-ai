@@ -195,13 +195,13 @@ export default function SearchPage() {
 
       {/* Info Banner for migration status */}
       {dbError && (
-        <div className="tuning-alert tuning-alert-info">
-          <Info style={{ width: 20, height: 20, flexShrink: 0, marginTop: 2 }} />
+        <div className="tuning-alert tuning-alert-warning">
+          <AlertTriangle style={{ width: 20, height: 20, flexShrink: 0, marginTop: 2 }} />
           <div>
-            <p style={{ fontWeight: 600, marginBottom: 4 }}>Using Default Settings</p>
-            <p style={{ fontSize: '0.875rem', opacity: 0.9 }}>
+            <p style={{ fontWeight: 600, marginBottom: 4 }}>Database Migration Required</p>
+            <p style={{ fontSize: '0.875rem', opacity: 0.9, margin: 0 }}>
               Search settings are working but won't persist between server restarts. 
-              This is fine for testing.
+              Run <code style={{ background: 'rgba(0,0,0,0.1)', padding: '0.125rem 0.25rem', borderRadius: '0.25rem' }}>alembic upgrade head</code> to enable persistence.
             </p>
           </div>
         </div>

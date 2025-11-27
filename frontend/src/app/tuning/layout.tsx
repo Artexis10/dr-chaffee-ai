@@ -2,8 +2,11 @@
 
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Settings, BarChart3, Zap, Search, Home, LogOut, Menu, X } from 'lucide-react';
+import { Settings, BarChart3, Zap, Search, Home, LogOut, Menu, X, Sun, Moon } from 'lucide-react';
 import '../../styles/tuning.css';
+
+// Theme constants - must match DarkModeToggle.tsx
+const THEME_KEY = 'askdrchaffee.theme';
 
 export default function TuningLayout({
   children,
@@ -15,6 +18,8 @@ export default function TuningLayout({
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [themeMounted, setThemeMounted] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -60,6 +65,43 @@ export default function TuningLayout({
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
   }, []);
+
+  // Initialize theme on mount - sync with main app's DarkModeToggle
+  useEffect(() => {
+    setThemeMounted(true);
+    const storedTheme = localStorage.getItem(THEME_KEY);
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    
+    let shouldBeDark: boolean;
+    if (storedTheme === 'dark') {
+      shouldBeDark = true;
+    } else if (storedTheme === 'light') {
+      shouldBeDark = false;
+    } else {
+      shouldBeDark = prefersDark;
+    }
+    
+    setIsDarkMode(shouldBeDark);
+    applyTheme(shouldBeDark);
+  }, []);
+
+  const applyTheme = (dark: boolean) => {
+    const root = document.documentElement;
+    if (dark) {
+      root.classList.add('dark-mode');
+      root.classList.remove('light-mode');
+    } else {
+      root.classList.remove('dark-mode');
+      root.classList.add('light-mode');
+    }
+  };
+
+  const toggleDarkMode = () => {
+    const newMode = !isDarkMode;
+    setIsDarkMode(newMode);
+    applyTheme(newMode);
+    localStorage.setItem(THEME_KEY, newMode ? 'dark' : 'light');
+  };
   
   const getCurrentTab = () => {
     if (!pathname) return 'overview';
@@ -184,6 +226,16 @@ export default function TuningLayout({
         </nav>
 
         <div className="tuning-sidebar-footer">
+          {themeMounted && (
+            <button
+              onClick={toggleDarkMode}
+              className="tuning-footer-btn"
+              aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+            >
+              {isDarkMode ? <Sun /> : <Moon />}
+              <span>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
+            </button>
+          )}
           <button
             onClick={() => { window.location.href = '/'; }}
             className="tuning-footer-btn"

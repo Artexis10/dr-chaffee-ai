@@ -169,6 +169,13 @@
   cursor: not-allowed;
 }
 
+.tuning-btn-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: var(--bg-card-elevated) !important;
+  color: var(--text-muted) !important;
+}
+
 .tuning-btn-primary {
   background: var(--accent);
   color: var(--accent-foreground);
@@ -331,14 +338,217 @@
 /* Responsive */
 @media (max-width: 768px) {
   .tuning-page {
-    padding: 1rem;
+    padding: 1.25rem 1rem;
+  }
+  
+  .tuning-header {
+    margin-bottom: 1.5rem;
+  }
+  
+  .tuning-title {
+    font-size: 1.25rem;
   }
   
   .tuning-stats-grid {
     grid-template-columns: 1fr;
+    gap: 0.75rem;
   }
   
   .tuning-grid-2 {
     grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .tuning-model-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+  
+  .tuning-card {
+    padding: 1rem;
+  }
+  
+  .tuning-model-card {
+    padding: 1rem;
+  }
+  
+  .tuning-alert {
+    padding: 0.875rem;
+    font-size: 0.875rem;
+  }
+  
+  .tuning-btn {
+    padding: 0.75rem 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .tuning-page {
+    padding: 1rem 0.75rem;
+  }
+  
+  .tuning-stat-card {
+    padding: 1rem;
+  }
+  
+  .tuning-stat-value {
+    font-size: 1.5rem;
+  }
+}
+
+/* Auth Page Styles */
+.tuning-auth-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: var(--bg-body);
+  padding: 2rem;
+}
+
+.tuning-auth-card {
+  background: var(--bg-card);
+  border-radius: 20px;
+  padding: 3rem;
+  max-width: 450px;
+  width: 100%;
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+  border: 1px solid var(--border-subtle);
+}
+
+.tuning-auth-avatar {
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 1.5rem;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 4px solid var(--accent);
+  box-shadow: var(--shadow-md);
+}
+
+.tuning-auth-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 0.5rem 0;
+}
+
+.tuning-auth-subtitle {
+  color: var(--text-muted);
+  margin: 0 0 2rem 0;
+  font-size: 1rem;
+}
+
+.tuning-auth-notice {
+  background: var(--bg-card-elevated);
+  padding: 1rem;
+  border-radius: 12px;
+  margin-bottom: 2rem;
+  border: 1px solid var(--border-subtle);
+}
+
+.tuning-auth-notice p {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.tuning-auth-input {
+  width: 100%;
+  padding: 1rem;
+  font-size: 1rem;
+  border: 2px solid var(--border-subtle);
+  border-radius: 12px;
+  margin-bottom: 1rem;
+  outline: none;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+.tuning-auth-input:focus {
+  border-color: var(--accent);
+}
+
+.tuning-auth-input.error {
+  border-color: #ef4444;
+}
+
+.tuning-auth-error {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  padding: 0.75rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.tuning-auth-submit {
+  width: 100%;
+  padding: 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--accent-foreground);
+  background: var(--accent);
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
+  box-shadow: var(--shadow-md);
+}
+
+.tuning-auth-submit:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.tuning-auth-submit:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.tuning-auth-footer {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.tuning-auth-back {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--bg-card-elevated);
+  border: 2px solid var(--accent);
+  border-radius: 12px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tuning-auth-back:hover {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+@media (max-width: 480px) {
+  .tuning-auth-container {
+    padding: 1rem;
+  }
+  
+  .tuning-auth-card {
+    padding: 2rem 1.5rem;
+  }
+  
+  .tuning-auth-avatar {
+    width: 100px;
+    height: 100px;
+  }
+  
+  .tuning-auth-title {
+    font-size: 1.5rem;
   }
 }

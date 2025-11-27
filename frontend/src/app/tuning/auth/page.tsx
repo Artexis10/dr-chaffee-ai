@@ -1,14 +1,34 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import '../tuning-pages.css';
+
+// Theme constants - must match DarkModeToggle.tsx
+const THEME_KEY = 'askdrchaffee.theme';
 
 export default function TuningAuth() {
   const router = useRouter();
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Initialize theme on mount
+  useEffect(() => {
+    const storedTheme = localStorage.getItem(THEME_KEY);
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    
+    const shouldBeDark = storedTheme === 'dark' || (!storedTheme && prefersDark);
+    const root = document.documentElement;
+    if (shouldBeDark) {
+      root.classList.add('dark-mode');
+      root.classList.remove('light-mode');
+    } else {
+      root.classList.remove('dark-mode');
+      root.classList.add('light-mode');
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,33 +69,9 @@ export default function TuningAuth() {
   };
 
   return (
-    <div style={{
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      minHeight: '100vh',
-      background: '#0a0a0a',
-      padding: '2rem'
-    }}>
-      <div style={{
-        background: '#ffffff',
-        borderRadius: '20px',
-        padding: '3rem',
-        maxWidth: '450px',
-        width: '100%',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.3)',
-        textAlign: 'center',
-        border: '1px solid #e0e0e0'
-      }}>
-        <div style={{
-          width: '120px',
-          height: '120px',
-          margin: '0 auto 1.5rem',
-          borderRadius: '50%',
-          overflow: 'hidden',
-          border: '4px solid #000000',
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)'
-        }}>
+    <div className="tuning-auth-container">
+      <div className="tuning-auth-card">
+        <div className="tuning-auth-avatar">
           <Image 
             src="/dr-chaffee.jpg" 
             alt="Dr. Anthony Chaffee" 
@@ -85,37 +81,11 @@ export default function TuningAuth() {
           />
         </div>
 
-        <h1 style={{
-          fontSize: '2rem',
-          fontWeight: 700,
-          color: '#000000',
-          marginBottom: '0.5rem'
-        }}>
-          Tuning Dashboard
-        </h1>
+        <h1 className="tuning-auth-title">Tuning Dashboard</h1>
+        <p className="tuning-auth-subtitle">QA & Admin Access Only</p>
 
-        <p style={{
-          color: '#64748b',
-          marginBottom: '2rem',
-          fontSize: '1rem'
-        }}>
-          QA & Admin Access Only
-        </p>
-
-        <div style={{
-          background: '#f8fafc',
-          padding: '1rem',
-          borderRadius: '12px',
-          marginBottom: '2rem',
-          border: '1px solid #e2e8f0'
-        }}>
-          <p style={{
-            color: '#475569',
-            fontSize: '0.9rem',
-            margin: 0
-          }}>
-            🔒 This dashboard is for privileged users only. Enter your admin password to continue.
-          </p>
+        <div className="tuning-auth-notice">
+          <p>🔒 This dashboard is for privileged users only. Enter your admin password to continue.</p>
         </div>
 
         <form onSubmit={handleSubmit}>
@@ -126,103 +96,25 @@ export default function TuningAuth() {
             placeholder="Enter admin password"
             autoFocus
             disabled={loading}
-            style={{
-              width: '100%',
-              padding: '1rem',
-              fontSize: '1rem',
-              border: error ? '2px solid #ef4444' : '2px solid #e2e8f0',
-              borderRadius: '12px',
-              marginBottom: '1rem',
-              outline: 'none',
-              transition: 'border-color 0.2s',
-              boxSizing: 'border-box'
-            }}
-            onFocus={(e) => {
-              if (!error) e.target.style.borderColor = '#000000';
-            }}
-            onBlur={(e) => {
-              if (!error) e.target.style.borderColor = '#e2e8f0';
-            }}
+            className={`tuning-auth-input ${error ? 'error' : ''}`}
           />
 
           {error && (
-            <div style={{
-              background: '#fee2e2',
-              color: '#dc2626',
-              padding: '0.75rem',
-              borderRadius: '8px',
-              marginBottom: '1rem',
-              fontSize: '0.9rem'
-            }}>
-              {error}
-            </div>
+            <div className="tuning-auth-error">{error}</div>
           )}
 
           <button
             type="submit"
             disabled={loading}
-            style={{
-              width: '100%',
-              padding: '1rem',
-              fontSize: '1rem',
-              fontWeight: 600,
-              color: 'white',
-              background: '#000000',
-              border: 'none',
-              borderRadius: '12px',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              transition: 'transform 0.2s, box-shadow 0.2s',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
-              opacity: loading ? 0.7 : 1
-            }}
-            onMouseEnter={(e) => {
-              if (!loading) {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.4)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)';
-            }}
+            className="tuning-auth-submit"
           >
             {loading ? 'Unlocking...' : 'Access Dashboard'}
           </button>
         </form>
 
-        <div style={{
-          marginTop: '1.5rem',
-          paddingTop: '1.5rem',
-          borderTop: '1px solid #e2e8f0'
-        }}>
-          <a
-            href="/"
-            style={{
-              display: 'inline-block',
-              padding: '0.75rem 1.5rem',
-              fontSize: '0.9rem',
-              fontWeight: 600,
-              color: '#000000',
-              background: '#f5f5f5',
-              border: '2px solid #000000',
-              borderRadius: '12px',
-              textDecoration: 'none',
-              cursor: 'pointer',
-              transition: 'all 0.2s'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#000000';
-              e.currentTarget.style.color = 'white';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = '#f5f5f5';
-              e.currentTarget.style.color = '#000000';
-            }}
-          >
-            Back to Main App
-          </a>
+        <div className="tuning-auth-footer">
+          <a href="/" className="tuning-auth-back">Back to Main App</a>
         </div>
-
       </div>
     </div>
   );

@@ -259,10 +259,21 @@ async def get_config(request: Request):
 )
 async def set_query_model(model_key: str, request: Request):
     """
-    Set the active query model (instant switch if embeddings exist).
-    Updates runtime environment variables. Optionally persists to .env if available.
+    Set the active query model.
+    
+    TEMPORARILY DISABLED: Model switching is disabled until a re-embedding
+    service is implemented. Switching models without re-embedding all segments
+    would result in incompatible embeddings and degraded search quality.
+    
     Protected: requires tuning_auth cookie.
     """
+    # Model switching is disabled until re-embedding service exists
+    raise HTTPException(
+        status_code=501,
+        detail="Model switching is temporarily disabled. A re-embedding service is required to safely switch embedding models. Contact your developer if you need to change models."
+    )
+    
+    # Original implementation preserved for future use:
     config = load_embedding_models()
     models = config.get("models", {})
     
@@ -327,10 +338,21 @@ async def set_query_model(model_key: str, request: Request):
 )
 async def set_ingestion_models(model_keys: List[str], request: Request):
     """
-    Set the active ingestion models (requires re-ingestion to generate embeddings).
-    Updates runtime environment variables. Optionally persists to .env if available.
+    Set the active ingestion models.
+    
+    TEMPORARILY DISABLED: Model switching is disabled until a re-embedding
+    service is implemented. Switching models without re-embedding all segments
+    would result in incompatible embeddings and degraded search quality.
+    
     Protected: requires tuning_auth cookie.
     """
+    # Model switching is disabled until re-embedding service exists
+    raise HTTPException(
+        status_code=501,
+        detail="Model switching is temporarily disabled. A re-embedding service is required to safely switch embedding models. Contact your developer if you need to change models."
+    )
+    
+    # Original implementation preserved for future use:
     config = load_embedding_models()
     models = config.get("models", {})
     

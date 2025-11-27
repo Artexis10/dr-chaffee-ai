@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Zap, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+import { Zap, AlertCircle, CheckCircle, Loader2, Info } from 'lucide-react';
 import '../tuning-pages.css';
 
 interface EmbeddingModel {
@@ -45,35 +45,11 @@ export default function ModelsPage() {
     }
   };
 
-  const handleSetActive = async (modelKey: string) => {
-    try {
-      setSettingActive(modelKey);
-      setMessage('');
-      
-      const res = await fetch('/api/embedding-models/set-active', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model_key: modelKey })
-      });
-      
-      const data = await res.json();
-      
-      if (res.ok) {
-        setMessage(`Model "${modelKey}" is now active. Changes take effect immediately for new queries.`);
-        setMessageType('success');
-        await loadModels();
-      } else {
-        const errorMsg = data.error || data.detail || 'Failed to update active model';
-        setMessage(errorMsg);
-        setMessageType('error');
-      }
-    } catch (error) {
-      console.error('Error setting active model:', error);
-      setMessage('Network error. Please check your connection and try again.');
-      setMessageType('error');
-    } finally {
-      setSettingActive(null);
-    }
+  // Model switching is disabled - show tooltip message instead
+  const handleSetActive = (modelKey: string) => {
+    // Do not make API call - switching is disabled
+    setMessage('Model switching is temporarily disabled. A re-embedding service is required to safely switch embedding models.');
+    setMessageType('info');
   };
 
   if (loading) {
@@ -91,7 +67,20 @@ export default function ModelsPage() {
       {/* Header */}
       <div className="tuning-header">
         <h1 className="tuning-title">Embedding Models</h1>
-        <p className="tuning-text-muted">Manage and configure embedding models for semantic search</p>
+        <p className="tuning-text-muted">View configured embedding models for semantic search</p>
+      </div>
+
+      {/* Model Switching Disabled Banner */}
+      <div className="tuning-alert tuning-alert-info">
+        <Info style={{ width: 20, height: 20, flexShrink: 0, marginTop: 2 }} />
+        <div>
+          <p style={{ fontWeight: 600, marginBottom: 4 }}>Model Switching Disabled</p>
+          <p style={{ fontSize: '0.875rem', opacity: 0.9, margin: 0 }}>
+            Embedding model switching is currently disabled. A full re-embedding process is required 
+            to safely change models, as different models produce incompatible embeddings. 
+            Contact your developer if you need to change models.
+          </p>
+        </div>
       </div>
 
       {/* Message */}
@@ -172,19 +161,12 @@ export default function ModelsPage() {
                 </div>
               ) : (
                 <button
-                  onClick={() => handleSetActive(model.key)}
-                  disabled={settingActive !== null}
-                  className="tuning-btn tuning-btn-primary"
+                  disabled={true}
+                  className="tuning-btn tuning-btn-primary tuning-btn-disabled"
+                  title="Model switching is temporarily disabled. A re-embedding service is required to safely switch embedding models."
                   style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
                 >
-                  {settingActive === model.key ? (
-                    <>
-                      <Loader2 style={{ width: 16, height: 16 }} className="tuning-spinner" />
-                      Setting...
-                    </>
-                  ) : (
-                    'Set as Active'
-                  )}
+                  Set as Active
                 </button>
               )}
             </div>
