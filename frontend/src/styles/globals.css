@@ -31,6 +31,11 @@
   --accent-foreground: #ffffff;
   --accent-soft: #111827;
   
+  /* Active instruction card - light mode */
+  --ci-active-bg: #ecfdf5;
+  --ci-active-border: #34d399;
+  --ci-active-text: #065f46;
+  
   /* Semantic colors - Monochrome */
   --color-success: #000000;
   --color-warning: #4a4a4a;
@@ -164,6 +169,11 @@ html.dark-mode,
   --accent-hover: #e5e5e5;
   --accent-foreground: #000000;
   --accent-soft: #e5e7eb;
+  
+  /* Active instruction card - dark mode (stronger contrast) */
+  --ci-active-bg: #052e16;
+  --ci-active-border: #22c55e;
+  --ci-active-text: #86efac;
 }
 
 html {

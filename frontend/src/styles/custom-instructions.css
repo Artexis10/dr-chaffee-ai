@@ -232,9 +232,11 @@ pre {
   .custom-instructions-container {
     padding: 1rem !important;
     border-radius: 0.625rem !important;
-    /* Prevent overflow */
+    /* Prevent overflow - NO-OVERFLOW RULE */
     overflow-x: hidden !important;
     box-sizing: border-box !important;
+    width: 100% !important;
+    max-width: 100% !important;
   }
   
   .ci-header {
@@ -251,6 +253,7 @@ pre {
     width: 100% !important;
     justify-content: center !important;
     padding: 0.75rem 1rem !important;
+    box-sizing: border-box !important;
   }
   
   .ci-form-row {
@@ -261,23 +264,35 @@ pre {
   .ci-buttons {
     flex-direction: column !important;
     gap: 0.5rem !important;
+    width: 100% !important;
   }
   
   .ci-buttons button {
     width: 100% !important;
     justify-content: center !important;
     padding: 0.75rem 1rem !important;
+    box-sizing: border-box !important;
   }
   
   .ci-card-grid {
     grid-template-columns: 1fr !important;
     gap: 0.875rem !important;
+    width: 100% !important;
   }
   
-  /* Fix instruction card overflow */
+  /* Fix instruction card overflow - NO-OVERFLOW RULE */
   .ci-card-grid > div {
     min-height: auto !important;
     overflow: hidden !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  
+  /* Active card styling with CSS variables */
+  .ci-active-card {
+    background: var(--ci-active-bg, #ecfdf5) !important;
+    border-color: var(--ci-active-border, #34d399) !important;
   }
 }
 

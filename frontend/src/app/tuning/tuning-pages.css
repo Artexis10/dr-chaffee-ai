@@ -1,9 +1,18 @@
 /* Tuning Pages - Theme-aware styles using CSS variables from globals.css */
 
+/*
+ * NO-OVERFLOW RULES:
+ * All card content must stay within card boundaries.
+ * Inputs, buttons, and grids use width: 100% with box-sizing: border-box.
+ * Grids collapse to single column below 768px.
+ */
+
 .tuning-page {
   padding: 2rem 2.5rem;
   max-width: 1100px;
   margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* Wider layout on large screens */
@@ -130,12 +139,15 @@
   gap: 1.5rem;
 }
 
-/* Cards */
+/* Cards - NO-OVERFLOW: cards use 100% width, content constrained */
 .tuning-card {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: 0.75rem;
   padding: 1.25rem;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .tuning-card-title {
@@ -191,9 +203,10 @@
   background: var(--border-subtle);
 }
 
-/* Form elements */
+/* Form elements - NO-OVERFLOW: inputs use 100% width with box-sizing */
 .tuning-form-group {
   margin-bottom: 1.25rem;
+  width: 100%;
 }
 
 .tuning-label {
@@ -212,6 +225,8 @@
   font-size: 0.875rem;
   background: var(--bg-card);
   color: var(--text-primary);
+  box-sizing: border-box;
+  max-width: 100%;
 }
 
 .tuning-input:focus {
@@ -225,11 +240,12 @@
   margin-top: 0.25rem;
 }
 
-/* Model cards */
+/* Model cards - NO-OVERFLOW: cards constrained to grid cell width */
 .tuning-model-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
   gap: 1rem;
+  width: 100%;
 }
 
 .tuning-model-card {
@@ -239,6 +255,9 @@
   padding: 1.25rem;
   display: flex;
   flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .tuning-model-card.active {
@@ -335,6 +354,14 @@
   font-size: 1.25rem;
   font-weight: 700;
   color: var(--text-primary);
+}
+
+/* Helper text for cost fields */
+.tuning-model-stat-hint {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  opacity: 0.8;
+  margin-top: 0.125rem;
 }
 
 .tuning-model-stat-value.free {

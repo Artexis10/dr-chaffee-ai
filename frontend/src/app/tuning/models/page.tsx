@@ -133,6 +133,9 @@ export default function ModelsPage() {
             This setting controls which OpenAI model generates answers from search results. 
             It does <strong>not</strong> affect search quality or embeddings — those use a separate local model.
           </p>
+          <p style={{ fontSize: '0.8rem', opacity: 0.75, margin: '0.5rem 0 0 0' }}>
+            💡 <strong>Costs shown are per 1,000 tokens</strong> (roughly 750 words). A typical answer uses 500–2,000 tokens.
+          </p>
         </div>
       </div>
 
@@ -214,10 +217,12 @@ export default function ModelsPage() {
               <div>
                 <p className="tuning-model-stat-label">Input Cost</p>
                 <p className="tuning-model-stat-value" style={{ fontSize: '1rem' }}>{model.cost_input}</p>
+                <p className="tuning-model-stat-hint">per 1k tokens</p>
               </div>
               <div>
                 <p className="tuning-model-stat-label">Output Cost</p>
                 <p className="tuning-model-stat-value" style={{ fontSize: '1rem' }}>{model.cost_output}</p>
+                <p className="tuning-model-stat-hint">per 1k tokens</p>
               </div>
             </div>
 

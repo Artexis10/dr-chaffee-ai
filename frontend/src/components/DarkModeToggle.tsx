@@ -64,8 +64,8 @@ export const DarkModeToggle: React.FC = () => {
           position: 'fixed',
           bottom: 24,
           right: 24,
-          width: 52,
-          height: 52,
+          width: 48,
+          height: 48,
           borderRadius: '50%',
           background: 'transparent'
         }}
@@ -97,28 +97,32 @@ export const DarkModeToggle: React.FC = () => {
           position: fixed;
           bottom: 24px;
           right: 24px;
-          width: 52px;
-          height: 52px;
+          width: 48px;
+          height: 48px;
           border-radius: 50%;
-          background: ${isDarkMode ? '#1a1a1a' : '#ffffff'};
-          border: 2px solid ${isDarkMode ? '#2a2a2a' : '#e0e0e0'};
-          color: ${isDarkMode ? '#fafafa' : '#0a0a0a'};
+          background: ${isDarkMode ? 'rgba(30, 30, 30, 0.95)' : 'rgba(255, 255, 255, 0.95)'};
+          border: 1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'};
+          color: ${isDarkMode ? '#fafafa' : '#1a1a1a'};
           display: flex;
           align-items: center;
           justify-content: center;
           cursor: pointer;
           z-index: 1000;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, ${isDarkMode ? '0.6' : '0.15'}), 
-                      0 2px 4px rgba(0, 0, 0, ${isDarkMode ? '0.4' : '0.1'});
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-          backdrop-filter: blur(10px);
+          box-shadow: ${isDarkMode 
+            ? '0 4px 16px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05)' 
+            : '0 4px 16px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.8)'};
+          transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
         }
         
         .dark-mode-toggle:hover {
           transform: translateY(-2px) scale(1.05);
-          box-shadow: 0 8px 20px rgba(0, 0, 0, ${isDarkMode ? '0.7' : '0.2'}), 
-                      0 4px 8px rgba(0, 0, 0, ${isDarkMode ? '0.5' : '0.15'});
-          border-color: ${isDarkMode ? '#ffffff' : '#000000'};
+          background: ${isDarkMode ? 'rgba(40, 40, 40, 0.98)' : 'rgba(255, 255, 255, 0.98)'};
+          border-color: ${isDarkMode ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)'};
+          box-shadow: ${isDarkMode 
+            ? '0 8px 24px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.08)' 
+            : '0 8px 24px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.9)'};
         }
         
         .dark-mode-toggle:active {

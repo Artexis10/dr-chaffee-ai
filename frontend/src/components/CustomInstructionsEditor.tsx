@@ -508,14 +508,18 @@ export default function CustomInstructionsEditor() {
           {instructions.map((instruction) => (
             <div
               key={instruction.id}
+              className={instruction.is_active ? 'ci-active-card' : ''}
               style={{
-                background: instruction.is_active ? '#f0fdf4' : 'var(--bg-card, #ffffff)',
-                border: instruction.is_active ? '2px solid #86efac' : '1px solid var(--border-subtle, #e5e7eb)',
+                background: instruction.is_active ? 'var(--ci-active-bg, #ecfdf5)' : 'var(--bg-card, #ffffff)',
+                border: instruction.is_active ? '2px solid var(--ci-active-border, #34d399)' : '1px solid var(--border-subtle, #e5e7eb)',
                 borderRadius: '0.75rem',
                 padding: '1.25rem',
                 display: 'flex',
                 flexDirection: 'column',
-                transition: 'all 0.2s'
+                transition: 'all 0.2s',
+                width: '100%',
+                boxSizing: 'border-box',
+                overflow: 'hidden'
               }}
             >
               {/* Card Header */}
@@ -525,8 +529,8 @@ export default function CustomInstructionsEditor() {
                     <h3 style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--text-primary, #1f2937)' }}>{instruction.name}</h3>
                     {instruction.is_active && (
                       <span style={{
-                        background: '#1f2937',
-                        color: 'white',
+                        background: 'var(--ci-active-border, #34d399)',
+                        color: '#052e16',
                         fontSize: '0.65rem',
                         padding: '0.2rem 0.5rem',
                         borderRadius: '9999px',
@@ -540,7 +544,7 @@ export default function CustomInstructionsEditor() {
                     )}
                   </div>
                   {instruction.description && (
-                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted, #6b7280)', lineHeight: 1.4 }}>{instruction.description}</p>
+                    <p style={{ fontSize: '0.8rem', color: instruction.is_active ? 'var(--ci-active-text, #065f46)' : 'var(--text-muted, #6b7280)', lineHeight: 1.4 }}>{instruction.description}</p>
                   )}
                 </div>
                 

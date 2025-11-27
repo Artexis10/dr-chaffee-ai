@@ -66,6 +66,29 @@ export default function Home() {
     };
   }, []);
   
+  // Initialize theme on mount - sync with tuning dashboard
+  useEffect(() => {
+    const THEME_KEY = 'askdrchaffee.theme';
+    const storedTheme = localStorage.getItem(THEME_KEY);
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    
+    const shouldBeDark = storedTheme === 'dark' || (!storedTheme && prefersDark);
+    const root = document.documentElement;
+    
+    if (shouldBeDark) {
+      root.classList.add('dark-mode');
+      root.classList.remove('light-mode');
+    } else {
+      root.classList.remove('dark-mode');
+      root.classList.add('light-mode');
+    }
+    
+    // Persist if not already stored
+    if (!storedTheme) {
+      localStorage.setItem(THEME_KEY, shouldBeDark ? 'dark' : 'light');
+    }
+  }, []);
+
   // Initialize analytics
   useEffect(() => {
     // Initialize analytics with debug mode in development
@@ -878,10 +901,19 @@ export default function Home() {
         <DarkModeToggle />
 
         <style jsx>{`
+          /* Main container - centered layout with consistent padding */
           .container {
-            max-width: 1200px;
+            max-width: 960px;
             margin: 0 auto;
-            padding: 2rem;
+            padding: 1.5rem 1rem 2.5rem;
+            width: 100%;
+            box-sizing: border-box;
+          }
+          
+          @media (min-width: 1024px) {
+            .container {
+              padding: 2rem 2rem 3rem;
+            }
           }
           
           .header {
