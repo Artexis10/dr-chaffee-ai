@@ -136,26 +136,24 @@ export const DisclaimerBanner: React.FC = () => {
           }
         }
 
-        @media (prefers-color-scheme: dark) {
-          .disclaimer-card {
-            background: rgba(239, 68, 68, 0.12);
-            border-color: rgba(239, 68, 68, 0.25);
-          }
+        :global(.dark-mode) .disclaimer-card {
+          background: rgba(239, 68, 68, 0.12);
+          border-color: rgba(239, 68, 68, 0.25);
+        }
 
-          .disclaimer-card:hover {
-            background: rgba(239, 68, 68, 0.16);
-            border-color: rgba(239, 68, 68, 0.35);
-          }
+        :global(.dark-mode) .disclaimer-card:hover {
+          background: rgba(239, 68, 68, 0.16);
+          border-color: rgba(239, 68, 68, 0.35);
+        }
 
-          .patreon-card {
-            background: rgba(245, 158, 11, 0.12);
-            border-color: rgba(245, 158, 11, 0.25);
-          }
+        :global(.dark-mode) .patreon-card {
+          background: rgba(245, 158, 11, 0.12);
+          border-color: rgba(245, 158, 11, 0.25);
+        }
 
-          .patreon-card:hover {
-            background: rgba(245, 158, 11, 0.16);
-            border-color: rgba(245, 158, 11, 0.35);
-          }
+        :global(.dark-mode) .patreon-card:hover {
+          background: rgba(245, 158, 11, 0.16);
+          border-color: rgba(245, 158, 11, 0.35);
         }
       `}</style>
     </>
