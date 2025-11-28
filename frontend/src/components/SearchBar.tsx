@@ -45,46 +45,49 @@ export const SearchBar: React.FC<SearchBarProps> = ({ query, setQuery, handleSea
   return (
     <form onSubmit={onSubmit} className="search-form">
       <div className={`search-container ${isFocused ? 'focused' : ''}`}>
-        <div className="search-icon">
-          {loading ? (
-            <div className="spinner"></div>
-          ) : (
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M21 21L16.65 16.65M19 11C19 15.4183 15.4183 19 11 19C6.58172 19 3 15.4183 3 11C3 6.58172 6.58172 3 11 3C15.4183 3 19 6.58172 19 11Z" 
-                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
+        {/* Input wrapper for proper icon/clear button positioning */}
+        <div className="search-input-wrapper">
+          <div className="search-icon">
+            {loading ? (
+              <div className="spinner"></div>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M21 21L16.65 16.65M19 11C19 15.4183 15.4183 19 11 19C6.58172 19 3 15.4183 3 11C3 6.58172 6.58172 3 11 3C15.4183 3 19 6.58172 19 11Z" 
+                  stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            )}
+          </div>
+          <input
+            ref={inputRef}
+            type="text"
+            className={`search-input ${isDisabled ? 'disabled' : ''}`}
+            placeholder="Ask your question..."
+            value={query}
+            onChange={handleInputChange}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+            onKeyDown={handleKeyDown}
+            aria-label="Search query"
+            readOnly={isDisabled}
+            style={{ opacity: isDisabled ? 0.7 : 1, cursor: isDisabled ? 'not-allowed' : 'text' }}
+          />
+          {query && !isDisabled && (
+            <button 
+              type="button" 
+              className="clear-button"
+              onClick={() => {
+                setQuery('');
+                inputRef.current?.focus();
+              }}
+              aria-label="Clear search"
+              tabIndex={0}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
           )}
         </div>
-        <input
-          ref={inputRef}
-          type="text"
-          className={`search-input ${isDisabled ? 'disabled' : ''}`}
-          placeholder="Ask your question..."
-          value={query}
-          onChange={handleInputChange}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
-          onKeyDown={handleKeyDown}
-          aria-label="Search query"
-          readOnly={isDisabled}
-          style={{ opacity: isDisabled ? 0.7 : 1, cursor: isDisabled ? 'not-allowed' : 'text' }}
-        />
-        {query && !isDisabled && (
-          <button 
-            type="button" 
-            className="clear-button"
-            onClick={() => {
-              setQuery('');
-              inputRef.current?.focus();
-            }}
-            aria-label="Clear search"
-            tabIndex={0}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
-        )}
         <button 
           type="submit" 
           className="search-button"
@@ -124,12 +127,27 @@ export const SearchBar: React.FC<SearchBarProps> = ({ query, setQuery, handleSea
       </div>
       
       <style jsx>{`
-        .search-container {
-          position: relative;
+        .search-form {
+          max-width: 640px;
+          margin: 0 auto;
+          width: 100%;
         }
         
-        .search-container.focused {
-          transform: translateY(-2px);
+        .search-container {
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          gap: var(--space-3);
+        }
+        
+        .search-container.focused .search-input-wrapper {
+          transform: translateY(-1px);
+        }
+        
+        .search-input-wrapper {
+          position: relative;
+          width: 100%;
+          transition: transform 0.2s ease;
         }
         
         .search-icon {
@@ -137,22 +155,43 @@ export const SearchBar: React.FC<SearchBarProps> = ({ query, setQuery, handleSea
           left: var(--space-4);
           top: 50%;
           transform: translateY(-50%);
-          color: var(--color-text-light);
+          color: var(--color-text-muted);
           display: flex;
           align-items: center;
           justify-content: center;
-          width: 24px;
-          height: 24px;
+          width: 22px;
+          height: 22px;
           z-index: 2;
+          pointer-events: none;
         }
         
         .search-input {
-          padding-left: calc(var(--space-4) + 28px);
+          width: 100%;
+          padding: var(--space-4) var(--space-5);
+          padding-left: calc(var(--space-4) + 30px);
+          padding-right: 48px; /* Space for clear button */
+          font-size: 1.05rem;
+          border: 2px solid var(--color-border);
+          border-radius: var(--radius-xl);
+          background: var(--color-card);
+          color: var(--color-text);
+          box-shadow: var(--shadow-sm);
+          transition: all 0.2s ease;
+        }
+        
+        .search-input:focus {
+          outline: none;
+          border-color: var(--color-primary);
+          box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.08);
+        }
+        
+        .search-input::placeholder {
+          color: var(--color-text-muted);
         }
         
         .clear-button {
           position: absolute;
-          right: 140px;
+          right: 14px;
           top: 50%;
           transform: translateY(-50%);
           background: var(--color-border-light, #f3f4f6);
@@ -246,23 +285,27 @@ export const SearchBar: React.FC<SearchBarProps> = ({ query, setQuery, handleSea
         }
         
         @media (max-width: 768px) {
+          .search-form {
+            max-width: 100%;
+          }
+          
           .search-icon {
             left: var(--space-3);
           }
 
           .search-input {
             padding-left: calc(var(--space-3) + 28px);
-            padding-right: var(--space-3);
+            padding-right: 44px;
             font-size: 1rem;
           }
 
           .clear-button {
-            right: var(--space-3);
-            padding: var(--space-2);
+            right: 12px;
+            width: 26px;
+            height: 26px;
           }
           
           .search-button {
-            margin-top: var(--space-3);
             font-size: 1rem;
             padding: var(--space-3) var(--space-5);
           }

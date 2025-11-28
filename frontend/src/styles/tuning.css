@@ -9,11 +9,11 @@
 .tuning-dashboard {
   display: flex;
   min-height: 100vh;
-  background: #f9fafb;
+  background: var(--bg-body, #f9fafb);
 }
 
 .dark-mode .tuning-dashboard {
-  background: #0f0f0f;
+  background: var(--bg-body, #050505);
 }
 
 /* Sidebar */

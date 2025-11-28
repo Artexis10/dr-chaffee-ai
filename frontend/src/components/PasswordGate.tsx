@@ -83,9 +83,9 @@ export function PasswordGate({ children }: PasswordGateProps) {
         justifyContent: 'center',
         alignItems: 'center',
         minHeight: '100vh',
-        background: '#0a0a0a'
+        background: '#050505'
       }}>
-        <div style={{ color: '#ffffff', fontSize: '1.2rem', fontWeight: 500 }}>Loading...</div>
+        <div style={{ color: '#a0a0a0', fontSize: '1rem', fontWeight: 500 }}>Loading...</div>
       </div>
     );
   }
@@ -102,17 +102,17 @@ export function PasswordGate({ children }: PasswordGateProps) {
       justifyContent: 'center',
       alignItems: 'center',
       minHeight: '100vh',
-      background: '#0a0a0a',
-      padding: '2rem'
+      background: '#050505',
+      padding: '1.5rem'
     }}>
       <div style={{
-        background: '#1a1a1a', // Darken card background
+        background: '#161616',
         borderRadius: '20px',
-        padding: '3rem',
-        maxWidth: '450px',
+        padding: '2.5rem 2rem',
+        maxWidth: '420px',
         width: '100%',
         boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.4)',
-        border: '1px solid #444444',
+        border: '1px solid #2d2d2d',
         textAlign: 'center'
       }}>
         {/* Dr. Chaffee Photo */}
@@ -153,16 +153,17 @@ export function PasswordGate({ children }: PasswordGateProps) {
         </p>
 
         <div style={{
-          background: '#1a1a1a',
+          background: '#222222',
           padding: '1rem',
           borderRadius: '12px',
-          marginBottom: '2rem',
-          border: '1px solid #333333'
+          marginBottom: '1.5rem',
+          border: '1px solid #2d2d2d'
         }}>
           <p style={{
-            color: '#b0b0b0',
+            color: '#a0a0a0',
             fontSize: '0.9rem',
-            margin: 0
+            margin: 0,
+            lineHeight: 1.5
           }}>
             🔐 Main Application Access - Enter your password to explore Dr. Chaffee's knowledge base.
           </p>
@@ -240,10 +241,10 @@ export function PasswordGate({ children }: PasswordGateProps) {
         <div style={{
           marginTop: '1.5rem',
           paddingTop: '1.5rem',
-          borderTop: '1px solid #e2e8f0'
+          borderTop: '1px solid #2d2d2d'
         }}>
           <p style={{
-            color: '#64748b',
+            color: '#909090',
             fontSize: '0.85rem',
             marginBottom: '0.75rem',
             fontWeight: 500
@@ -254,24 +255,24 @@ export function PasswordGate({ children }: PasswordGateProps) {
             href="/tuning/auth"
             style={{
               display: 'inline-block',
-              padding: '0.75rem 1.5rem',
-              fontSize: '0.9rem',
-              fontWeight: 600,
-              color: 'white',
-              background: '#000000',
-              border: '2px solid white',
-              borderRadius: '12px',
+              padding: '0.625rem 1.25rem',
+              fontSize: '0.875rem',
+              fontWeight: 500,
+              color: '#f5f5f5',
+              background: '#222222',
+              border: '1px solid #454545',
+              borderRadius: '10px',
               textDecoration: 'none',
               cursor: 'pointer',
               transition: 'all 0.2s'
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#000000';
-              e.currentTarget.style.color = 'white';
+              e.currentTarget.style.background = '#2d2d2d';
+              e.currentTarget.style.borderColor = '#606060';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = '#000000';
-              e.currentTarget.style.color = 'white';
+              e.currentTarget.style.background = '#222222';
+              e.currentTarget.style.borderColor = '#454545';
             }}
           >
             Tuning Dashboard

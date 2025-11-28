@@ -903,16 +903,17 @@ export default function Home() {
         <style jsx>{`
           /* Main container - centered layout with consistent padding */
           .container {
-            max-width: 960px;
+            max-width: 1000px;
             margin: 0 auto;
-            padding: 1.5rem 1rem 2.5rem;
+            padding: 1.5rem 1.25rem 2.5rem;
             width: 100%;
             box-sizing: border-box;
           }
           
           @media (min-width: 1024px) {
             .container {
-              padding: 2rem 2rem 3rem;
+              max-width: 1100px;
+              padding: 2rem 2.5rem 3rem;
             }
           }
           
@@ -935,21 +936,21 @@ export default function Home() {
             align-items: center;
             gap: 0.5rem;
             padding: 0.5rem 1rem;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border: 1px solid #667eea;
+            background: var(--color-card);
+            border: 1px solid var(--color-border);
             border-radius: 8px;
-            color: white;
+            color: var(--color-text);
             text-decoration: none;
-            font-size: 0.9rem;
-            font-weight: 600;
+            font-size: 0.875rem;
+            font-weight: 500;
             transition: all 0.2s ease;
           }
           
           .tuning-link:hover {
-            background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
-            border-color: #764ba2;
+            background: var(--color-border-light);
+            border-color: var(--color-text-muted);
             transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            box-shadow: var(--shadow-sm);
           }
           
           .tuning-link svg {
@@ -1013,26 +1014,35 @@ export default function Home() {
           }
 
           .search-hint {
-            background-color: rgba(59, 130, 246, 0.05);
+            background-color: var(--color-card);
             border: 1px solid var(--color-border);
             border-radius: var(--radius-xl);
-            padding: var(--space-4);
-            font-size: 1rem;
+            padding: var(--space-4) var(--space-5);
+            font-size: 0.95rem;
             color: var(--color-text);
             text-align: left;
             display: flex;
             align-items: flex-start;
-            gap: var(--space-3);
+            gap: var(--space-4);
+            box-shadow: var(--shadow-sm);
+            max-width: 640px;
+            margin: 0 auto;
           }
 
           .search-hint svg {
             flex-shrink: 0;
-            margin-top: 3px;
-            color: var(--color-primary);
+            margin-top: 2px;
+            color: var(--color-text-muted);
+            width: 20px;
+            height: 20px;
+          }
+
+          .search-hint span {
+            line-height: 1.5;
           }
 
           .search-hint strong {
-            color: var(--color-primary-dark);
+            color: var(--color-text);
             font-weight: 600;
           }
           
