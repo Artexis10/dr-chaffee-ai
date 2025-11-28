@@ -125,13 +125,17 @@ export const Footer: React.FC = () => {
         .footer-logo-icon {
           width: 50px;
           height: 50px;
-          border-radius: 50%;
+          min-width: 50px;
+          min-height: 50px;
+          border-radius: 999px;
           display: flex;
           align-items: center;
           justify-content: center;
           overflow: hidden;
           border: 2px solid var(--color-primary);
           box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+          flex-shrink: 0;
+          aspect-ratio: 1 / 1;
         }
         
         .footer-logo-text h3 {

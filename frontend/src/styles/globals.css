@@ -21,6 +21,7 @@
   --color-background: #f8f9fa;
   --color-card: #ffffff;
   --color-text: #1a1a1a;
+  --color-text-strong: #000000;
   --color-text-light: #5a5a5a;
   --color-text-muted: #8a8a8a;
   --color-border: #e5e7eb;
@@ -84,6 +85,7 @@
   --color-background: #f8f9fa;
   --color-card: #ffffff;
   --color-text: #1a1a1a;
+  --color-text-strong: #000000;
   --color-text-light: #5a5a5a;
   --color-text-muted: #8a8a8a;
   --color-border: #e5e7eb;
@@ -148,6 +150,7 @@ html.dark-mode,
   --color-background: #050505; /* Darker background for better card separation */
   --color-card: #161616; /* Slightly lighter cards for contrast */
   --color-text: #f5f5f5;
+  --color-text-strong: #ffffff; /* Pure white for nav links */
   --color-text-light: #c0c0c0; /* Lighter for better readability */
   --color-text-muted: #909090; /* Lighter muted text */
   --color-border: #2d2d2d;
@@ -186,6 +189,25 @@ html.dark-mode,
 
 html {
   scroll-behavior: smooth;
+}
+
+/* Navigation Links - Global Styling */
+.nav-link,
+.nav-link:visited {
+  color: var(--color-text-strong);
+  text-decoration: none;
+}
+
+.nav-link:hover,
+.nav-link:focus-visible {
+  color: var(--color-text-strong);
+  text-decoration: underline;
+}
+
+/* Prevent purple/red visited state on all links */
+a.nav-link:visited,
+button.nav-link:visited {
+  color: var(--color-text-strong);
 }
 
 body {
@@ -323,24 +345,24 @@ body {
 
 .filter-pills {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-2);
 }
 
+/* Monochrome premium pill style */
 .filter-pill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: var(--space-2) var(--space-4);
-  border: 2px solid var(--color-border);
-  background: var(--color-card);
-  color: var(--color-text);
-  border-radius: var(--radius-full);
-  font-size: 0.9rem;
-  font-weight: 600;
+  gap: 0.35rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  font-weight: 500;
   cursor: pointer;
   transition: all var(--transition-normal);
-  position: relative;
-  overflow: hidden;
   white-space: nowrap;
 }
 
@@ -348,37 +370,21 @@ body {
   flex-shrink: 0;
 }
 
-.filter-pill::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.03);
-  opacity: 0;
-  transition: opacity var(--transition-normal);
-}
-
-.filter-pill:hover::before {
-  opacity: 1;
-}
-
 .filter-pill:hover {
-  border-color: var(--color-primary-light);
-  transform: translateY(-1px);
+  border-color: var(--color-text-muted);
+  color: var(--color-text);
 }
 
 .filter-pill.active {
-  background: var(--color-primary);
-  color: var(--accent-foreground, white);
+  background: var(--color-card);
   border-color: var(--color-primary);
+  color: var(--color-text);
   box-shadow: var(--shadow-sm);
 }
 
 .filter-pill.active:hover {
-  background: var(--color-primary-dark);
-  color: var(--accent-foreground, white);
+  border-color: var(--color-primary);
+  color: var(--color-text);
 }
 
 .year-filter {

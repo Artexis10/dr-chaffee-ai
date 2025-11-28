@@ -937,17 +937,10 @@ export default function Home() {
             padding: 0.5rem 0.75rem;
             background: transparent;
             border: none;
-            color: var(--color-text-muted);
-            text-decoration: none;
             font-size: 0.875rem;
             font-weight: 500;
             cursor: pointer;
-            transition: color 0.2s ease;
-          }
-          
-          .nav-link:hover {
-            color: var(--color-text);
-            text-decoration: underline;
+            transition: color 0.2s ease, text-decoration 0.2s ease;
           }
           
           .nav-link svg {
@@ -970,9 +963,11 @@ export default function Home() {
           .logo {
             width: 80px;
             height: 80px;
+            min-width: 80px;
+            min-height: 80px;
             background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
             color: white;
-            border-radius: 50%;
+            border-radius: 999px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -981,6 +976,8 @@ export default function Home() {
             box-shadow: var(--shadow-md);
             position: relative;
             overflow: hidden;
+            flex-shrink: 0;
+            aspect-ratio: 1 / 1;
           }
           
           .logo::before {
@@ -1203,6 +1200,8 @@ export default function Home() {
             .logo {
               width: 60px;
               height: 60px;
+              min-width: 60px;
+              min-height: 60px;
             }
 
             .logo-container {
