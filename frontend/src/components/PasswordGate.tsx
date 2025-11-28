@@ -102,17 +102,17 @@ export function PasswordGate({ children }: PasswordGateProps) {
       justifyContent: 'center',
       alignItems: 'center',
       minHeight: '100vh',
-      background: '#050505',
-      padding: '1.5rem'
+      background: 'linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #0a0a0a 100%)',
+      padding: '1rem'
     }}>
       <div style={{
-        background: '#161616',
+        background: '#141414',
         borderRadius: '20px',
         padding: '2.5rem 2rem',
         maxWidth: '420px',
         width: '100%',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.4)',
-        border: '1px solid #2d2d2d',
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4)',
+        border: '1px solid #2a2a2a',
         textAlign: 'center'
       }}>
         {/* Dr. Chaffee Photo */}

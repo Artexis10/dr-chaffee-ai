@@ -933,7 +933,8 @@ export default function Home() {
           .nav-link {
             display: inline-flex;
             align-items: center;
-            gap: 0.375rem;
+            justify-content: center;
+            gap: 0.4rem;
             padding: 0.5rem 0.75rem;
             background: transparent;
             border: none;
@@ -944,6 +945,7 @@ export default function Home() {
           }
           
           .nav-link svg {
+            display: block;
             width: 16px;
             height: 16px;
             flex-shrink: 0;

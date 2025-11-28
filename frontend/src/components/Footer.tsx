@@ -167,22 +167,34 @@ export const Footer: React.FC = () => {
         .footer-links {
           display: flex;
           flex-direction: column;
-          gap: var(--space-2);
+          justify-content: center;
+          align-items: center;
+          gap: 0.65rem;
         }
         
         .footer-link {
-          display: flex;
+          display: inline-flex;
           align-items: center;
-          gap: var(--space-2);
+          justify-content: center;
+          gap: 0.5rem;
           color: var(--color-text-light);
           text-decoration: none;
           font-size: 0.9rem;
           transition: all var(--transition-normal);
         }
         
+        .footer-link svg {
+          display: block;
+          flex-shrink: 0;
+          opacity: 0.7;
+        }
+        
         .footer-link:hover {
-          color: var(--color-primary);
-          transform: translateX(2px);
+          color: var(--color-text);
+        }
+        
+        .footer-link:hover svg {
+          opacity: 1;
         }
         
         .footer-text-info {

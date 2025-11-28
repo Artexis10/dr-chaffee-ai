@@ -70,6 +70,8 @@ These rules apply only inside the `dr-chaffee-ai` repository.
 - New backend routes/modules under `backend/api` (non-core)
 - Test scripts and utilities
 - Markdown docs
+- All frontend styling changes should follow the design guide located at: frontend/docs/ui-style.md
+- Do not introduce new colors, radii, or theme variables; reuse existing tokens unless explicitly requested
 
 ---
 
