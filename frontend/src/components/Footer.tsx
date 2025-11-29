@@ -167,15 +167,13 @@ export const Footer: React.FC = () => {
         .footer-links {
           display: flex;
           flex-direction: column;
-          justify-content: center;
-          align-items: center;
-          gap: 0.65rem;
+          align-items: flex-start;
+          gap: 0.625rem;
         }
         
         .footer-link {
           display: inline-flex;
           align-items: center;
-          justify-content: center;
           gap: 0.5rem;
           color: var(--color-text-light);
           text-decoration: none;
@@ -186,6 +184,8 @@ export const Footer: React.FC = () => {
         .footer-link svg {
           display: block;
           flex-shrink: 0;
+          width: 16px;
+          height: 16px;
           opacity: 0.7;
         }
         

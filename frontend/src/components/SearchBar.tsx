@@ -247,7 +247,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ query, setQuery, handleSea
         .toggle-label {
           font-size: 14px;
           font-weight: 500;
-          color: #6b7280;
+          color: var(--color-text-muted);
         }
 
         .toggle-buttons {
@@ -339,7 +339,9 @@ export const SearchBar: React.FC<SearchBarProps> = ({ query, setQuery, handleSea
 
           .search-input {
             font-size: 0.95rem;
-            padding: var(--space-3) var(--space-3) var(--space-3) calc(var(--space-3) + 24px);
+            padding: var(--space-3);
+            padding-left: calc(var(--space-3) + 24px);
+            padding-right: 44px; /* Ensure text doesn't hide under clear button */
           }
 
           .search-input::placeholder {
