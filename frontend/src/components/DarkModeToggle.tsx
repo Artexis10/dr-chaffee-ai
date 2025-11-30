@@ -1,3 +1,10 @@
+/*
+ * UI Theme Guardrail:
+ * DO NOT modify this file unless Hugo explicitly instructs.
+ * This file defines the locked-in Dr Chaffee visual system.
+ * See: frontend/docs/ui-theme-guidelines.md
+ */
+
 import React, { useState, useEffect } from 'react';
 
 const THEME_KEY = 'askdrchaffee.theme';

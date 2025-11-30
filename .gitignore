@@ -161,6 +161,14 @@ backend/**/test_*.py
 test_results/
 test_results_summary/
 
+# Playwright test artifacts
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Vitest
+coverage/
+
 # Voice profiles and models
 voices/
 pretrained_models/

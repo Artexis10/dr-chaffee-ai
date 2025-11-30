@@ -73,6 +73,8 @@ These rules apply only inside the `dr-chaffee-ai` repository.
 - All frontend styling changes should follow the design guide located at: frontend/docs/ui-style.md
 - Do not introduce new colors, radii, or theme variables; reuse existing tokens unless explicitly requested
 
+Follow the Dr Chaffee UI Theme Guardrails; don’t introduce new color schemes or card styles, just reuse the existing ones (frontend/docs/ui-theme-guidelines.md).
+
 ---
 
 # C. Embeddings & LLM Rules

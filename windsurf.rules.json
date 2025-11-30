@@ -1,0 +1,46 @@
+{
+  "$schema": "https://windsurf.ai/schemas/rules.json",
+  "version": "1.0",
+  "rules": {
+    "UI-Theme-Guardrails": {
+      "description": "Protects the locked-in Dr Chaffee UI theme from accidental modifications",
+      "documentation": "frontend/docs/ui-theme-guidelines.md",
+      "instructions": [
+        "Read and follow frontend/docs/ui-theme-guidelines.md before making any styling edits",
+        "Do NOT modify theme-related files unless Hugo explicitly instructs the change",
+        "For any change that alters look/feel, STOP and ask for confirmation first",
+        "Always reuse existing UI primitives instead of creating new styled components",
+        "Never introduce new color palettes or redesign existing components"
+      ],
+      "protected_files": [
+        "frontend/src/styles/globals.css",
+        "frontend/src/styles/tuning.css",
+        "frontend/src/styles/custom-instructions.css",
+        "frontend/src/components/SearchBar.tsx",
+        "frontend/src/components/FilterPills.tsx",
+        "frontend/src/components/AnswerCard.tsx",
+        "frontend/src/components/VideoCard.tsx",
+        "frontend/src/components/Footer.tsx",
+        "frontend/src/components/DarkModeToggle.tsx",
+        "frontend/src/components/DisclaimerBanner.tsx",
+        "frontend/src/app/tuning/layout.tsx",
+        "frontend/src/app/tuning/tuning-pages.css"
+      ],
+      "protected_patterns": [
+        "frontend/src/components/ui/*",
+        "frontend/tailwind.config.*",
+        "frontend/src/styles/*.css"
+      ],
+      "forbidden_modifications": [
+        "Global color tokens (CSS custom properties)",
+        "Background gradients",
+        "Card styling (radius, shadows, borders)",
+        "Dashboard layout under /tuning/*",
+        "Typography scale",
+        "Spacing scale (--space-* variables)",
+        "Shadow definitions (--shadow-* variables)",
+        "Border radius tokens (--radius-* variables)"
+      ]
+    }
+  }
+}
