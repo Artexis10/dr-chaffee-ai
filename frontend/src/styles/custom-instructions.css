@@ -227,6 +227,54 @@ pre {
   color: #6b7280 !important;
 }
 
+/* Edit Form Input Styles - Unified High-Contrast for Dark Mode */
+.ci-form-label {
+  color: #e5e5e5 !important;
+}
+
+.ci-form-input,
+.ci-form-textarea {
+  background: #1a1a1a !important;
+  color: #f0f0f0 !important;
+  border: 2px solid #3a3a3a !important;
+}
+
+.ci-form-input::placeholder,
+.ci-form-textarea::placeholder {
+  color: #808080 !important;
+  opacity: 1 !important;
+}
+
+.ci-form-input:focus,
+.ci-form-textarea:focus {
+  border-color: #606060 !important;
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(96, 96, 96, 0.2) !important;
+}
+
+/* Light mode form inputs */
+.light-mode .ci-form-label {
+  color: #374151 !important;
+}
+
+.light-mode .ci-form-input,
+.light-mode .ci-form-textarea {
+  background: #f9fafb !important;
+  color: #1f2937 !important;
+  border: 2px solid #d1d5db !important;
+}
+
+.light-mode .ci-form-input::placeholder,
+.light-mode .ci-form-textarea::placeholder {
+  color: #9ca3af !important;
+}
+
+.light-mode .ci-form-input:focus,
+.light-mode .ci-form-textarea:focus {
+  border-color: #000000 !important;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1) !important;
+}
+
 /* Dark Mode Overrides for Custom Instructions - Improved Contrast */
 .dark-mode .bg-slate-800\/50,
 .dark-mode .bg-slate-800\/30 {

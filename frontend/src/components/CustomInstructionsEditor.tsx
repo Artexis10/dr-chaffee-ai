@@ -305,7 +305,7 @@ export default function CustomInstructionsEditor() {
             {/* Name and Description row */}
             <div className="ci-form-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary, #374151)', marginBottom: '0.5rem' }}>
+                <label className="ci-form-label" style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary, #e5e5e5)', marginBottom: '0.5rem' }}>
                   Name *
                 </label>
                 <input
@@ -314,21 +314,22 @@ export default function CustomInstructionsEditor() {
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="e.g., 'Enhanced Medical Focus'"
                   maxLength={255}
+                  className="ci-form-input"
                   style={{
                     width: '100%',
                     padding: '0.75rem',
-                    border: '1px solid var(--border-subtle, #d1d5db)',
+                    border: '2px solid var(--border-subtle, #3a3a3a)',
                     borderRadius: '0.5rem',
                     fontSize: '1rem',
-                    background: 'var(--bg-card-elevated, #f9fafb)',
-                    color: 'var(--text-primary, #1f2937)',
+                    background: 'var(--bg-card-elevated, #1a1a1a)',
+                    color: 'var(--text-primary, #f0f0f0)',
                     boxSizing: 'border-box'
                   }}
                 />
               </div>
               
               <div>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary, #374151)', marginBottom: '0.5rem' }}>
+                <label className="ci-form-label" style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary, #e5e5e5)', marginBottom: '0.5rem' }}>
                   Description
                 </label>
                 <input
@@ -337,14 +338,15 @@ export default function CustomInstructionsEditor() {
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="What these instructions do"
                   maxLength={500}
+                  className="ci-form-input"
                   style={{
                     width: '100%',
                     padding: '0.75rem',
-                    border: '1px solid var(--border-subtle, #d1d5db)',
+                    border: '2px solid var(--border-subtle, #3a3a3a)',
                     borderRadius: '0.5rem',
                     fontSize: '1rem',
-                    background: 'var(--bg-card-elevated, #f9fafb)',
-                    color: 'var(--text-primary, #1f2937)',
+                    background: 'var(--bg-card-elevated, #1a1a1a)',
+                    color: 'var(--text-primary, #f0f0f0)',
                     boxSizing: 'border-box'
                   }}
                 />
@@ -353,8 +355,8 @@ export default function CustomInstructionsEditor() {
 
             {/* Custom Instructions textarea */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary, #374151)', marginBottom: '0.5rem' }}>
-                Custom Instructions * <span style={{ fontWeight: 400, color: 'var(--text-muted, #6b7280)' }}>({formData.instructions.length}/10000)</span>
+              <label className="ci-form-label" style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary, #e5e5e5)', marginBottom: '0.5rem' }}>
+                Custom Instructions * <span style={{ fontWeight: 400, color: 'var(--text-muted, #a0a0a0)' }}>({formData.instructions.length}/10000)</span>
               </label>
               <textarea
                 value={formData.instructions}
@@ -366,15 +368,16 @@ export default function CustomInstructionsEditor() {
 - Focus on particular health conditions"
                 rows={10}
                 maxLength={10000}
+                className="ci-form-textarea"
                 style={{
                   width: '100%',
                   padding: '1rem',
-                  border: '1px solid var(--border-subtle, #d1d5db)',
+                  border: '2px solid var(--border-subtle, #3a3a3a)',
                   borderRadius: '0.5rem',
                   fontSize: '0.875rem',
                   fontFamily: 'monospace',
-                  background: 'var(--bg-card-elevated, #f9fafb)',
-                  color: 'var(--text-primary, #1f2937)',
+                  background: 'var(--bg-card-elevated, #1a1a1a)',
+                  color: 'var(--text-primary, #f0f0f0)',
                   resize: 'vertical',
                   minHeight: '200px',
                   boxSizing: 'border-box'

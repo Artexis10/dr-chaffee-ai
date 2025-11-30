@@ -186,9 +186,10 @@ export default function TuningLayout({
         <button 
           className="tuning-hamburger"
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
+          aria-label="Open menu"
+          style={{ visibility: isMobileMenuOpen ? 'hidden' : 'visible' }}
         >
-          {isMobileMenuOpen ? <X /> : <Menu />}
+          <Menu />
         </button>
       </header>
 

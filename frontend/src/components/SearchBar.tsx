@@ -131,13 +131,14 @@ export const SearchBar: React.FC<SearchBarProps> = ({ query, setQuery, handleSea
           max-width: 640px;
           margin: 0 auto;
           width: 100%;
+          padding-top: 1.5rem; /* Space from disclaimer cards */
         }
         
         .search-container {
           position: relative;
           display: flex;
           flex-direction: column;
-          gap: var(--space-3);
+          gap: var(--space-4); /* Increased gap between input and button */
         }
         
         .search-container.focused .search-input-wrapper {
@@ -241,7 +242,8 @@ export const SearchBar: React.FC<SearchBarProps> = ({ query, setQuery, handleSea
           align-items: center;
           justify-content: center;
           gap: 12px;
-          margin-top: 16px;
+          margin-top: 1.5rem; /* Increased space from search button */
+          margin-bottom: 1rem; /* Space before source chips */
         }
 
         .toggle-label {
