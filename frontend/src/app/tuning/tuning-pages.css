@@ -543,25 +543,25 @@
   }
 }
 
-/* Auth Page Styles - Tuning Dashboard has distinct darker matte look */
+/* Auth Page Styles - Tuning Dashboard: LIGHT card on DARK background (inverted from main app) */
 .tuning-auth-container {
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background: #080808;
+  background: #050505;
   padding: 1.5rem;
 }
 
 .tuning-auth-card {
-  background: #1a1a1a;
+  background: #ffffff;
   border-radius: 20px;
   padding: 2.5rem 2rem;
   max-width: 450px;
   width: 100%;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.3);
   text-align: center;
-  border: 1px solid #333333;
+  border: 1px solid #e5e7eb;
 }
 
 .tuning-auth-avatar {
@@ -570,54 +570,60 @@
   margin: 0 auto 1.5rem;
   border-radius: 50%;
   overflow: hidden;
-  border: 4px solid #ffffff;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  border: 4px solid #000000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .tuning-auth-title {
   font-size: 2rem;
   font-weight: 700;
-  color: #ffffff;
+  color: #111111;
   margin: 0 0 0.5rem 0;
 }
 
 .tuning-auth-subtitle {
-  color: #909090;
+  color: #6b7280;
   margin: 0 0 1.5rem 0;
   font-size: 1rem;
+  font-weight: 500;
 }
 
 .tuning-auth-notice {
-  background: #252525;
+  background: #fef3c7;
   padding: 1rem;
   border-radius: 12px;
   margin-bottom: 1.5rem;
-  border: 1px solid #3a3a3a;
+  border: 1px solid #fcd34d;
 }
 
 .tuning-auth-notice p {
-  color: #a0a0a0;
+  color: #92400e;
   font-size: 0.9rem;
   margin: 0;
   line-height: 1.5;
+  font-weight: 500;
 }
 
 .tuning-auth-input {
   width: 100%;
   padding: 1rem;
   font-size: 1rem;
-  border: 2px solid #3a3a3a;
+  border: 2px solid #d1d5db;
   border-radius: 12px;
   margin-bottom: 1rem;
   outline: none;
   transition: border-color 0.2s;
   box-sizing: border-box;
-  background: #252525;
-  color: #f0f0f0;
+  background: #f9fafb;
+  color: #111111;
+}
+
+.tuning-auth-input::placeholder {
+  color: #9ca3af;
 }
 
 .tuning-auth-input:focus {
-  border-color: var(--accent);
+  border-color: #000000;
 }
 
 .tuning-auth-input.error {
@@ -625,12 +631,13 @@
 }
 
 .tuning-auth-error {
-  background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
+  background: #fef2f2;
+  color: #dc2626;
   padding: 0.75rem;
   border-radius: 8px;
   margin-bottom: 1rem;
   font-size: 0.9rem;
+  border: 1px solid #fecaca;
 }
 
 .tuning-auth-submit {
@@ -638,18 +645,19 @@
   padding: 1rem;
   font-size: 1rem;
   font-weight: 600;
-  color: #000000;
-  background: #ffffff;
+  color: #ffffff;
+  background: #000000;
   border: none;
   border-radius: 12px;
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .tuning-auth-submit:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  background: #1a1a1a;
 }
 
 .tuning-auth-submit:disabled {
@@ -660,7 +668,7 @@
 .tuning-auth-footer {
   margin-top: 1.5rem;
   padding-top: 1.5rem;
-  border-top: 1px solid #3a3a3a;
+  border-top: 1px solid #e5e7eb;
 }
 
 .tuning-auth-back {
@@ -668,9 +676,9 @@
   padding: 0.75rem 1.5rem;
   font-size: 0.9rem;
   font-weight: 600;
-  color: #f0f0f0;
-  background: #252525;
-  border: 2px solid #ffffff;
+  color: #111111;
+  background: #f3f4f6;
+  border: 2px solid #000000;
   border-radius: 12px;
   text-decoration: none;
   cursor: pointer;
@@ -678,8 +686,8 @@
 }
 
 .tuning-auth-back:hover {
-  background: #ffffff;
-  color: #000000;
+  background: #000000;
+  color: #ffffff;
 }
 
 /* Auth page tablet */

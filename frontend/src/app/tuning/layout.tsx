@@ -200,6 +200,33 @@ export default function TuningLayout({
 
       {/* Sidebar */}
       <aside className={`tuning-sidebar ${isMobileMenuOpen ? 'open' : ''}`}>
+        {/* Mobile Close Button - positioned absolutely in top-right */}
+        {isMobileMenuOpen && (
+          <button
+            className="tuning-sidebar-close"
+            onClick={() => setIsMobileMenuOpen(false)}
+            aria-label="Close menu"
+            style={{
+              position: 'absolute',
+              top: '1rem',
+              right: '1rem',
+              zIndex: 9999,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '40px',
+              height: '40px',
+              border: 'none',
+              borderRadius: '8px',
+              background: 'var(--bg-card-elevated, #f3f4f6)',
+              color: 'var(--text-primary, #111)',
+              cursor: 'pointer',
+              transition: 'background 0.15s'
+            }}
+          >
+            <X style={{ width: '22px', height: '22px' }} />
+          </button>
+        )}
         <div className="tuning-sidebar-header">
           <div className="tuning-sidebar-brand">
             <div className="tuning-sidebar-icon">
