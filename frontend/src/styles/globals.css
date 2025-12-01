@@ -15,7 +15,23 @@
 }
 
 :root {
-  /* Color system - Rich Monochrome */
+  /* ==========================================================================
+     Typography Tokens
+     ========================================================================== */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+  
+  --font-size-xs: 0.75rem;    /* 12px - badges, meta */
+  --font-size-sm: 0.875rem;   /* 14px - small text, buttons */
+  --font-size-base: 1rem;     /* 16px - body text */
+  --font-size-lg: 1.125rem;   /* 18px - card titles */
+  --font-size-xl: 1.25rem;    /* 20px - section headings */
+  --font-size-2xl: 1.5rem;    /* 24px - page headings */
+  --font-size-3xl: 2rem;      /* 32px - hero text */
+  
+  /* ==========================================================================
+     Color System - Rich Monochrome
+     ========================================================================== */
   --color-primary: #000000;
   --color-primary-dark: #000000;
   --color-primary-light: #2a2a2a;
@@ -59,6 +75,12 @@
   --chip-hover-border: rgba(0, 0, 0, 0.35);
   --chip-outline-focus: rgba(0, 0, 0, 0.45);
   
+  /* Badge tokens - small status indicators (light mode) */
+  --badge-bg: #f3f4f6;
+  --badge-bg-muted: #e5e7eb;
+  --badge-text: #4b5563;
+  --badge-border: #d1d5db;
+  
   /* Support CTA gradient */
   --gradient-brand: linear-gradient(135deg, #f97316 0%, #22c55e 100%);
   --gradient-brand-hover: linear-gradient(135deg, #ea580c 0%, #16a34a 100%);
@@ -69,12 +91,17 @@
   --color-error: #000000;
   --color-info: #2a2a2a;
   
-  /* Shadows - Light Mode */
+  /* ==========================================================================
+     Shadows - Light Mode
+     ========================================================================== */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.06);
   
-  /* Spacing */
+  /* ==========================================================================
+     Spacing Scale
+     ========================================================================== */
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -84,14 +111,19 @@
   --space-8: 3rem;
   --space-10: 4rem;
   
-  /* Border radius */
+  /* ==========================================================================
+     Border Radius Scale
+     ========================================================================== */
   --radius-sm: 0.25rem;
   --radius-md: 0.5rem;
   --radius-lg: 0.75rem;
   --radius-xl: 1rem;
   --radius-2xl: 1.5rem;
+  --radius-pill: 9999px;
   
-  /* Transitions */
+  /* ==========================================================================
+     Transitions
+     ========================================================================== */
   --transition-fast: 0.15s ease;
   --transition-normal: 0.25s ease;
   --transition-slow: 0.4s ease;
@@ -230,6 +262,15 @@ html.dark-mode,
   --chip-hover-border: rgba(255, 255, 255, 0.35);
   --chip-outline-focus: rgba(255, 255, 255, 0.45);
   
+  /* Badge tokens - small status indicators (dark mode) */
+  --badge-bg: #262626;
+  --badge-bg-muted: #1c1c1c;
+  --badge-text: #a3a3a3;
+  --badge-border: #333333;
+  
+  /* Shadow - card (dark mode) */
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
+  
   /* Support CTA gradient - same in dark mode */
   --gradient-brand: linear-gradient(135deg, #f97316 0%, #22c55e 100%);
   --gradient-brand-hover: linear-gradient(135deg, #ea580c 0%, #16a34a 100%);
@@ -281,7 +322,7 @@ button.nav-link:visited {
   min-width: 18px;
   padding: 0 6px;
 
-  border-radius: 9999px;
+  border-radius: var(--radius-pill);
   border: 1px solid var(--chip-outline);
   background: transparent;
 
@@ -318,12 +359,81 @@ button.nav-link:visited {
   font-variant-numeric: tabular-nums;
 }
 
+/* ==========================================================================
+   Card Component - Global Base Styles
+   Reusable card primitive for content containers
+   ========================================================================== */
+.card {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-card);
+  transition: all var(--transition-normal);
+}
+
+.card:hover {
+  border-color: var(--color-text-muted);
+}
+
+.card--muted {
+  background: var(--color-border-light);
+}
+
+.card--elevated {
+  box-shadow: var(--shadow-md);
+}
+
+/* ==========================================================================
+   Badge Component - Global Base Styles
+   Small status indicators, labels, and tags
+   ========================================================================== */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.badge--muted {
+  background: var(--badge-bg);
+  color: var(--badge-text);
+  border: 1px solid var(--badge-border);
+}
+
+.badge--subtle {
+  background: var(--badge-bg-muted);
+  color: var(--badge-text);
+}
+
+/* Confidence badge variants - colored backgrounds */
+.badge--high {
+  background: #166534;
+  color: white;
+}
+
+.badge--medium {
+  background: #854d0e;
+  color: white;
+}
+
+.badge--low {
+  background: #991b1b;
+  color: white;
+}
+
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: var(--font-sans);
   background-color: var(--color-background);
   color: var(--color-text);
   line-height: 1.6;
-  font-size: 16px;
+  font-size: var(--font-size-base);
   margin: 0; /* Remove default body margin - prevents framed look */
   padding: 0;
   transition: background-color 0.3s ease, color 0.3s ease;
