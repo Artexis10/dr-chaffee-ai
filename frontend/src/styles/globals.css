@@ -266,6 +266,58 @@ button.nav-link:visited {
   color: var(--color-text-strong);
 }
 
+/* ==========================================================================
+   Chip / Pill Component - Global Base Styles
+   Uses --chip-* tokens defined in :root and dark mode sections
+   ========================================================================== */
+.chip {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: text-bottom;
+
+  height: 18px;
+  min-width: 18px;
+  padding: 0 6px;
+
+  border-radius: 9999px;
+  border: 1px solid var(--chip-outline);
+  background: transparent;
+
+  font-size: 0.72em;
+  font-weight: 500;
+  color: var(--chip-text);
+
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.chip:hover {
+  background: var(--chip-hover-bg);
+  border-color: var(--chip-hover-border);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.chip:active {
+  background: var(--chip-hover-bg);
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--chip-outline-focus);
+  outline-offset: 1px;
+}
+
+.chip-index {
+  font-variant-numeric: tabular-nums;
+}
+
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   background-color: var(--color-background);

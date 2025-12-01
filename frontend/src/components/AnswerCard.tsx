@@ -503,7 +503,7 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
             <button
               key={`cite-${match.index}`}
               type="button"
-              className="citation-chip"
+              className="chip"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -516,7 +516,7 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
               title={citation.title}
               aria-label={`Open citation ${citationIndex}: ${citation.title}`}
             >
-              <span className="citation-index">[{citationIndex}]</span>
+              <span className="chip-index">{citationIndex}</span>
             </button>
           );
         } else {
@@ -544,7 +544,7 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
             <button
               key={`cite-${match.index}`}
               type="button"
-              className="citation-chip"
+              className="chip"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -557,7 +557,7 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
               title={citation.title}
               aria-label={`Open citation: ${citation.title} at ${timestamp}`}
             >
-              <span className="citation-index">[{timestamp}]</span>
+              <span className="chip-index">{timestamp}</span>
             </button>
           );
         } else {
@@ -975,49 +975,6 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
 
         .show-more-button svg {
           flex-shrink: 0;
-        }
-
-        .modern-answer-card .citation-chip {
-          /* Reset default button styling */
-          all: unset;
-
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-
-          font-size: 0.72em;
-          font-weight: 500;
-
-          padding: 2px 6px;
-          border-radius: 9999px;
-
-          border: 1px solid var(--chip-outline, rgba(255,255,255,0.25));
-          background: transparent;
-
-          color: var(--chip-text, rgba(255,255,255,0.85));
-          cursor: pointer;
-          line-height: 1;
-
-          margin-left: 0.25em;
-
-          transition:
-            background 0.2s ease,
-            border-color 0.2s ease,
-            color 0.2s ease;
-        }
-
-        .modern-answer-card .citation-chip:hover {
-          background: var(--chip-hover-bg, rgba(255,255,255,0.08));
-          border-color: var(--chip-hover-border, rgba(255,255,255,0.4));
-        }
-
-        .modern-answer-card .citation-chip:focus-visible {
-          outline: 2px solid var(--chip-outline-focus, rgba(255,255,255,0.5));
-          outline-offset: 2px;
-        }
-
-        .modern-answer-card .citation-index {
-          /* Inherit color/size from the chip; no extra styling needed */
         }
 
         .answer-notes {

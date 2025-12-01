@@ -60,10 +60,10 @@ describe('AnswerCard - Citation Rendering', () => {
   it('should render citation chips as clickable buttons', () => {
     render(<AnswerCard {...defaultProps} />);
     
-    // Look for citation buttons
+    // Look for citation chip buttons (now use .chip class, no brackets in text)
     const citationButtons = screen.getAllByRole('button');
     const citationChips = citationButtons.filter(btn => 
-      btn.textContent?.includes('[1]') || btn.textContent?.includes('[2]')
+      btn.classList.contains('chip') && (btn.textContent === '1' || btn.textContent === '2')
     );
     
     expect(citationChips.length).toBeGreaterThan(0);
