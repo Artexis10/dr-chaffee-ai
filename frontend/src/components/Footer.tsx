@@ -99,16 +99,15 @@ export const Footer: React.FC = () => {
         <div className="footer-bottom">
           <div className="footer-credits">
             <p className="copyright">&copy; {new Date().getFullYear()} Dr Chaffee AI. Built with passion by Hugo Ander Kivi.</p>
-            <p className="support-link">
-              ☕{' '}
-              <a 
-                href="https://buymeacoffee.com/hugoanderkivi" 
-                target="_blank" 
-                rel="noopener noreferrer"
-              >
-                Support Dr Chaffee AI
-              </a>
-            </p>
+            <a 
+              href="https://buymeacoffee.com/hugoanderkivi" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="support-cta"
+            >
+              <span className="support-icon">🥩</span>
+              Support Dr Chaffee AI
+            </a>
           </div>
         </div>
       </div>
@@ -240,8 +239,9 @@ export const Footer: React.FC = () => {
         .footer-credits {
           display: flex;
           flex-direction: column;
-          gap: var(--space-2);
+          gap: var(--space-3);
           align-items: center;
+          text-align: center;
         }
         
         .copyright {
@@ -250,22 +250,34 @@ export const Footer: React.FC = () => {
           margin: 0;
         }
         
-        .support-link {
-          color: var(--color-text-light);
-          font-size: 0.9rem;
-          margin: 0;
-        }
-        
-        .support-link a {
-          color: var(--color-primary);
+        .support-cta {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 20px;
+          background: var(--gradient-brand);
+          color: #ffffff;
           text-decoration: none;
-          font-weight: 500;
-          transition: all var(--transition-normal);
+          font-weight: 600;
+          font-size: 0.9rem;
+          border-radius: 9999px;
+          transition: all 0.2s ease;
+          box-shadow: 0 2px 8px rgba(249, 115, 22, 0.25);
         }
         
-        .support-link a:hover {
-          color: var(--color-accent);
-          text-decoration: underline;
+        .support-cta:hover {
+          background: var(--gradient-brand-hover);
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(249, 115, 22, 0.35);
+        }
+        
+        .support-cta:active {
+          transform: translateY(0);
+        }
+        
+        .support-icon {
+          font-size: 1.1em;
+          line-height: 1;
         }
         
         @media (max-width: 768px) {
@@ -304,8 +316,12 @@ export const Footer: React.FC = () => {
             align-items: center;
           }
           
-          .copyright,
-          .support-link {
+          .copyright {
+            font-size: 0.85rem;
+          }
+          
+          .support-cta {
+            padding: 8px 16px;
             font-size: 0.85rem;
           }
         }
@@ -337,8 +353,12 @@ export const Footer: React.FC = () => {
             padding: var(--space-2);
           }
           
-          .copyright,
-          .support-link {
+          .copyright {
+            font-size: 0.8rem;
+          }
+          
+          .support-cta {
+            padding: 8px 14px;
             font-size: 0.8rem;
           }
         }

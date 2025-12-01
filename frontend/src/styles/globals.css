@@ -52,6 +52,17 @@
   --ci-active-border: #34d399;
   --ci-active-text: #065f46;
   
+  /* Citation chip tokens - default (light) */
+  --chip-bg: #f1f5f9;
+  --chip-bg-hover: #e2e8f0;
+  --chip-text: #475569;
+  --chip-border: #cbd5e1;
+  --chip-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  
+  /* Support CTA gradient */
+  --gradient-brand: linear-gradient(135deg, #f97316 0%, #22c55e 100%);
+  --gradient-brand-hover: linear-gradient(135deg, #ea580c 0%, #16a34a 100%);
+  
   /* Semantic colors - Monochrome */
   --color-success: #000000;
   --color-warning: #4a4a4a;
@@ -130,6 +141,17 @@ html.light-mode,
   --ci-active-bg: #ecfdf5;
   --ci-active-border: #34d399;
   --ci-active-text: #065f46;
+  
+  /* Citation chip tokens - light mode */
+  --chip-bg: #f1f5f9;
+  --chip-bg-hover: #e2e8f0;
+  --chip-text: #475569;
+  --chip-border: #cbd5e1;
+  --chip-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  
+  /* Support CTA gradient */
+  --gradient-brand: linear-gradient(135deg, #f97316 0%, #22c55e 100%);
+  --gradient-brand-hover: linear-gradient(135deg, #ea580c 0%, #16a34a 100%);
 }
 
 /* Dark Mode - Sophisticated Rich Blacks */
@@ -200,6 +222,17 @@ html.dark-mode,
   --ci-active-bg: #052e16;
   --ci-active-border: #22c55e;
   --ci-active-text: #86efac;
+  
+  /* Citation chip tokens - dark mode */
+  --chip-bg: #1e293b;
+  --chip-bg-hover: #334155;
+  --chip-text: #cbd5e1;
+  --chip-border: #475569;
+  --chip-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  
+  /* Support CTA gradient - same in dark mode */
+  --gradient-brand: linear-gradient(135deg, #f97316 0%, #22c55e 100%);
+  --gradient-brand-hover: linear-gradient(135deg, #ea580c 0%, #16a34a 100%);
 }
 
 html {

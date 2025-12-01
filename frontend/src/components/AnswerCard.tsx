@@ -976,43 +976,44 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
         }
 
         .citation-chip {
-          display: inline-flex !important;
-          align-items: center !important;
-          gap: 3px !important;
-          padding: 2px 8px !important;
-          background: linear-gradient(135deg, #dbeafe, #bfdbfe) !important;
-          color: #1e40af !important;
-          border-radius: 10px !important;
-          font-size: 0.75em !important;
-          font-weight: 600 !important;
-          font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace !important;
-          cursor: pointer !important;
-          transition: all 0.2s ease !important;
-          text-decoration: none !important;
-          user-select: none !important;
-          pointer-events: auto !important;
-          outline: none !important;
-          white-space: nowrap !important;
-          margin: 0 2px !important;
-          position: relative !important;
-          top: -1px !important;
+          display: inline-flex;
+          align-items: center;
+          padding: 1px 7px;
+          background: var(--chip-bg);
+          color: var(--chip-text);
+          border: 1px solid var(--chip-border);
+          border-radius: 9999px;
+          font-size: 0.72em;
+          font-weight: 500;
+          font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+          cursor: pointer;
+          transition: all 0.15s ease;
+          text-decoration: none;
+          user-select: none;
+          pointer-events: auto;
+          outline: none;
+          white-space: nowrap;
+          margin: 0 1px;
+          opacity: 0.85;
+          vertical-align: baseline;
         }
 
         .citation-chip:hover {
-          background: linear-gradient(135deg, #bfdbfe, #93c5fd) !important;
-          color: #1e3a8a !important;
-          transform: translateY(-1px) !important;
-          box-shadow: 0 2px 6px rgba(59, 130, 246, 0.2) !important;
+          background: var(--chip-bg-hover);
+          opacity: 1;
+          transform: translateY(-1px);
+          box-shadow: var(--chip-shadow);
         }
         
         .citation-chip:active {
-          transform: translateY(0) !important;
-          box-shadow: 0 1px 3px rgba(59, 130, 246, 0.15) !important;
+          transform: translateY(0);
+          opacity: 1;
         }
         
         .citation-chip:focus {
-          outline: 2px solid #93c5fd !important;
-          outline-offset: 2px !important;
+          outline: 2px solid var(--chip-border);
+          outline-offset: 1px;
+          opacity: 1;
         }
 
         .answer-notes {
