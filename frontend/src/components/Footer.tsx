@@ -265,7 +265,7 @@ export const Footer: React.FC = () => {
           color: var(--color-text);
           font-weight: 600;
           font-size: 0.9rem;
-          text-decoration: underline;
+          text-decoration: none;
           text-underline-offset: 3px;
           text-decoration-thickness: 1px;
 

@@ -977,32 +977,31 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
           flex-shrink: 0;
         }
 
-        .citation-chip {
+        .modern-answer-card .citation-chip {
           all: unset;
-          display: inline-flex;
-          color: var(--citation-fg);
-          font-size: 0.75em;
-          font-weight: 500;
+          display: inline;
           cursor: pointer;
-          transition: opacity 0.1s ease, transform 0.1s ease;
-          opacity: 0.8;
-          vertical-align: baseline;
+          font-size: 0.75em;
+          font-weight: 400;
+          color: var(--color-text-muted, #9ca3af);
+          margin-left: 0.15em;
+          line-height: 1;
         }
 
-        .citation-chip:hover {
-          opacity: 1;
-          transform: translateY(-1px);
+        .modern-answer-card .citation-chip:hover {
+          text-decoration: underline;
+          text-underline-offset: 2px;
+          text-decoration-style: dotted;
         }
         
-        .citation-chip:active {
-          transform: translateY(0);
-        }
-        
-        .citation-chip:focus-visible {
-          outline: 2px solid var(--citation-outline);
-          outline-offset: 1px;
-          opacity: 1;
+        .modern-answer-card .citation-chip:focus-visible {
+          outline: 1px solid var(--color-border, #4b5563);
+          outline-offset: 2px;
           border-radius: 2px;
+        }
+
+        .citation-index {
+          /* inherit color/size from parent */
         }
 
         .answer-notes {

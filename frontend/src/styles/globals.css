@@ -53,8 +53,8 @@
   --ci-active-text: #065f46;
   
   /* Citation tokens - inline academic references */
-  --citation-fg: #2563eb;
-  --citation-outline: #93c5fd;
+  --citation-fg: var(--color-text-muted);
+  --citation-outline: var(--color-border);
   
   /* Support CTA gradient */
   --gradient-brand: linear-gradient(135deg, #f97316 0%, #22c55e 100%);
@@ -140,8 +140,8 @@ html.light-mode,
   --ci-active-text: #065f46;
   
   /* Citation tokens - light mode */
-  --citation-fg: #2563eb;
-  --citation-outline: #93c5fd;
+  --citation-fg: var(--color-text-muted);
+  --citation-outline: var(--color-border);
   
   /* Support CTA gradient */
   --gradient-brand: linear-gradient(135deg, #f97316 0%, #22c55e 100%);
@@ -218,8 +218,8 @@ html.dark-mode,
   --ci-active-text: #86efac;
   
   /* Citation tokens - dark mode */
-  --citation-fg: #60a5fa;
-  --citation-outline: #3b82f6;
+  --citation-fg: var(--color-text-muted);
+  --citation-outline: var(--color-border);
   
   /* Support CTA gradient - same in dark mode */
   --gradient-brand: linear-gradient(135deg, #f97316 0%, #22c55e 100%);
