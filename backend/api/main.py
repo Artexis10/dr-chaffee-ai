@@ -987,8 +987,10 @@ async def answer_question(request: AnswerRequest):
             logger.error(f"Failed to import OpenAI: {e}")
             raise HTTPException(status_code=503, detail="OpenAI library not available")
         
-        model = os.getenv('OPENAI_MODEL', 'gpt-4o-mini')
-        logger.info(f"Calling OpenAI API with model: {model}, max_tokens: {max_tokens}")
+        # Use SUMMARIZER_MODEL from tuning dashboard, fall back to OPENAI_MODEL for backward compatibility
+        model = os.getenv('SUMMARIZER_MODEL') or os.getenv('OPENAI_MODEL', 'gpt-4.1')
+        temperature = float(os.getenv('SUMMARIZER_TEMPERATURE', '0.3'))
+        logger.info(f"Calling OpenAI API with model: {model}, max_tokens: {max_tokens}, temperature: {temperature}")
         
         response = client.chat.completions.create(
             model=model,
@@ -997,7 +999,7 @@ async def answer_question(request: AnswerRequest):
                 {"role": "user", "content": user_prompt}
             ],
             max_tokens=max_tokens,
-            temperature=0.3,  # Slightly higher for more natural responses
+            temperature=temperature,  # Configurable via tuning dashboard
             response_format={"type": "json_object"}  # Ensure JSON output
         )
         

@@ -185,6 +185,8 @@ export const SearchBar: React.FC<SearchBarProps> = ({ query, setQuery, handleSea
           color: var(--color-text);
           box-shadow: var(--shadow-sm);
           transition: all 0.2s ease;
+          box-sizing: border-box;
+          min-width: 0; /* Allow flex item to shrink below content size */
         }
         
         .search-input:focus {

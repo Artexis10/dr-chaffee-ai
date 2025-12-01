@@ -256,14 +256,27 @@
 /* Dark mode: High-contrast text for inputs and textareas */
 .dark-mode .tuning-input,
 .dark-mode .tuning-textarea {
-  background: #1a1a1a;
-  color: #f5f5f5;
-  border-color: #3a3a3a;
+  background: #1f1f1f;
+  color: #f0f0f0;
+  border-color: #404040;
 }
 
 .dark-mode .tuning-input::placeholder,
 .dark-mode .tuning-textarea::placeholder {
-  color: #808080;
+  color: #888888;
+}
+
+/* Ensure input text is always visible in dark mode */
+.dark-mode input[type="text"],
+.dark-mode input[type="number"],
+.dark-mode textarea {
+  color: #f0f0f0 !important;
+}
+
+.dark-mode input[type="text"]::placeholder,
+.dark-mode input[type="number"]::placeholder,
+.dark-mode textarea::placeholder {
+  color: #888888 !important;
 }
 
 .tuning-input:focus,

@@ -148,14 +148,17 @@ async def verify_password(request: PasswordRequest, response: Response):
         logger.warning(f"Failed tuning auth attempt from {request.client if hasattr(request, 'client') else 'unknown'}")
         raise HTTPException(status_code=401, detail="Invalid password")
     
+    # Determine if we're in production (HTTPS) or local development (HTTP)
+    is_production = os.getenv("ENVIRONMENT", "development").lower() == "production"
+    
     # Set secure httpOnly cookie (24 hour expiration)
     response.set_cookie(
         key="tuning_auth",
         value="authenticated",
         max_age=86400,  # 24 hours
         httponly=True,  # Cannot be accessed by JavaScript
-        secure=True,    # HTTPS only (set to False for local development)
-        samesite="strict"  # CSRF protection
+        secure=is_production,  # HTTPS only in production, allow HTTP in dev
+        samesite="lax"  # Lax for better cross-origin compatibility while still providing CSRF protection
     )
     
     logger.info("Tuning dashboard access granted")
