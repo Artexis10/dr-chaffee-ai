@@ -52,12 +52,9 @@
   --ci-active-border: #34d399;
   --ci-active-text: #065f46;
   
-  /* Citation chip tokens - default (light) */
-  --chip-bg: #f1f5f9;
-  --chip-bg-hover: #e2e8f0;
-  --chip-text: #475569;
-  --chip-border: #cbd5e1;
-  --chip-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  /* Citation tokens - inline academic references */
+  --citation-fg: #2563eb;
+  --citation-outline: #93c5fd;
   
   /* Support CTA gradient */
   --gradient-brand: linear-gradient(135deg, #f97316 0%, #22c55e 100%);
@@ -142,12 +139,9 @@ html.light-mode,
   --ci-active-border: #34d399;
   --ci-active-text: #065f46;
   
-  /* Citation chip tokens - light mode */
-  --chip-bg: #f1f5f9;
-  --chip-bg-hover: #e2e8f0;
-  --chip-text: #475569;
-  --chip-border: #cbd5e1;
-  --chip-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  /* Citation tokens - light mode */
+  --citation-fg: #2563eb;
+  --citation-outline: #93c5fd;
   
   /* Support CTA gradient */
   --gradient-brand: linear-gradient(135deg, #f97316 0%, #22c55e 100%);
@@ -223,12 +217,9 @@ html.dark-mode,
   --ci-active-border: #22c55e;
   --ci-active-text: #86efac;
   
-  /* Citation chip tokens - dark mode */
-  --chip-bg: #1e293b;
-  --chip-bg-hover: #334155;
-  --chip-text: #cbd5e1;
-  --chip-border: #475569;
-  --chip-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  /* Citation tokens - dark mode */
+  --citation-fg: #60a5fa;
+  --citation-outline: #3b82f6;
   
   /* Support CTA gradient - same in dark mode */
   --gradient-brand: linear-gradient(135deg, #f97316 0%, #22c55e 100%);

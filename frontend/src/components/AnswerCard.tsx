@@ -502,6 +502,8 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
           parts.push(
             <button
               key={`cite-${match.index}`}
+              type="button"
+              className="citation-chip"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -511,11 +513,10 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
                   window.open(`https://www.youtube.com/watch?v=${citation.video_id}&t=${Math.floor(citation.t_start_s)}s`, '_blank');
                 }
               }}
-              title={`${citation.title} at ${citation.clip_time}`}
-              type="button"
-              className="citation-chip"
+              title={citation.title}
+              aria-label={`Open citation ${citationIndex}: ${citation.title}`}
             >
-              [{citationIndex}]
+              <span className="citation-index">[{citationIndex}]</span>
             </button>
           );
         } else {
@@ -542,6 +543,8 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
           parts.push(
             <button
               key={`cite-${match.index}`}
+              type="button"
+              className="citation-chip"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -551,11 +554,10 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
                   window.open(`https://www.youtube.com/watch?v=${videoId}&t=${Math.floor(citation.t_start_s)}s`, '_blank');
                 }
               }}
-              title={`Click to play at ${timestamp}`}
-              type="button"
-              className="citation-chip"
+              title={citation.title}
+              aria-label={`Open citation: ${citation.title} at ${timestamp}`}
             >
-              {timestamp}
+              <span className="citation-index">[{timestamp}]</span>
             </button>
           );
         } else {
@@ -976,44 +978,31 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
         }
 
         .citation-chip {
+          all: unset;
           display: inline-flex;
-          align-items: center;
-          padding: 1px 7px;
-          background: var(--chip-bg);
-          color: var(--chip-text);
-          border: 1px solid var(--chip-border);
-          border-radius: 9999px;
-          font-size: 0.72em;
+          color: var(--citation-fg);
+          font-size: 0.75em;
           font-weight: 500;
-          font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
           cursor: pointer;
-          transition: all 0.15s ease;
-          text-decoration: none;
-          user-select: none;
-          pointer-events: auto;
-          outline: none;
-          white-space: nowrap;
-          margin: 0 1px;
-          opacity: 0.85;
+          transition: opacity 0.1s ease, transform 0.1s ease;
+          opacity: 0.8;
           vertical-align: baseline;
         }
 
         .citation-chip:hover {
-          background: var(--chip-bg-hover);
           opacity: 1;
           transform: translateY(-1px);
-          box-shadow: var(--chip-shadow);
         }
         
         .citation-chip:active {
           transform: translateY(0);
-          opacity: 1;
         }
         
-        .citation-chip:focus {
-          outline: 2px solid var(--chip-border);
+        .citation-chip:focus-visible {
+          outline: 2px solid var(--citation-outline);
           outline-offset: 1px;
           opacity: 1;
+          border-radius: 2px;
         }
 
         .answer-notes {
