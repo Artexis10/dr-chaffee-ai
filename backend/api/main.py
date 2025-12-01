@@ -37,7 +37,7 @@ from scripts.common.transcript_common import TranscriptSegment
 from scripts.common.embeddings import EmbeddingGenerator, resolve_embedding_config
 
 # Import tuning router and search config helper
-from .tuning import router as tuning_router, get_search_config_from_db
+from .tuning import router as tuning_router, get_search_config_from_db, SearchConfigDB
 
 app = FastAPI(
     title="Ask Dr. Chaffee API",
@@ -773,12 +773,64 @@ def _format_timestamp(seconds: float) -> str:
     return f"{total_minutes}:{secs:02d}"
 
 
-def _build_chaffee_system_prompt(style: str) -> str:
+def _get_custom_instructions() -> str:
+    """
+    Load active custom instructions from database.
+    
+    Returns:
+        Custom instructions text or empty string if not found/configured.
+    """
+    database_url = os.getenv('DATABASE_URL')
+    if not database_url:
+        logger.debug("CustomInstructions: DATABASE_URL not set, skipping")
+        return ""
+    
+    try:
+        conn = psycopg2.connect(database_url, cursor_factory=RealDictCursor)
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT instructions
+            FROM custom_instructions
+            WHERE is_active = true
+            LIMIT 1
+        """)
+        
+        result = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if result and result['instructions'] and result['instructions'].strip():
+            instructions = result['instructions'].strip()
+            logger.debug(
+                "CustomInstructions: loaded active instructions (len=%d, preview=%r)",
+                len(instructions),
+                instructions[:100]
+            )
+            return instructions
+        
+        logger.debug("CustomInstructions: no active instruction set found")
+        return ""
+        
+    except Exception as e:
+        # Table might not exist yet (pre-migration) - graceful degradation
+        logger.debug(f"CustomInstructions: could not load from DB: {e}")
+        return ""
+
+
+def _build_chaffee_system_prompt(style: str, include_custom: bool = True) -> str:
     """
     Build the curated Dr. Chaffee system prompt.
     This prompt was carefully tuned for authentic voice and quality answers.
+    
+    Args:
+        style: Answer style ('concise' or 'detailed')
+        include_custom: If True, append active custom instructions from database
+    
+    Returns:
+        Complete system prompt (baseline + custom if enabled and available)
     """
-    return """# Emulated Dr. Anthony Chaffee (AI) - System Prompt
+    baseline_prompt = """# Emulated Dr. Anthony Chaffee (AI) - System Prompt
 
 You are "Emulated Dr. Anthony Chaffee (AI)", speaking in Dr. Chaffee's professional but conversational style.
 
@@ -823,6 +875,23 @@ You are "Emulated Dr. Anthony Chaffee (AI)", speaking in Dr. Chaffee's professio
 - ✅ Natural explanation: "So what happens is...", "The thing is..."
 - ✅ Professional but human: "I've found that...", "What we see is..."
 - ✅ Clear and direct: Just explain it well without being stuffy"""
+
+    # Append custom instructions if enabled
+    if include_custom:
+        custom = _get_custom_instructions()
+        if custom:
+            final_prompt = f"{baseline_prompt}\n\n## Additional Custom Instructions\n\n{custom}"
+            logger.info(
+                "SystemPrompt: base_len=%d, custom_len=%d, custom_preview=%r",
+                len(baseline_prompt),
+                len(custom),
+                custom[:200]
+            )
+            return final_prompt
+        else:
+            logger.debug("SystemPrompt: no custom instructions active (base_len=%d)", len(baseline_prompt))
+    
+    return baseline_prompt
 
 
 def _build_chaffee_user_prompt(query: str, excerpts: str, style: str) -> str:
@@ -930,26 +999,62 @@ async def answer_question(request: AnswerRequest):
     logger = logging.getLogger(__name__)
     
     try:
-        # Get parameters
+        # Load search config from database (tuning dashboard settings)
+        search_cfg = get_search_config_from_db()
+        
+        # Get parameters - use request values if provided, otherwise use DB config
         style = request.style or 'concise'
-        top_k = request.top_k or int(os.getenv('ANSWER_TOP_K', '50'))
+        # top_k controls how many candidates to fetch from vector search
+        initial_top_k = request.top_k if request.top_k is not None else search_cfg.top_k
+        # return_top_k controls how many clips are actually used in the LLM prompt
+        clips_for_answer = search_cfg.return_top_k
+        min_similarity = search_cfg.min_similarity
         max_tokens = 3500 if style == 'detailed' else 1400
         
-        logger.info(f"Answer request: {request.query} (style={style}, top_k={top_k})")
+        # Log search config being used
+        logger.info(
+            "SearchConfig: initial=%d, min_relevance=%.3f, clips_in_answer=%d, reranker=%s",
+            initial_top_k,
+            min_similarity,
+            clips_for_answer,
+            search_cfg.enable_reranker
+        )
+        
+        logger.info(f"Answer request: {request.query[:100]} (style={style})")
         
         # Step 1: Get relevant segments using semantic search
-        search_request = SearchRequest(query=request.query, top_k=top_k)
+        # Pass the full config to semantic_search so it uses DB settings
+        search_request = SearchRequest(
+            query=request.query, 
+            top_k=initial_top_k,
+            min_similarity=min_similarity,
+            rerank=search_cfg.enable_reranker
+        )
         search_response = await semantic_search(search_request)
         
         if not search_response.results:
             raise HTTPException(status_code=404, detail="No relevant information found")
         
-        # Step 2: Build RAG context in the curated format
+        # Log search pipeline counts
+        total_candidates = len(search_response.results)
+        
+        # Step 2: Limit results to clips_for_answer (return_top_k from tuning dashboard)
+        # This is the key setting: "Number of clips to use in answer"
+        results_for_llm = search_response.results[:clips_for_answer]
+        
+        logger.info(
+            "SearchQuery: %r | candidates=%d, used_in_answer=%d",
+            request.query[:50],
+            total_candidates,
+            len(results_for_llm)
+        )
+        
+        # Step 3: Build RAG context in the curated format
         # Format: video_id@timestamp with date and text
         excerpt_parts = []
         source_chunks = []
         
-        for result in search_response.results:
+        for result in results_for_llm:
             video_id = result.url.split('v=')[-1].split('&')[0] if 'youtube.com' in result.url else result.id
             timestamp = _format_timestamp(result.start_time_seconds)
             date = result.published_at[:10] if result.published_at else "unknown"
@@ -970,11 +1075,11 @@ async def answer_question(request: AnswerRequest):
         
         excerpts = "\n\n".join(excerpt_parts)
         
-        # Step 3: Build curated prompts
-        system_prompt = _build_chaffee_system_prompt(style)
+        # Step 4: Build curated prompts (includes custom instructions from DB)
+        system_prompt = _build_chaffee_system_prompt(style, include_custom=True)
         user_prompt = _build_chaffee_user_prompt(request.query, excerpts, style)
         
-        # Step 4: Query OpenAI
+        # Step 5: Query OpenAI
         openai_api_key = os.getenv('OPENAI_API_KEY')
         if not openai_api_key:
             logger.error("OPENAI_API_KEY not configured")
@@ -990,7 +1095,15 @@ async def answer_question(request: AnswerRequest):
         # Use SUMMARIZER_MODEL from tuning dashboard, fall back to OPENAI_MODEL for backward compatibility
         model = os.getenv('SUMMARIZER_MODEL') or os.getenv('OPENAI_MODEL', 'gpt-4.1')
         temperature = float(os.getenv('SUMMARIZER_TEMPERATURE', '0.3'))
-        logger.info(f"Calling OpenAI API with model: {model}, max_tokens: {max_tokens}, temperature: {temperature}")
+        
+        # Log summarizer model being used
+        logger.info(
+            "SummarizerCall: model=%s, query_preview=%r, clips=%d, temperature=%.2f",
+            model,
+            request.query[:100],
+            len(results_for_llm),
+            temperature
+        )
         
         response = client.chat.completions.create(
             model=model,
