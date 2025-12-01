@@ -942,7 +942,7 @@ def _build_chaffee_user_prompt(query: str, excerpts: str, style: str) -> str:
 - Natural flow: Use "so", "and", "you know", "I mean" where appropriate
 - Avoid academic formality: No "moreover", "furthermore", "in conclusion", "has been associated with"
 - Avoid overly casual: No "Look", "Here's the deal", "So basically"
-- **CITATION FORMAT (CRITICAL)**: ALWAYS use SQUARE BRACKETS with FULL video_id [video_id@mm:ss]. NEVER use bare timestamps like "4:43" or parentheses "(video@time)". Every citation MUST have both video_id AND timestamp. Example: "As I talked about [vKiUYeKpHDs@36:56]" or "I've discussed this [1rUsspHnlmk@112:25]"
+- **CITATION FORMAT (CRITICAL)**: Use numbered citations like [1], [2], [3] that correspond to the excerpt numbers in the context above. Example: "As I talked about [1]" or "I've discussed this [2]". Each number should match an excerpt from the retrieved context.
 - **CRITICAL LENGTH: {target_words} words (MINIMUM {min_words} words) - This is ABSOLUTELY NON-NEGOTIABLE. COUNT YOUR WORDS BEFORE RESPONDING. If you write less than {min_words} words, START OVER and write more.**
 - **PARAGRAPH BREAKS (CRITICAL)**: ALWAYS use double line breaks (\\n\\n) between EVERY paragraph.
 - {style_instructions}
@@ -959,21 +959,18 @@ ENDINGS: End naturally without generic disclaimers or hedging. You're confident 
 
 Output MUST be valid **JSON RESPONSE FORMAT** (CRITICAL - MUST be valid JSON):
 {{
-  "answer": "Markdown text. Use \\\\n\\\\n between paragraphs. MUST be {target_words} words.",
-  "citations": [
-    {{ "video_id": "abc123", "timestamp": "12:34", "date": "2024-06-18" }}
-  ],
+  "answer": "Markdown text. Use \\\\n\\\\n between paragraphs. MUST be {target_words} words. Use [1], [2], [3] for citations.",
+  "citations_used": [1, 2, 3],
   "confidence": 0.85,
   "notes": "Optional brief notes: conflicts seen, gaps, or scope limits."
 }}
 
+**IMPORTANT**: The citations_used array should list the excerpt numbers (1, 2, 3, etc.) that you referenced in your answer.
+
 **CRITICAL CITATION FORMAT**: 
-- **USE SQUARE BRACKETS ONLY**: [video_id@mm:ss] NOT (video_id@mm:ss) or bare timestamps
-- **NEVER use bare timestamps**: "4:43" is WRONG. Must be "[video_id@4:43]"
-- **ALWAYS include video_id**: Every citation needs BOTH video_id AND timestamp
-- Video IDs must be EXACTLY as shown in the context (e.g., "prSNurxY5ic" not "prSNurxY5j")
-- Timestamps MUST use MM:SS format (e.g., "76:13" for 76 minutes 13 seconds, NOT "1:16:13")
-- Copy timestamps EXACTLY as shown in the context excerpts
+- **USE NUMBERED CITATIONS**: [1], [2], [3] etc. that match the excerpt numbers in the context
+- **KEEP IT CLEAN**: Just the number in brackets, nothing else
+- Example: "I've talked about this before [1] and it's something I see a lot [2]"
 
 **CONFIDENCE SCORING**:
 - Set confidence between 0.7-0.95 based on context quality
@@ -982,10 +979,8 @@ Output MUST be valid **JSON RESPONSE FORMAT** (CRITICAL - MUST be valid JSON):
 - 0.7-0.79: Adequate coverage but some gaps
 
 Validation requirements:
-- Every [video_id@mm:ss] that appears in answer MUST also appear once in citations[].
-- Every citation MUST correspond to an excerpt listed above (exact match or within ±5s).
-- **VIDEO IDs MUST BE EXACT**: Copy video_id character-by-character from context. Do NOT modify.
-- Do NOT include citations to sources not present in the excerpts.
+- Every [N] citation in the answer MUST correspond to an excerpt number from the context.
+- Do NOT cite excerpts that weren't provided.
 - Keep formatting clean: no stray backslashes, no code fences in answer, no HTML.
 - **MEET THE WORD COUNT**: {min_words}+ words is mandatory. Write more content, not less."""
 
@@ -1050,19 +1045,21 @@ async def answer_question(request: AnswerRequest):
         )
         
         # Step 3: Build RAG context in the curated format
-        # Format: video_id@timestamp with date and text
+        # Format: numbered excerpts [1], [2], etc. with video info
         excerpt_parts = []
         source_chunks = []
         
-        for result in results_for_llm:
+        for idx, result in enumerate(results_for_llm, start=1):
             video_id = result.url.split('v=')[-1].split('&')[0] if 'youtube.com' in result.url else result.id
             timestamp = _format_timestamp(result.start_time_seconds)
             date = result.published_at[:10] if result.published_at else "unknown"
             
+            # Use numbered format for cleaner citations
             excerpt_parts.append(
-                f'- id: {video_id}@{timestamp}\n  date: {date}\n  text: "{result.text}"'
+                f'[{idx}] Video: {result.title or "Untitled"}\n    Date: {date}\n    Time: {timestamp}\n    Text: "{result.text}"'
             )
             source_chunks.append({
+                "index": idx,  # Add index for citation mapping
                 "id": result.id,
                 "video_id": video_id,
                 "title": result.title,
@@ -1154,24 +1151,44 @@ async def answer_question(request: AnswerRequest):
             # Fallback: return raw content as answer
             parsed = {
                 "answer": content,
-                "citations": [],
+                "citations_used": [],
                 "confidence": 0.7,
                 "notes": "Response was not valid JSON, returning raw text"
             }
         
-        logger.info(f"✅ RAG answer generated: ${cost:.4f}")
+        # Build structured citations from citations_used indices
+        citations_used = parsed.get('citations_used', [])
+        structured_citations = []
+        
+        # Create a lookup dict for source chunks by index
+        chunks_by_index = {chunk['index']: chunk for chunk in source_chunks}
+        
+        for citation_idx in citations_used:
+            if citation_idx in chunks_by_index:
+                chunk = chunks_by_index[citation_idx]
+                structured_citations.append({
+                    "index": citation_idx,
+                    "video_id": chunk['video_id'],
+                    "title": chunk.get('title') or 'Untitled Video',
+                    "t_start_s": chunk['start_time'],
+                    "clip_time": chunk['timestamp'],
+                    "published_at": chunk.get('published_at') or None
+                })
+        
+        logger.info(f"✅ RAG answer generated: ${cost:.4f}, citations: {len(structured_citations)}")
         
         return {
             "answer": parsed.get('answer', ''),
             "answer_md": parsed.get('answer', ''),  # Alias for frontend compatibility
-            "citations": parsed.get('citations', []),
+            "citations": structured_citations,
             "confidence": parsed.get('confidence', 0.8),
             "notes": parsed.get('notes'),
             "sources": source_chunks,
             "query": request.query,
             "style": style,
             "chunks_used": len(source_chunks),
-            "cost_usd": cost
+            "cost_usd": cost,
+            "used_chunk_ids": [chunks_by_index.get(idx, {}).get('id', '') for idx in citations_used if idx in chunks_by_index]
         }
         
     except HTTPException:

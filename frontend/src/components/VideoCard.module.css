@@ -121,18 +121,36 @@
 
 .watch-link {
   display: inline-block;
-  background-color: var(--color-primary, #3b82f6);
-  color: white;
-  padding: 4px 10px;
+  /* Light mode: slate background with dark text for readability */
+  background-color: #f1f5f9;
+  color: #1e293b;
+  padding: 6px 12px;
   border-radius: var(--radius-md, 0.5rem);
+  border: 1px solid #cbd5e1;
   text-decoration: none;
   font-size: 0.8rem;
+  font-weight: 500;
   transition: all var(--transition-normal, 0.25s ease);
 }
 
 .watch-link:hover {
-  background-color: var(--color-primary-dark, #2563eb);
+  background-color: #e2e8f0;
+  border-color: #94a3b8;
   transform: translateY(-1px);
+}
+
+/* Dark mode: light pill with dark text for visibility */
+:global(.dark-mode) .watch-link,
+:global(html.dark-mode) .watch-link {
+  background-color: #f8fafc;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+:global(.dark-mode) .watch-link:hover,
+:global(html.dark-mode) .watch-link:hover {
+  background-color: #e2e8f0;
+  border-color: #64748b;
 }
 
 @media (max-width: 640px) {

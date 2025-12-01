@@ -8,10 +8,12 @@
 import { useState, useEffect } from 'react';
 
 interface Citation {
+  index: number;
   video_id: string;
   title: string;
   t_start_s: number;
-  published_at: string;
+  clip_time: string;
+  published_at: string | null;
 }
 
 
@@ -464,9 +466,11 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
   };
 
   // Parse inline citations and convert to clickable chips
+  // Supports both numbered [1], [2] format and legacy [video_id@mm:ss] format
   const parseInlineCitations = (text: string) => {
-    const citationRegex = /\[([^@]+)@(\d+:\d+)\]/g;
-    const parts = [];
+    // Match numbered citations [1], [2], etc. or legacy format [video_id@mm:ss]
+    const citationRegex = /\[(\d+)\]|\[([^@\]]+)@(\d+:\d+)\]/g;
+    const parts: (string | JSX.Element)[] = [];
     let lastIndex = 0;
     let match;
     const seenCitations = new Set<string>();
@@ -477,88 +481,97 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
         parts.push(text.substring(lastIndex, match.index));
       }
 
-      // Find corresponding citation data
-      const videoId = match[1];
-      const timestamp = match[2];
-      const citationKey = `${videoId}@${timestamp}`;
+      // Check if it's a numbered citation [1] or legacy format [video_id@mm:ss]
+      const isNumbered = match[1] !== undefined;
       
-      // Skip if we've already seen this exact citation
-      if (seenCitations.has(citationKey)) {
-        lastIndex = match.index + match[0].length;
-        continue;
-      }
-      
-      seenCitations.add(citationKey);
-      
-      const citation = answer.citations.find(c => 
-        c.video_id === videoId && formatTimestamp(c.t_start_s) === timestamp
-      );
-
-      if (citation) {
-        parts.push(
-          <button
-            key={match.index}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              console.log('Citation clicked:', videoId, 'at', citation.t_start_s, 'seconds');
-              console.log('onPlayClip function:', onPlayClip);
-              
-              if (onPlayClip) {
-                console.log(`🎥 Calling onPlayClip with videoId=${videoId}, timestamp=${citation.t_start_s}`);
-                onPlayClip(videoId, citation.t_start_s);
-              } else {
-                console.warn('⚠️ onPlayClip not available, opening YouTube');
-                window.open(`https://www.youtube.com/watch?v=${videoId}&t=${Math.floor(citation.t_start_s)}s`, '_blank');
-              }
-            }}
-            title={`Click to play at ${timestamp}`}
-            type="button"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '3px',
-              padding: '2px 8px',
-              background: 'linear-gradient(135deg, #dbeafe, #bfdbfe)',
-              color: '#1e40af',
-              borderRadius: '10px',
-              fontSize: '0.75em',
-              fontWeight: 600,
-              fontFamily: "'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace",
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              textDecoration: 'none',
-              userSelect: 'none',
-              border: 'none',
-              whiteSpace: 'nowrap',
-              margin: '0 2px',
-              position: 'relative',
-              top: '-1px'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'linear-gradient(135deg, #bfdbfe, #93c5fd)';
-              e.currentTarget.style.transform = 'translateY(-1px)';
-              e.currentTarget.style.boxShadow = '0 2px 6px rgba(59, 130, 246, 0.2)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'linear-gradient(135deg, #dbeafe, #bfdbfe)';
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = 'none';
-            }}
-          >
-            {timestamp}
-          </button>
-        );
+      if (isNumbered) {
+        // Numbered citation format [1], [2], etc.
+        const citationIndex = parseInt(match[1], 10);
+        const citationKey = `num-${citationIndex}`;
+        
+        if (seenCitations.has(citationKey)) {
+          lastIndex = match.index + match[0].length;
+          continue;
+        }
+        seenCitations.add(citationKey);
+        
+        // Find citation by index
+        const citation = answer.citations.find(c => c.index === citationIndex);
+        
+        if (citation) {
+          parts.push(
+            <button
+              key={`cite-${match.index}`}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (onPlayClip) {
+                  onPlayClip(citation.video_id, citation.t_start_s);
+                } else {
+                  window.open(`https://www.youtube.com/watch?v=${citation.video_id}&t=${Math.floor(citation.t_start_s)}s`, '_blank');
+                }
+              }}
+              title={`${citation.title} at ${citation.clip_time}`}
+              type="button"
+              className="citation-chip"
+            >
+              [{citationIndex}]
+            </button>
+          );
+        } else {
+          // Citation not found, render as plain text
+          parts.push(`[${citationIndex}]`);
+        }
       } else {
-        parts.push(`[${match[1]}@${match[2]}]`);
+        // Legacy format [video_id@mm:ss]
+        const videoId = match[2];
+        const timestamp = match[3];
+        const citationKey = `${videoId}@${timestamp}`;
+        
+        if (seenCitations.has(citationKey)) {
+          lastIndex = match.index + match[0].length;
+          continue;
+        }
+        seenCitations.add(citationKey);
+        
+        const citation = answer.citations.find(c => 
+          c.video_id === videoId && formatTimestamp(c.t_start_s) === timestamp
+        );
+
+        if (citation) {
+          parts.push(
+            <button
+              key={`cite-${match.index}`}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (onPlayClip) {
+                  onPlayClip(videoId, citation.t_start_s);
+                } else {
+                  window.open(`https://www.youtube.com/watch?v=${videoId}&t=${Math.floor(citation.t_start_s)}s`, '_blank');
+                }
+              }}
+              title={`Click to play at ${timestamp}`}
+              type="button"
+              className="citation-chip"
+            >
+              {timestamp}
+            </button>
+          );
+        } else {
+          parts.push(`[${match[2]}@${match[3]}]`);
+        }
       }
 
       lastIndex = match.index + match[0].length;
     }
 
-    // Add remaining text
+    // Add remaining text and sanitize any remaining raw IDs
     if (lastIndex < text.length) {
-      parts.push(text.substring(lastIndex));
+      let remaining = text.substring(lastIndex);
+      // Remove any remaining raw clip IDs like [U9r3hu9pOhe6Q5l2S]
+      remaining = remaining.replace(/\[[A-Za-z0-9_-]{10,}\]/g, '');
+      parts.push(remaining);
     }
 
     return parts;
@@ -570,18 +583,26 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
     return `${minutes}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const formatDate = (dateString: string): string => {
-    if (!dateString || dateString === '1970-01-01') return 'Date unavailable';
-    const date = new Date(dateString);
-    // Check if date is valid and not Unix epoch
-    if (isNaN(date.getTime()) || date.getFullYear() === 1970) {
+  const formatDate = (dateString: string | null | undefined): string => {
+    // Handle null, undefined, empty string, or invalid values
+    if (!dateString || dateString === '1970-01-01' || dateString === 'unknown') {
       return 'Date unavailable';
     }
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
+    
+    try {
+      const date = new Date(dateString);
+      // Check if date is valid and not Unix epoch
+      if (isNaN(date.getTime()) || date.getFullYear() === 1970 || date.getFullYear() < 2000) {
+        return 'Date unavailable';
+      }
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch {
+      return 'Date unavailable';
+    }
   };
 
   // Use subtle monochrome colors for confidence badges
@@ -689,47 +710,55 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
         
         {showSources && (
           <div className="sources-list">
-            {answer.citations.map((citation, index) => (
-              <div key={index} className="source-item">
-                <div className="source-info">
-                  <button
-                    className="play-button"
-                    onClick={() => onPlayClip && onPlayClip(citation.video_id, citation.t_start_s)}
-                    title="Play this clip"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                      <path d="M8 5V19L19 12L8 5Z" fill="currentColor"/>
-                    </svg>
-                  </button>
-                  <div className="source-details">
-                    <div className="source-title">
-                      {citation.title}
-                    </div>
-                    <div className="source-meta">
-                      <span className="source-timestamp">
-                        {formatTimestamp(citation.t_start_s)}
-                      </span>
-                      <span className="source-date">
-                        {formatDate(citation.published_at)}
-                      </span>
+            {answer.citations.length === 0 ? (
+              <div className="no-citations">
+                <p>No specific citations were referenced in this answer.</p>
+              </div>
+            ) : (
+              answer.citations.map((citation, idx) => (
+                <div key={idx} className="source-item">
+                  <div className="source-info">
+                    <span className="citation-number">[{citation.index}]</span>
+                    <button
+                      className="play-button"
+                      onClick={() => onPlayClip && onPlayClip(citation.video_id, citation.t_start_s)}
+                      title="Play this clip"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                        <path d="M8 5V19L19 12L8 5Z" fill="currentColor"/>
+                      </svg>
+                    </button>
+                    <div className="source-details">
+                      <div className="source-title">
+                        {citation.title || 'Untitled Video'}
+                      </div>
+                      <div className="source-meta">
+                        <span className="source-timestamp">
+                          {citation.clip_time || formatTimestamp(citation.t_start_s)}
+                        </span>
+                        <span className="source-separator">•</span>
+                        <span className="source-date">
+                          {formatDate(citation.published_at)}
+                        </span>
+                      </div>
                     </div>
                   </div>
+                  <button
+                    className="copy-link-button"
+                    onClick={() => {
+                      const url = `https://youtube.com/watch?v=${citation.video_id}&t=${Math.floor(citation.t_start_s)}s`;
+                      onCopyLink && onCopyLink(url);
+                    }}
+                    title="Copy YouTube link"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
                 </div>
-                <button
-                  className="copy-link-button"
-                  onClick={() => {
-                    const url = `https://youtube.com/watch?v=${citation.video_id}&t=${Math.floor(citation.t_start_s)}s`;
-                    onCopyLink && onCopyLink(url);
-                  }}
-                  title="Copy YouTube link"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </button>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         )}
       </div>
@@ -1150,6 +1179,30 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
           font-weight: 500;
         }
 
+        .citation-number {
+          font-weight: 700;
+          font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+          font-size: 12px;
+          color: var(--color-text-light, #a3a3a3);
+          min-width: 28px;
+        }
+
+        .source-separator {
+          color: var(--color-text-muted, #525252);
+          font-size: 10px;
+        }
+
+        .no-citations {
+          padding: 16px;
+          text-align: center;
+        }
+
+        .no-citations p {
+          margin: 0;
+          font-size: 13px;
+          color: var(--color-text-muted, #737373);
+          font-style: italic;
+        }
 
         @media (max-width: 768px) {
           .modern-answer-card {
