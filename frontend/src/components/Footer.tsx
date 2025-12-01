@@ -186,6 +186,8 @@ export const Footer: React.FC = () => {
           text-decoration: none;
           font-size: 0.9rem;
           transition: all var(--transition-normal);
+          line-height: 1;
+          padding: 0.125rem 0;
         }
         
         .footer-link svg {
@@ -193,7 +195,14 @@ export const Footer: React.FC = () => {
           flex-shrink: 0;
           width: 16px;
           height: 16px;
+          min-width: 16px;
+          min-height: 16px;
           opacity: 0.7;
+        }
+        
+        .footer-link span,
+        .footer-link {
+          vertical-align: middle;
         }
         
         .footer-link:hover {

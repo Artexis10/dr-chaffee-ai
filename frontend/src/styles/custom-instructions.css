@@ -235,6 +235,7 @@ pre {
 }
 
 /* Edit Form Input Styles - Unified High-Contrast for Dark Mode */
+/* These match the tuning-input dark mode styles for consistency */
 .ci-form-label {
   color: #e5e5e5 !important;
 }
@@ -242,8 +243,9 @@ pre {
 .ci-form-input,
 .ci-form-textarea {
   background: #1a1a1a !important;
-  color: #f0f0f0 !important;
+  color: #f5f5f5 !important;
   border: 2px solid #3a3a3a !important;
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease !important;
 }
 
 .ci-form-input::placeholder,
@@ -254,9 +256,9 @@ pre {
 
 .ci-form-input:focus,
 .ci-form-textarea:focus {
-  border-color: #606060 !important;
+  border-color: #ffffff !important;
   outline: none !important;
-  box-shadow: 0 0 0 2px rgba(96, 96, 96, 0.2) !important;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1) !important;
 }
 
 /* Light mode form inputs */
@@ -279,6 +281,62 @@ pre {
 .light-mode .ci-form-input:focus,
 .light-mode .ci-form-textarea:focus {
   border-color: #000000 !important;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Checkbox styling for Custom Instructions - matches tuning-checkbox */
+.ci-checkbox {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  width: 1.125rem !important;
+  height: 1.125rem !important;
+  border: 1.5px solid #3a3a3a !important;
+  border-radius: 0.25rem !important;
+  background: #1a1a1a !important;
+  cursor: pointer !important;
+  position: relative !important;
+  flex-shrink: 0 !important;
+  transition: background-color 0.3s ease, border-color 0.3s ease !important;
+}
+
+.ci-checkbox:checked {
+  background: var(--accent, #ffffff) !important;
+  border-color: var(--accent, #ffffff) !important;
+}
+
+.ci-checkbox:checked::after {
+  content: '' !important;
+  position: absolute !important;
+  left: 5px !important;
+  top: 2px !important;
+  width: 4px !important;
+  height: 8px !important;
+  border: solid #000000 !important;
+  border-width: 0 2px 2px 0 !important;
+  transform: rotate(45deg) !important;
+}
+
+.ci-checkbox:focus {
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Light mode checkbox */
+.light-mode .ci-checkbox {
+  background: #f9fafb !important;
+  border-color: #d1d5db !important;
+}
+
+.light-mode .ci-checkbox:checked {
+  background: var(--accent, #000000) !important;
+  border-color: var(--accent, #000000) !important;
+}
+
+.light-mode .ci-checkbox:checked::after {
+  border-color: #ffffff !important;
+}
+
+.light-mode .ci-checkbox:focus {
   box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1) !important;
 }
 

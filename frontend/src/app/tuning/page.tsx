@@ -133,7 +133,7 @@ export default function OverviewPage() {
           <h3 className="tuning-card-title">Quick Actions</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <Link href="/tuning/models" className="tuning-btn tuning-btn-primary">
-              View Embedding Models
+              Configure Summarizer Model
             </Link>
             <Link href="/tuning/search" className="tuning-btn tuning-btn-secondary">
               Configure Search

@@ -66,15 +66,24 @@ export default function Home() {
     };
   }, []);
   
-  // Initialize theme on mount - sync with tuning dashboard
+  // Initialize theme on mount - sync with tuning dashboard (default to DARK)
   useEffect(() => {
     const THEME_KEY = 'askdrchaffee.theme';
     const storedTheme = localStorage.getItem(THEME_KEY);
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     
-    const shouldBeDark = storedTheme === 'dark' || (!storedTheme && prefersDark);
-    const root = document.documentElement;
+    // Determine initial theme: stored > system preference > default DARK
+    let shouldBeDark: boolean;
+    if (storedTheme === 'dark') {
+      shouldBeDark = true;
+    } else if (storedTheme === 'light') {
+      shouldBeDark = false;
+    } else {
+      // No stored preference - default to DARK unless system explicitly prefers light
+      shouldBeDark = prefersDark !== false;
+    }
     
+    const root = document.documentElement;
     if (shouldBeDark) {
       root.classList.add('dark-mode');
       root.classList.remove('light-mode');

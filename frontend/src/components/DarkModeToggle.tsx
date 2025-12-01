@@ -14,22 +14,22 @@ export const DarkModeToggle: React.FC = () => {
   const [isDarkMode, setIsDarkMode] = useState<boolean | null>(null);
   const [mounted, setMounted] = useState(false);
 
-  // Initialize theme on mount - check localStorage first, then system preference, then default to light
+  // Initialize theme on mount - check localStorage first, then system preference, then default to DARK
   useEffect(() => {
     setMounted(true);
     
     const storedTheme = localStorage.getItem(THEME_KEY);
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     
-    // Determine initial theme: stored > system preference > default light
+    // Determine initial theme: stored > system preference > default DARK
     let shouldBeDark: boolean;
     if (storedTheme === 'dark') {
       shouldBeDark = true;
     } else if (storedTheme === 'light') {
       shouldBeDark = false;
     } else {
-      // No stored preference - use system preference, default to light
-      shouldBeDark = prefersDark;
+      // No stored preference - use system preference, default to DARK if no system preference
+      shouldBeDark = prefersDark !== false; // Default to dark unless system explicitly prefers light
     }
     
     setIsDarkMode(shouldBeDark);
@@ -88,13 +88,16 @@ export const DarkModeToggle: React.FC = () => {
       title={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
     >
       {isDarkMode ? (
+        /* Sun icon - shown in dark mode to switch to light */
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 3V4M12 20V21M21 12H20M4 12H3M18.364 18.364L17.657 17.657M6.343 6.343L5.636 5.636M18.364 5.636L17.657 6.343M6.343 17.657L5.636 18.364M16 12C16 14.2091 14.2091 16 12 16C9.79086 16 8 14.2091 8 12C8 9.79086 9.79086 8 12 8C14.2091 8 16 9.79086 16 12Z" 
-            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="2"/>
+          <path d="M12 2V4M12 20V22M4 12H2M22 12H20M5.64 5.64L4.22 4.22M19.78 19.78L18.36 18.36M5.64 18.36L4.22 19.78M19.78 4.22L18.36 5.64" 
+            stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
         </svg>
       ) : (
+        /* Moon icon - shown in light mode to switch to dark */
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M21.752 15.002C20.5633 15.4975 19.2879 15.7517 18 15.75C13.4436 15.75 9.75 12.0564 9.75 7.5C9.75 6.21226 10.0043 4.93692 10.5 3.74805C5.81563 4.97317 2.75 9.28043 2.75 14.25C2.75 20.1825 7.56751 25 13.5 25C18.4693 25 22.7764 21.9348 24.002 17.251C24.0008 17.2539 24.0015 17.2539 24.002 17.251C24.0005 17.2481 23.9989 17.2452 23.9974 17.2424C23.3644 16.386 22.5926 15.6142 21.7362 14.9813C21.7334 14.9797 21.7305 14.9781 21.7277 14.9766C21.7365 14.9919 21.7444 15.0076 21.752 15.0233V15.002Z" 
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" 
             stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
       )}
@@ -134,6 +137,13 @@ export const DarkModeToggle: React.FC = () => {
         
         .dark-mode-toggle:active {
           transform: translateY(0) scale(0.98);
+        }
+        
+        .dark-mode-toggle svg {
+          width: 20px;
+          height: 20px;
+          flex-shrink: 0;
+          display: block;
         }
         
         @media (max-width: 768px) {

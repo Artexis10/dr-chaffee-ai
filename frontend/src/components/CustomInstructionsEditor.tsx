@@ -395,9 +395,9 @@ export default function CustomInstructionsEditor() {
                 id="is_active"
                 checked={formData.is_active}
                 onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                style={{ width: '1rem', height: '1rem', cursor: 'pointer' }}
+                className="ci-checkbox"
               />
-              <label htmlFor="is_active" style={{ fontSize: '0.875rem', color: 'var(--text-primary, #374151)', cursor: 'pointer' }}>
+              <label htmlFor="is_active" className="ci-form-label" style={{ fontSize: '0.875rem', cursor: 'pointer', marginBottom: 0 }}>
                 Activate immediately after saving
               </label>
             </div>

@@ -17,6 +17,8 @@
   display: flex;
   min-height: 100vh;
   background: var(--bg-body, #f9fafb);
+  /* Smooth theme transition matching main app */
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .dark-mode .tuning-dashboard {
@@ -33,7 +35,8 @@
   position: fixed;
   height: 100vh;
   z-index: 40;
-  transition: transform 0.3s ease;
+  /* Smooth transitions for transform (mobile menu) and theme colors */
+  transition: transform 0.3s ease, background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .dark-mode .tuning-sidebar {

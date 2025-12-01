@@ -66,23 +66,30 @@ export default function TuningLayout({
     return () => window.removeEventListener('keydown', handleEscape);
   }, []);
 
-  // Initialize theme on mount - sync with main app's DarkModeToggle
+  // Initialize theme on mount - sync with main app's DarkModeToggle (default to DARK)
   useEffect(() => {
     setThemeMounted(true);
     const storedTheme = localStorage.getItem(THEME_KEY);
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     
+    // Determine initial theme: stored > system preference > default DARK
     let shouldBeDark: boolean;
     if (storedTheme === 'dark') {
       shouldBeDark = true;
     } else if (storedTheme === 'light') {
       shouldBeDark = false;
     } else {
-      shouldBeDark = prefersDark;
+      // No stored preference - default to DARK unless system explicitly prefers light
+      shouldBeDark = prefersDark !== false;
     }
     
     setIsDarkMode(shouldBeDark);
     applyTheme(shouldBeDark);
+    
+    // Persist if not already stored
+    if (!storedTheme) {
+      localStorage.setItem(THEME_KEY, shouldBeDark ? 'dark' : 'light');
+    }
   }, []);
 
   const applyTheme = (dark: boolean) => {
@@ -120,6 +127,8 @@ export default function TuningLayout({
     } catch (e) {
       // Ignore errors
     }
+    // Also clear localStorage auth token for complete logout
+    localStorage.removeItem('auth_token');
     window.location.href = '/';
   };
 

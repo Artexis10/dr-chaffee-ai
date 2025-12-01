@@ -1,4 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
+import { createSessionToken } from '../../../../utils/authToken';
 
 /**
  * Tuning Auth Verify - Proxy to backend tuning authentication
@@ -6,10 +7,12 @@ import { NextApiRequest, NextApiResponse } from 'next';
  * Flow:
  * 1. Frontend sends password to this proxy
  * 2. Proxy forwards to backend /api/tuning/auth/verify
- * 3. If backend returns 200, proxy sets its own httpOnly cookie for the frontend domain
- * 4. Protected tuning endpoints check this cookie
+ * 3. If backend returns 200, proxy sets BOTH:
+ *    - tuning_auth httpOnly cookie (for tuning dashboard)
+ *    - auth_token cookie (for main app - shared session)
+ * 4. This enables single sign-on: logging into tuning also logs into main app
  * 
- * Note: We set our own cookie because backend cookies are for the backend domain,
+ * Note: We set our own cookies because backend cookies are for the backend domain,
  * which won't work when frontend and backend are on different hosts.
  */
 
@@ -48,17 +51,40 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log('[Tuning Auth] Backend response status:', response.status);
 
     if (response.ok) {
-      // Backend validated the password - set our own cookie for the frontend domain
-      // This is necessary because backend cookies won't work cross-origin
-      // Path=/ ensures cookie is sent to all routes including /tuning/*
+      // Backend validated the password - set cookies for BOTH tuning and main app
+      // This enables single sign-on: logging into tuning also logs into main app
       const isProduction = process.env.NODE_ENV === 'production';
       
-      res.setHeader('Set-Cookie', [
-        `tuning_auth=authenticated; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400${isProduction ? '; Secure' : ''}`
-      ]);
+      // Generate signed session token for main app auth
+      let mainAppToken: string;
+      try {
+        mainAppToken = createSessionToken();
+      } catch (error) {
+        console.error('[Tuning Auth] Failed to create session token:', error);
+        mainAppToken = '';
+      }
       
-      console.log('[Tuning Auth] Authentication successful, cookie set with Path=/');
-      return res.status(200).json({ success: true, message: 'Authentication successful' });
+      // Build cookie array - tuning_auth for dashboard, auth_token for main app
+      const cookies = [
+        `tuning_auth=authenticated; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400${isProduction ? '; Secure' : ''}`
+      ];
+      
+      // Also set main app auth token if we successfully created one
+      if (mainAppToken) {
+        const maxAge = 7 * 24 * 60 * 60; // 7 days
+        cookies.push(
+          `auth_token=${encodeURIComponent(mainAppToken)}; Path=/; SameSite=Lax; Max-Age=${maxAge}${isProduction ? '; Secure' : ''}`
+        );
+      }
+      
+      res.setHeader('Set-Cookie', cookies);
+      
+      console.log('[Tuning Auth] Authentication successful, cookies set for tuning + main app');
+      return res.status(200).json({ 
+        success: true, 
+        message: 'Authentication successful',
+        token: mainAppToken || undefined // Return token so frontend can also store in localStorage
+      });
     } else if (response.status === 401) {
       console.log('[Tuning Auth] Invalid password');
       return res.status(401).json({ error: 'Invalid password' });
@@ -71,11 +97,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       console.log('[Tuning Auth] Error response:', errorText);
       return res.status(500).json({ error: 'Authentication failed' });
     }
-  } catch (error: any) {
-    console.error('[Tuning Auth] Connection error:', error.message);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[Tuning Auth] Connection error:', errorMessage);
     return res.status(500).json({ 
       error: 'Connection error',
-      details: error.message,
+      details: errorMessage,
       backend_url: BACKEND_API_URL
     });
   }

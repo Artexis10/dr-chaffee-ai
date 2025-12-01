@@ -14,12 +14,22 @@ export default function TuningAuth() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Initialize theme on mount
+  // Initialize theme on mount (default to DARK)
   useEffect(() => {
     const storedTheme = localStorage.getItem(THEME_KEY);
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     
-    const shouldBeDark = storedTheme === 'dark' || (!storedTheme && prefersDark);
+    // Determine initial theme: stored > system preference > default DARK
+    let shouldBeDark: boolean;
+    if (storedTheme === 'dark') {
+      shouldBeDark = true;
+    } else if (storedTheme === 'light') {
+      shouldBeDark = false;
+    } else {
+      // No stored preference - default to DARK unless system explicitly prefers light
+      shouldBeDark = prefersDark !== false;
+    }
+    
     const root = document.documentElement;
     if (shouldBeDark) {
       root.classList.add('dark-mode');
@@ -27,6 +37,11 @@ export default function TuningAuth() {
     } else {
       root.classList.remove('dark-mode');
       root.classList.add('light-mode');
+    }
+    
+    // Persist if not already stored
+    if (!storedTheme) {
+      localStorage.setItem(THEME_KEY, shouldBeDark ? 'dark' : 'light');
     }
   }, []);
 
@@ -50,7 +65,11 @@ export default function TuningAuth() {
       console.log('[Tuning Auth Page] Response data:', data);
 
       if (response.ok) {
-        // Set secure httpOnly cookie (set by backend)
+        // Store main app token in localStorage for PasswordGate compatibility
+        if (data.token) {
+          localStorage.setItem('auth_token', data.token);
+          console.log('[Tuning Auth Page] Main app token stored in localStorage');
+        }
         console.log('[Tuning Auth Page] Authentication successful, redirecting...');
         router.push('/tuning');
         router.refresh();
@@ -82,7 +101,7 @@ export default function TuningAuth() {
         </div>
 
         <h1 className="tuning-auth-title">Tuning Dashboard</h1>
-        <p className="tuning-auth-subtitle">QA & Admin Access Only</p>
+        <p className="tuning-auth-subtitle">Admin Access Only</p>
 
         <div className="tuning-auth-notice">
           <p>🔒 This dashboard is for privileged users only. Enter your admin password to continue.</p>
