@@ -716,7 +716,7 @@ export default function Home() {
     <>
       <Head>
         <title>Ask Dr. Chaffee | Interactive Knowledge Base</title>
-        <meta name="description" content="Interactive knowledge base with AI-powered answers from Anthony Chaffee's content" />
+        <meta name="description" content="Interactive knowledge base with AI-powered answers from Dr Anthony Chaffee's content" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
       </Head>

@@ -284,7 +284,7 @@ export function PasswordGate({ children }: PasswordGateProps) {
           color: '#94a3b8',
           fontSize: '0.85rem'
         }}>
-          Based on Anthony Chaffee's content
+          Based on Dr Anthony Chaffee's content
         </p>
       </div>
     </div>

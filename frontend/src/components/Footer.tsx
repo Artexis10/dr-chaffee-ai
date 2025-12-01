@@ -87,7 +87,7 @@ export const Footer: React.FC = () => {
               <h4>About</h4>
               <div className="footer-links">
                 <div className="footer-text-info">
-                  Anthony Chaffee is a neurosurgical resident and former professional rugby player who researches optimal nutrition for human performance and health. He advocates for the carnivore diet and ancestral health principles.
+                  Dr Anthony Chaffee is a neurosurgical resident and former professional rugby player who researches optimal nutrition for human performance and health. He advocates for the carnivore diet and ancestral health principles.
                 </div>
               </div>
             </div>
@@ -105,7 +105,7 @@ export const Footer: React.FC = () => {
               rel="noopener noreferrer"
               className="support-cta"
             >
-              <span className="support-icon">🥩</span>
+              <span className="support-icon" aria-hidden="true">🥩</span>
               Support Dr Chaffee AI
             </a>
           </div>
@@ -250,33 +250,34 @@ export const Footer: React.FC = () => {
           margin: 0;
         }
         
-        .support-cta {
+        .support-cta,
+        .support-cta:visited,
+        .support-cta:active {
           display: inline-flex;
           align-items: center;
-          gap: 8px;
-          padding: 10px 20px;
-          background: var(--gradient-brand);
-          color: #ffffff;
-          text-decoration: none;
+          gap: 6px;
+
+          background: transparent;
+          padding: 0;
+          border-radius: 0;
+          box-shadow: none;
+
+          color: var(--color-text);
           font-weight: 600;
           font-size: 0.9rem;
-          border-radius: 9999px;
-          transition: all 0.2s ease;
-          box-shadow: 0 2px 8px rgba(249, 115, 22, 0.25);
+          text-decoration: underline;
+          text-underline-offset: 3px;
+          text-decoration-thickness: 1px;
+
+          transition: color 0.15s ease;
         }
-        
+
         .support-cta:hover {
-          background: var(--gradient-brand-hover);
-          transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(249, 115, 22, 0.35);
+          color: var(--color-text-light);
         }
-        
-        .support-cta:active {
-          transform: translateY(0);
-        }
-        
+
         .support-icon {
-          font-size: 1.1em;
+          font-size: 1rem;
           line-height: 1;
         }
         
@@ -321,7 +322,6 @@ export const Footer: React.FC = () => {
           }
           
           .support-cta {
-            padding: 8px 16px;
             font-size: 0.85rem;
           }
         }
@@ -358,7 +358,6 @@ export const Footer: React.FC = () => {
           }
           
           .support-cta {
-            padding: 8px 14px;
             font-size: 0.8rem;
           }
         }
