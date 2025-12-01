@@ -978,30 +978,46 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
         }
 
         .modern-answer-card .citation-chip {
+          /* Reset default button styling */
           all: unset;
-          display: inline;
+
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+
+          font-size: 0.72em;
+          font-weight: 500;
+
+          padding: 2px 6px;
+          border-radius: 9999px;
+
+          border: 1px solid var(--chip-outline, rgba(255,255,255,0.25));
+          background: transparent;
+
+          color: var(--chip-text, rgba(255,255,255,0.85));
           cursor: pointer;
-          font-size: 0.75em;
-          font-weight: 400;
-          color: var(--color-text-muted, #9ca3af);
-          margin-left: 0.15em;
           line-height: 1;
+
+          margin-left: 0.25em;
+
+          transition:
+            background 0.2s ease,
+            border-color 0.2s ease,
+            color 0.2s ease;
         }
 
         .modern-answer-card .citation-chip:hover {
-          text-decoration: underline;
-          text-underline-offset: 2px;
-          text-decoration-style: dotted;
-        }
-        
-        .modern-answer-card .citation-chip:focus-visible {
-          outline: 1px solid var(--color-border, #4b5563);
-          outline-offset: 2px;
-          border-radius: 2px;
+          background: var(--chip-hover-bg, rgba(255,255,255,0.08));
+          border-color: var(--chip-hover-border, rgba(255,255,255,0.4));
         }
 
-        .citation-index {
-          /* inherit color/size from parent */
+        .modern-answer-card .citation-chip:focus-visible {
+          outline: 2px solid var(--chip-outline-focus, rgba(255,255,255,0.5));
+          outline-offset: 2px;
+        }
+
+        .modern-answer-card .citation-index {
+          /* Inherit color/size from the chip; no extra styling needed */
         }
 
         .answer-notes {

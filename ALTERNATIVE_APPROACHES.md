@@ -146,7 +146,7 @@ This would bypass all API issues entirely.
 
 ## Next Steps
 
-1. **Ask Dr. Chaffee which approach he prefers**
+1. **Ask Dr Chaffee which approach he prefers**
 2. **Caption export** - I'll create the SRT processing script
 3. **Service account** - I'll create the bot setup guide
 4. **Proxy** - I'll test NordVPN SOCKS5 integration

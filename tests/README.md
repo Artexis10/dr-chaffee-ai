@@ -1,6 +1,6 @@
 # Tests Directory
 
-This directory contains the test suite for the Ask Dr. Chaffee project, organized by test type and functionality.
+This directory contains the test suite for the Ask Dr Chaffee project, organized by test type and functionality.
 
 ## Structure
 

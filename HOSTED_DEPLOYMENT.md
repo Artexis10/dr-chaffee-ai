@@ -142,7 +142,7 @@ CREATE TABLE sources (
     id SERIAL PRIMARY KEY,
     video_id VARCHAR(20) UNIQUE,
     title TEXT,
-    channel_title VARCHAR(255) DEFAULT 'Dr. Anthony Chaffee',
+    channel_title VARCHAR(255) DEFAULT 'Dr Anthony Chaffee',
     published_at TIMESTAMP,
     duration_seconds INTEGER,
     source_file VARCHAR(255), -- Original SRT filename

@@ -8,7 +8,7 @@ if sys.platform == 'win32' and hasattr(sys.stdout, 'reconfigure'):
     sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
 """
-Enhanced YouTube transcript ingestion script for Ask Dr. Chaffee.
+Enhanced YouTube transcript ingestion script for Ask Dr Chaffee.
 RTX 5080 Optimized for 1200h ingestion in ≤24h (GPT-5 specification).
 
 🚀 RTX 5080 OPTIMIZATIONS:
@@ -2152,7 +2152,7 @@ class EnhancedYouTubeIngester:
 def parse_args() -> IngestionConfig:
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(
-        description='Enhanced YouTube transcript ingestion for Ask Dr. Chaffee',
+        description='Enhanced YouTube transcript ingestion for Ask Dr Chaffee',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:

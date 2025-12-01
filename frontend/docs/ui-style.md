@@ -21,7 +21,7 @@ App content lives in a centered column with a max width (around 960–1100px).
 
 Hero section:
 
-Avatar + “Ask Dr. Chaffee” + subtitle are centered.
+Avatar + “Ask Dr Chaffee” + subtitle are centered.
 
 Content cards below are left-aligned within the same column.
 
@@ -33,7 +33,7 @@ Font: Inter / system stack.
 
 Hierarchy:
 
-H1 (Ask Dr. Chaffee): large, bold, centered.
+H1 (Ask Dr Chaffee): large, bold, centered.
 
 H2/H3 inside cards: left-aligned, medium weight.
 

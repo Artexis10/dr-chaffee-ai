@@ -1,6 +1,6 @@
 {
   "chaffee": {
-    "name": "Dr. Anthony Chaffee",
+    "name": "Dr Anthony Chaffee",
     "urls": [
       "https://www.youtube.com/watch?v=zw2c7s7NcqI",
       "https://www.youtube.com/watch?v=jLb5XUITtHQ",
@@ -25,7 +25,7 @@
     ],
     "threshold": 0.62,
     "metadata": {
-      "description": "Dr. Anthony Chaffee - Carnivore MD",
+      "description": "Dr Anthony Chaffee - Carnivore MD",
       "created_at": "2025-09-29T16:55:00",
       "source": "100% Chaffee monologue videos"
     }

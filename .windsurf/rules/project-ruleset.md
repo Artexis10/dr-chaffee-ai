@@ -5,7 +5,7 @@ globs: dr-chaffee-ai/**
 
 # dr-chaffee-ai — Windsurf Project Ruleset
 
-**Project:** Ask Dr. Chaffee (Semantic Search & RAG System)  
+**Project:** Ask Dr Chaffee (Semantic Search & RAG System)  
 **Stack:** FastAPI + PostgreSQL (pgvector) + Whisper + Local Embeddings + Next.js  
 **Purpose:** Ingest, embed, and semantically search Dr. Chaffee’s YouTube content; generate LLM-backed answers with citation.
 

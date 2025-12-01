@@ -82,7 +82,7 @@ const ChaffeeSearch = () => {
             <div className="search-input">
                 <input
                     type="text"
-                    placeholder="Ask Dr. Chaffee about carnivore diet, autoimmune conditions, ketosis..."
+                    placeholder="Ask Dr Chaffee about carnivore diet, autoimmune conditions, ketosis..."
                     value={query}
                     onChange={handleQueryChange}
                     className="search-field"
@@ -151,7 +151,7 @@ export default ChaffeeSearch;
         v-model="query"
         @input="handleSearch"
         type="text"
-        placeholder="Ask Dr. Chaffee about health topics..."
+        placeholder="Ask Dr Chaffee about health topics..."
         class="search-field"
       />
       <div v-if="loading" class="loading">Searching...</div>
@@ -250,7 +250,7 @@ class ChaffeeSearchWidget {
         this.container.innerHTML = `
             <div class="search-container">
                 <input type="text" id="search-input" 
-                       placeholder="Ask Dr. Chaffee about health topics...">
+                       placeholder="Ask Dr Chaffee about health topics...">
                 <div id="search-results"></div>
             </div>
         `;

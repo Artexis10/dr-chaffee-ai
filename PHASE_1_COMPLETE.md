@@ -38,7 +38,7 @@ Mobile:
 ### 2. **Removed All Medical References** 🏥 ❌
 
 **Changed:**
-- ❌ "Dr. Anthony Chaffee is a medical doctor practicing functional medicine"
+- ❌ "Dr Anthony Chaffee is a medical doctor practicing functional medicine"
 - ✅ "Anthony Chaffee is a neurosurgical resident and former professional rugby player"
 
 - ❌ "Medical Knowledge Base"
@@ -50,7 +50,7 @@ Mobile:
 - ❌ "Not Medical Advice"
 - ✅ "Educational Content Only"
 
-- ❌ "Ask Dr. Chaffee about..."
+- ❌ "Ask Dr Chaffee about..."
 - ✅ "Ask about carnivore diet..."
 
 **Files Modified:**

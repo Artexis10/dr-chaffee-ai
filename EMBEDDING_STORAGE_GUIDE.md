@@ -8,7 +8,7 @@ The normalized storage code path has been removed to eliminate bugs and complexi
 
 ## Overview
 
-This document explains the embedding storage approach in the Ask Dr. Chaffee system.
+This document explains the embedding storage approach in the Ask Dr Chaffee system.
 
 ## Current Implementation: Legacy Storage
 

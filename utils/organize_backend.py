@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Backend cleanup and organization script for Ask Dr. Chaffee project.
+Backend cleanup and organization script for Ask Dr Chaffee project.
 Moves files to appropriate directories for better project structure.
 """
 

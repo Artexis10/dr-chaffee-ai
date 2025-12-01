@@ -1,6 +1,6 @@
 # CI/CD Setup Guide
 
-Complete guide to setting up the CI/CD pipeline for Ask Dr. Chaffee.
+Complete guide to setting up the CI/CD pipeline for Ask Dr Chaffee.
 
 ## Overview
 
@@ -57,7 +57,7 @@ Additional settings:
 
 ### 5. Add Status Badges to README
 ```markdown
-# Ask Dr. Chaffee
+# Ask Dr Chaffee
 
 ![Unit Tests](https://github.com/YOUR_ORG/ask-dr-chaffee/actions/workflows/unit-tests.yml/badge.svg)
 ![Code Quality](https://github.com/YOUR_ORG/ask-dr-chaffee/actions/workflows/code-quality.yml/badge.svg)

@@ -1,4 +1,4 @@
-# Unit Tests for Ask Dr. Chaffee Backend
+# Unit Tests for Ask Dr Chaffee Backend
 
 Comprehensive unit tests for the ingestion pipeline, focusing on `ingest_youtube_enhanced.py`.
 

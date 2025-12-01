@@ -171,7 +171,7 @@ class SRTProcessor:
                     view_count=0,
                     like_count=0,
                     comment_count=0,
-                    channel_title="Dr. Anthony Chaffee"
+                    channel_title="Dr Anthony Chaffee"
                 )
                 
                 # Upsert to database

@@ -1,6 +1,6 @@
 # Production Deployment Guide
 
-This guide provides step-by-step instructions for deploying the Ask Dr. Chaffee application to production with hundreds of videos.
+This guide provides step-by-step instructions for deploying the Ask Dr Chaffee application to production with hundreds of videos.
 
 > **Note for Windows 11 Users**: This guide includes both Makefile commands (for Linux/macOS) and PowerShell commands (for Windows 11). Look for the **Windows 11** sections for PowerShell-specific instructions.
 

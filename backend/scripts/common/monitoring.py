@@ -171,7 +171,7 @@ class IngestionMonitor:
         try:
             msg = EmailMessage()
             msg.set_content(message)
-            msg["Subject"] = f"[Ask Dr. Chaffee] {subject}"
+            msg["Subject"] = f"[Ask Dr Chaffee] {subject}"
             msg["From"] = self.email_config["from_email"]
             msg["To"] = self.email_config["to_email"]
             

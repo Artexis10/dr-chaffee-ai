@@ -67,9 +67,9 @@ def test_synthesis():
             for exc in excerpts
         ])
         
-        system_prompt = """You are compiling a long-form synthesis of Dr. Anthony Chaffee's views. Ground EVERYTHING strictly in the provided transcript excerpts. Do NOT use outside knowledge or speculation. Write a cohesive, well-structured markdown answer that synthesizes across clips. Use ## section headers for organization. Cite with inline timestamps like [video_id@mm:ss] at the END of sentences/clauses they support. Prefer newer material when consolidating conflicting statements. If views evolved, state the nuance and cite both. Tone: neutral narrator summarizing Chaffee's position; do not speak as him."""
+        system_prompt = """You are compiling a long-form synthesis of Dr Anthony Chaffee's views. Ground EVERYTHING strictly in the provided transcript excerpts. Do NOT use outside knowledge or speculation. Write a cohesive, well-structured markdown answer that synthesizes across clips. Use ## section headers for organization. Cite with inline timestamps like [video_id@mm:ss] at the END of sentences/clauses they support. Prefer newer material when consolidating conflicting statements. If views evolved, state the nuance and cite both. Tone: neutral narrator summarizing Chaffee's position; do not speak as him."""
         
-        user_prompt = f"""You are compiling a long-form synthesis of Dr. Anthony Chaffee's views.
+        user_prompt = f"""You are compiling a long-form synthesis of Dr Anthony Chaffee's views.
 
 Query: "carnivore diet approach"
 

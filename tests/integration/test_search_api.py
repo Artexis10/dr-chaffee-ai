@@ -4,7 +4,7 @@ import json
 
 def test_search_api():
     """Test the search API functionality"""
-    print("Testing Ask Dr. Chaffee Search API...")
+    print("Testing Ask Dr Chaffee Search API...")
     
     test_queries = [
         "carnivore",

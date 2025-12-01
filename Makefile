@@ -8,7 +8,7 @@ dev: setup
 	@echo "Backend ready for ingestion scripts"
 
 setup:
-	@echo "Setting up Ask Dr. Chaffee development environment..."
+	@echo "Setting up Ask Dr Chaffee development environment..."
 	@if not exist .env (copy .env.example .env && echo "Created .env file - please edit with your configuration")
 
 # Database management

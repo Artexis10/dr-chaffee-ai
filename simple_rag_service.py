@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Simplified RAG Service for Ask Dr. Chaffee MVP
+Simplified RAG Service for Ask Dr Chaffee MVP
 Provides search functionality for the frontend
 """
 
@@ -48,7 +48,7 @@ else:
 
 # FastAPI app
 app = FastAPI(
-    title="Ask Dr. Chaffee RAG Service",
+    title="Ask Dr Chaffee RAG Service",
     description="Simplified RAG service for MVP",
     version="1.0.0"
 )
@@ -145,7 +145,7 @@ def generate_answer(query: str, context_chunks: List[Dict[str, Any]]) -> str:
         ])
         
         # Create prompt
-        prompt = f"""You are Dr. Anthony Chaffee, a carnivore diet advocate and medical doctor. Based on the following context from your videos, please answer the user's question in your characteristic style - direct, evidence-based, and focused on optimal human health.
+        prompt = f"""You are Dr Anthony Chaffee, a carnivore diet advocate and medical doctor. Based on the following context from your videos, please answer the user's question in your characteristic style - direct, evidence-based, and focused on optimal human health.
 
 Context:
 {context_text}
@@ -158,7 +158,7 @@ Please provide a comprehensive answer based on the context provided. If the cont
         response = openai.ChatCompletion.create(
             model=OPENAI_MODEL,
             messages=[
-                {"role": "system", "content": "You are Dr. Anthony Chaffee, answering questions based on provided video transcripts."},
+                {"role": "system", "content": "You are Dr Anthony Chaffee, answering questions based on provided video transcripts."},
                 {"role": "user", "content": prompt}
             ],
             max_tokens=500,
@@ -176,7 +176,7 @@ async def root():
     """Health check endpoint"""
     return {
         "status": "healthy",
-        "service": "Ask Dr. Chaffee RAG",
+        "service": "Ask Dr Chaffee RAG",
         "ai_enabled": AI_ENABLED,
         "database": "connected" if DATABASE_URL else "not configured"
     }
@@ -258,7 +258,7 @@ async def get_stats():
         conn.close()
 
 if __name__ == "__main__":
-    logger.info("🚀 Starting Ask Dr. Chaffee RAG Service")
+    logger.info("🚀 Starting Ask Dr Chaffee RAG Service")
     logger.info(f"Database: {'✅ Connected' if DATABASE_URL else '❌ Not configured'}")
     logger.info(f"AI: {'✅ Enabled' if AI_ENABLED else '⚠️ Mock mode'}")
     

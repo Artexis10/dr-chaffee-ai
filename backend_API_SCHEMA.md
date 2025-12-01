@@ -13,7 +13,7 @@ Root endpoint for basic service check.
 ```json
 {
   "status": "ok",
-  "service": "Ask Dr. Chaffee API"
+  "service": "Ask Dr Chaffee API"
 }
 ```
 
@@ -26,7 +26,7 @@ Health check endpoint for production monitoring. Checks database and embedding s
 ```json
 {
   "status": "ok",
-  "service": "Ask Dr. Chaffee API",
+  "service": "Ask Dr Chaffee API",
   "timestamp": "2025-11-25T12:00:00.000000",
   "checks": {
     "database": "ok",

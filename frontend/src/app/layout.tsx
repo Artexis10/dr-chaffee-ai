@@ -1,7 +1,7 @@
 import '../styles/globals.css'
 
 export const metadata = {
-  title: 'Ask Dr. Chaffee',
+  title: 'Ask Dr Chaffee',
   description: 'Interactive Knowledge Base',
 }
 

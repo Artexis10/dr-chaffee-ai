@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Setup script for Ask Dr. Chaffee project.
+Setup script for Ask Dr Chaffee project.
 Handles initial project configuration and dependency installation.
 """
 
@@ -157,7 +157,7 @@ def setup_database():
 
 def main():
     """Main setup function"""
-    print("=== Ask Dr. Chaffee Setup ===\n")
+    print("=== Ask Dr Chaffee Setup ===\n")
     
     # Check dependencies
     if not check_dependencies():

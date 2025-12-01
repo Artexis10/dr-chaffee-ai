@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Zoom transcript ingestion script for Ask Dr. Chaffee.
+Zoom transcript ingestion script for Ask Dr Chaffee.
 
 This script:
 1. Connects to Zoom API to fetch cloud recordings
@@ -363,7 +363,7 @@ def main():
     """Main entry point"""
     import argparse
     
-    parser = argparse.ArgumentParser(description='Ingest Zoom transcripts for Ask Dr. Chaffee')
+    parser = argparse.ArgumentParser(description='Ingest Zoom transcripts for Ask Dr Chaffee')
     parser.add_argument('--from-date', type=str, 
                        help='Start date for recordings (YYYY-MM-DD)')
     parser.add_argument('--to-date', type=str,

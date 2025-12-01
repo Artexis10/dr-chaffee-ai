@@ -1,6 +1,6 @@
-# yt-dlp Usage Guide for Ask Dr. Chaffee
+# yt-dlp Usage Guide for Ask Dr Chaffee
 
-This document provides comprehensive guidance on using yt-dlp within the Ask Dr. Chaffee ingestion pipeline, including troubleshooting, proxy configuration, and advanced usage patterns.
+This document provides comprehensive guidance on using yt-dlp within the Ask Dr Chaffee ingestion pipeline, including troubleshooting, proxy configuration, and advanced usage patterns.
 
 ## Overview
 

@@ -127,7 +127,7 @@ export function PasswordGate({ children }: PasswordGateProps) {
         }}>
           <Image 
             src="/dr-chaffee.jpg" 
-            alt="Dr. Anthony Chaffee" 
+            alt="Dr Anthony Chaffee" 
             width={120} 
             height={120}
             style={{ objectFit: 'cover' }}
@@ -141,7 +141,7 @@ export function PasswordGate({ children }: PasswordGateProps) {
           marginBottom: '0.5rem',
           letterSpacing: '-0.02em'
         }}>
-          Ask Dr. Chaffee
+          Ask Dr Chaffee
         </h1>
 
         <p style={{

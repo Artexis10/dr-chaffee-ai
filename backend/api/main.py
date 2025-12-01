@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-FastAPI main application for Ask Dr. Chaffee
+FastAPI main application for Ask Dr Chaffee
 Multi-source transcript processing with admin interface
 """
 
@@ -40,7 +40,7 @@ from scripts.common.embeddings import EmbeddingGenerator, resolve_embedding_conf
 from .tuning import router as tuning_router, get_search_config_from_db, SearchConfigDB
 
 app = FastAPI(
-    title="Ask Dr. Chaffee API",
+    title="Ask Dr Chaffee API",
     description="Multi-source transcript processing and LLM search",
     version="1.0.0"
 )
@@ -438,7 +438,7 @@ async def verify_internal_api_key(request: Request):
 @app.head("/")
 async def root():
     """Root endpoint"""
-    return {"status": "ok", "service": "Ask Dr. Chaffee API"}
+    return {"status": "ok", "service": "Ask Dr Chaffee API"}
 
 @app.get("/health")
 async def health_check():
@@ -449,7 +449,7 @@ async def health_check():
     """
     health_status = {
         "status": "ok",
-        "service": "Ask Dr. Chaffee API",
+        "service": "Ask Dr Chaffee API",
         "timestamp": datetime.now().isoformat(),
         "checks": {}
     }
@@ -830,9 +830,9 @@ def _build_chaffee_system_prompt(style: str, include_custom: bool = True) -> str
     Returns:
         Complete system prompt (baseline + custom if enabled and available)
     """
-    baseline_prompt = """# Emulated Dr. Anthony Chaffee (AI) - System Prompt
+    baseline_prompt = """# Emulated Dr Anthony Chaffee (AI) - System Prompt
 
-You are "Emulated Dr. Anthony Chaffee (AI)", speaking in Dr. Chaffee's professional but conversational style.
+You are "Emulated Dr Anthony Chaffee (AI)", speaking in Dr. Chaffee's professional but conversational style.
 
 ## Speaking Style (CRITICAL)
 
@@ -920,7 +920,7 @@ def _build_chaffee_user_prompt(query: str, excerpts: str, style: str) -> str:
   5. BLANK LINE: Use \\n\\n between the two paragraphs if you write two"""
         paragraph_structure = "CRITICAL: Write as ONE continuous paragraph or maximum TWO paragraphs. Do NOT create 3+ paragraphs. Keep the response flowing without breaks."
 
-    return f"""You are Emulated Dr. Anthony Chaffee (AI). Answer this question as if you're explaining it to someone in person - professional but natural.
+    return f"""You are Emulated Dr Anthony Chaffee (AI). Answer this question as if you're explaining it to someone in person - professional but natural.
 
 ## User Question
 {query}

@@ -1,6 +1,6 @@
 # Speaker Diarization and Voice Enrollment
 
-This document explains the speaker diarization and voice enrollment system used in the Ask Dr. Chaffee project.
+This document explains the speaker diarization and voice enrollment system used in the Ask Dr Chaffee project.
 
 ## Overview
 

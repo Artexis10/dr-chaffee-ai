@@ -77,7 +77,7 @@ class ChaffeeDomainSummarizer:
         focus_list = "\n".join([f"  {i+1}. {area}" for i, area in enumerate(focus_areas)])
         
         if summary_type == "comprehensive":
-            prompt = f"""You are a medical content analyst specializing in carnivore diet, metabolic health, and evidence-based medicine. You are analyzing content from Dr. Anthony Chaffee, a neurosurgeon who advocates for carnivore diet based on evolutionary biology and clinical experience.
+            prompt = f"""You are a medical content analyst specializing in carnivore diet, metabolic health, and evidence-based medicine. You are analyzing content from Dr Anthony Chaffee, a neurosurgeon who advocates for carnivore diet based on evolutionary biology and clinical experience.
 
 MEDICAL ACCURACY REQUIREMENTS:
 - Use precise medical terminology
@@ -118,7 +118,7 @@ TRANSCRIPT TO ANALYZE:
 Please provide a detailed, medically-accurate summary following the structure above."""
 
         elif summary_type == "focused":
-            prompt = f"""You are analyzing Dr. Anthony Chaffee content with focus on specific areas. Dr. Chaffee is a neurosurgeon who advocates carnivore diet for health optimization.
+            prompt = f"""You are analyzing Dr Anthony Chaffee content with focus on specific areas. Dr. Chaffee is a neurosurgeon who advocates carnivore diet for health optimization.
 
 SPECIFIC FOCUS: {', '.join(focus_areas)}
 
@@ -286,7 +286,7 @@ Provide a focused summary (500-800 words) covering only the specified focus area
         # Synthesize final summary from chunks
         combined_chunks = "\n\n".join(chunk_summaries)
         synthesis_prompt = f"""
-        The following are summaries of different parts of a Dr. Anthony Chaffee video. 
+        The following are summaries of different parts of a Dr Anthony Chaffee video. 
         Create a comprehensive, cohesive final summary that integrates all parts:
         
         {combined_chunks}
@@ -381,7 +381,7 @@ Provide a focused summary (500-800 words) covering only the specified focus area
             context = "\n\n".join(context_parts)
             
             # Create RAG prompt
-            prompt = f"""You are answering a question about Dr. Anthony Chaffee's content. Dr. Chaffee is a neurosurgeon who advocates carnivore diet for health optimization.
+            prompt = f"""You are answering a question about Dr Anthony Chaffee's content. Dr. Chaffee is a neurosurgeon who advocates carnivore diet for health optimization.
 
 QUESTION: {question}
 

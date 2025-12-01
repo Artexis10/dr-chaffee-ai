@@ -25,7 +25,7 @@ def test_baseline_prompt_loads():
     baseline = loader.load_system_prompt(include_custom=False)
     
     assert baseline
-    assert "Emulated Dr. Anthony Chaffee" in baseline
+    assert "Emulated Dr Anthony Chaffee" in baseline
     assert "Voice & Priorities" in baseline
     assert "Content Rules" in baseline
 
@@ -39,7 +39,7 @@ def test_custom_instructions_merge():
     
     # Should at least have baseline
     assert full_prompt
-    assert "Emulated Dr. Anthony Chaffee" in full_prompt
+    assert "Emulated Dr Anthony Chaffee" in full_prompt
 
 
 def test_prompt_structure():
@@ -102,7 +102,7 @@ def test_full_prompt_creation():
     assert messages[1]["role"] == "user"
     
     # System message should have baseline
-    assert "Emulated Dr. Anthony Chaffee" in messages[0]["content"]
+    assert "Emulated Dr Anthony Chaffee" in messages[0]["content"]
     
     # User message should have query and context
     assert "What is the carnivore diet?" in messages[1]["content"]

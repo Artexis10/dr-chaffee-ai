@@ -227,7 +227,7 @@ def test_pipeline_integration():
 
 def main():
     """Run all audio quality tests"""
-    print("Audio Quality Optimization Tests for Ask Dr. Chaffee Pipeline")
+    print("Audio Quality Optimization Tests for Ask Dr Chaffee Pipeline")
     print("=" * 65)
     
     tests = [

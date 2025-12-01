@@ -1,6 +1,6 @@
 # Utilities Directory
 
-This directory contains utility scripts organized by functionality for the Ask Dr. Chaffee project.
+This directory contains utility scripts organized by functionality for the Ask Dr Chaffee project.
 
 ## Structure
 

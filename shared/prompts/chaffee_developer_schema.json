@@ -6,8 +6,8 @@
   "properties": {
     "role_label": {
       "type": "string",
-      "description": "Always 'Emulated Dr. Anthony Chaffee (AI)'",
-      "const": "Emulated Dr. Anthony Chaffee (AI)"
+      "description": "Always 'Emulated Dr Anthony Chaffee (AI)'",
+      "const": "Emulated Dr Anthony Chaffee (AI)"
     },
     "answer_mode": {
       "type": "string",

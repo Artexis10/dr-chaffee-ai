@@ -1,6 +1,6 @@
 # Emulated Dr. Chaffee Prompt Engineering System
 
-This directory contains the new prompt engineering system for the Ask Dr. Chaffee AI, designed to provide consistent, high-quality responses that emulate Dr. Anthony Chaffee's voice and evidence-based approach.
+This directory contains the new prompt engineering system for the Ask Dr Chaffee AI, designed to provide consistent, high-quality responses that emulate Dr Anthony Chaffee's voice and evidence-based approach.
 
 ## Overview
 
@@ -24,7 +24,7 @@ Every response includes these required fields:
 
 ```json
 {
-  "role_label": "Emulated Dr. Anthony Chaffee (AI)",
+  "role_label": "Emulated Dr Anthony Chaffee (AI)",
   "answer_mode": "concise|expanded|deep_dive",
   "summary_short": "1-2 sentence direct answer",
   "summary_long": "Detailed explanation (required for expanded/deep_dive)",

@@ -5,7 +5,7 @@
  * See: frontend/docs/ui-theme-guidelines.md
  */
 
-/* Global Styles for Ask Dr. Chaffee - Sophisticated Black & White Theme */
+/* Global Styles for Ask Dr Chaffee - Sophisticated Black & White Theme */
 
 /* Global box-sizing reset - prevents overflow issues */
 *,
@@ -52,9 +52,12 @@
   --ci-active-border: #34d399;
   --ci-active-text: #065f46;
   
-  /* Citation tokens - inline academic references */
-  --citation-fg: var(--color-text-muted);
-  --citation-outline: var(--color-border);
+  /* Chip tokens - outlined pill style (light mode defaults) */
+  --chip-outline: rgba(0, 0, 0, 0.25);
+  --chip-text: rgba(0, 0, 0, 0.75);
+  --chip-hover-bg: rgba(0, 0, 0, 0.05);
+  --chip-hover-border: rgba(0, 0, 0, 0.35);
+  --chip-outline-focus: rgba(0, 0, 0, 0.45);
   
   /* Support CTA gradient */
   --gradient-brand: linear-gradient(135deg, #f97316 0%, #22c55e 100%);
@@ -139,9 +142,12 @@ html.light-mode,
   --ci-active-border: #34d399;
   --ci-active-text: #065f46;
   
-  /* Citation tokens - light mode */
-  --citation-fg: var(--color-text-muted);
-  --citation-outline: var(--color-border);
+  /* Chip tokens - outlined pill style (light mode) */
+  --chip-outline: rgba(0, 0, 0, 0.25);
+  --chip-text: rgba(0, 0, 0, 0.75);
+  --chip-hover-bg: rgba(0, 0, 0, 0.05);
+  --chip-hover-border: rgba(0, 0, 0, 0.35);
+  --chip-outline-focus: rgba(0, 0, 0, 0.45);
   
   /* Support CTA gradient */
   --gradient-brand: linear-gradient(135deg, #f97316 0%, #22c55e 100%);
@@ -217,9 +223,12 @@ html.dark-mode,
   --ci-active-border: #22c55e;
   --ci-active-text: #86efac;
   
-  /* Citation tokens - dark mode */
-  --citation-fg: var(--color-text-muted);
-  --citation-outline: var(--color-border);
+  /* Chip tokens - outlined pill style (dark mode) */
+  --chip-outline: rgba(255, 255, 255, 0.25);
+  --chip-text: rgba(255, 255, 255, 0.85);
+  --chip-hover-bg: rgba(255, 255, 255, 0.10);
+  --chip-hover-border: rgba(255, 255, 255, 0.35);
+  --chip-outline-focus: rgba(255, 255, 255, 0.45);
   
   /* Support CTA gradient - same in dark mode */
   --gradient-brand: linear-gradient(135deg, #f97316 0%, #22c55e 100%);

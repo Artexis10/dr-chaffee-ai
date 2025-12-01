@@ -116,7 +116,7 @@ def test_full_message_creation():
         # Validate message structure
         assert messages[0]['role'] == 'system'
         assert messages[1]['role'] == 'user'
-        assert 'Emulated Dr. Anthony Chaffee' in messages[0]['content']
+        assert 'Emulated Dr Anthony Chaffee' in messages[0]['content']
         assert 'JSON schema' in messages[0]['content']
         
         print("[OK] Message structure validation passed")
@@ -158,7 +158,7 @@ def test_schema_validation():
         
         # Check role_label constraint
         role_const = schema['properties']['role_label']['const']
-        assert role_const == "Emulated Dr. Anthony Chaffee (AI)"
+        assert role_const == "Emulated Dr Anthony Chaffee (AI)"
         
         print(f"[OK] Role label constraint correct: {role_const}")
         
@@ -173,7 +173,7 @@ def create_sample_response():
     print("\nCreating Sample Response...")
     
     sample_response = {
-        "role_label": "Emulated Dr. Anthony Chaffee (AI)",
+        "role_label": "Emulated Dr Anthony Chaffee (AI)",
         "answer_mode": "expanded",
         "summary_short": "The carnivore diet is the most species-appropriate diet for humans, providing all essential nutrients while eliminating inflammatory plant compounds.",
         "summary_long": "Based on evolutionary biology and clinical evidence, humans are adapted to thrive on animal foods. The carnivore diet provides complete nutrition with high bioavailability, eliminates antinutrients found in plants, and can reverse many chronic health conditions. This approach aligns with our ancestral eating patterns and addresses the root causes of modern metabolic dysfunction.",

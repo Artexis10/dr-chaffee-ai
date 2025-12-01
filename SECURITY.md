@@ -1,6 +1,6 @@
 # Security Guidelines
 
-This document outlines security best practices for the Ask Dr. Chaffee project, with a focus on preventing API key exposure and other sensitive information leaks.
+This document outlines security best practices for the Ask Dr Chaffee project, with a focus on preventing API key exposure and other sensitive information leaks.
 
 ## API Key Management
 

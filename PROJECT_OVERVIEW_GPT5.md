@@ -1,8 +1,8 @@
-# Ask Dr. Chaffee - Complete Project Overview for GPT-5
+# Ask Dr Chaffee - Complete Project Overview for GPT-5
 
 ## Project Summary
 
-**Ask Dr. Chaffee** is a comprehensive transcript search and AI synthesis system for Dr. Anthony Chaffee's medical content. It enables users to search across 1200+ YouTube videos and get AI-synthesized answers about carnivore diet, health, and medical topics based on Dr. Chaffee's expertise.
+**Ask Dr Chaffee** is a comprehensive transcript search and AI synthesis system for Dr Anthony Chaffee's medical content. It enables users to search across 1200+ YouTube videos and get AI-synthesized answers about carnivore diet, health, and medical topics based on Dr. Chaffee's expertise.
 
 ## Core Architecture
 

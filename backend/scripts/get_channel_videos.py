@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Extract video IDs from Dr. Anthony Chaffee's YouTube channel
+Extract video IDs from Dr Anthony Chaffee's YouTube channel
 Channel: @anthonychaffeemd
 """
 
@@ -74,7 +74,7 @@ def main():
     channel_handle = "@anthonychaffeemd"
     videos = get_channel_videos(channel_handle, max_videos=5)
     
-    print(f"\n=== Dr. Anthony Chaffee YouTube Videos ===")
+    print(f"\n=== Dr Anthony Chaffee YouTube Videos ===")
     print(f"Channel: {channel_handle}")
     print(f"Found {len(videos)} videos:\n")
     

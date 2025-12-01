@@ -1,6 +1,6 @@
 # Backend Organization Guide
 
-This document describes the cleaned-up backend structure for the Ask Dr. Chaffee project. The organization improves maintainability, reduces mistakes, and makes the codebase easier to navigate.
+This document describes the cleaned-up backend structure for the Ask Dr Chaffee project. The organization improves maintainability, reduces mistakes, and makes the codebase easier to navigate.
 
 ## Directory Structure
 

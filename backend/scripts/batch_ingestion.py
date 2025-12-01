@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Batch ingestion script for Ask Dr. Chaffee.
+Batch ingestion script for Ask Dr Chaffee.
 
 This script provides a robust, resumable batch processing system for ingesting
 hundreds of YouTube videos with automatic error recovery, monitoring, and
@@ -295,7 +295,7 @@ class BatchIngestionManager:
 def parse_args() -> Tuple[IngestionConfig, int, int, bool, str]:
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(
-        description='Batch YouTube transcript ingestion for Ask Dr. Chaffee',
+        description='Batch YouTube transcript ingestion for Ask Dr Chaffee',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:

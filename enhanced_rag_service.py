@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Enhanced RAG Service for Ask Dr. Chaffee MVP
+Enhanced RAG Service for Ask Dr Chaffee MVP
 Uses the new Emulated Dr. Chaffee prompt engineering system
 """
 
@@ -61,7 +61,7 @@ except Exception as e:
 
 # FastAPI app
 app = FastAPI(
-    title="Ask Dr. Chaffee Enhanced RAG Service",
+    title="Ask Dr Chaffee Enhanced RAG Service",
     description="Enhanced RAG service with Emulated Dr. Chaffee AI",
     version="2.0.0"
 )
@@ -190,7 +190,7 @@ def generate_enhanced_answer(query: str, context_chunks: List[Dict[str, Any]], a
     if not AI_ENABLED or not prompt_loader:
         # Enhanced mock response that follows the schema
         return {
-            "role_label": "Emulated Dr. Anthony Chaffee (AI)",
+            "role_label": "Emulated Dr Anthony Chaffee (AI)",
             "answer_mode": answer_mode,
             "summary_short": f"Based on my content analysis, here's what I'd say about '{query}' - this is important for optimal human health.",
             "summary_long": "This is a comprehensive mock response. In production, this would contain detailed analysis based on Dr. Chaffee's actual content." if answer_mode != "concise" else None,
@@ -260,7 +260,7 @@ def generate_enhanced_answer(query: str, context_chunks: List[Dict[str, Any]], a
                 logger.warning(f"Missing required field: {field}")
                 # Add default values for missing fields
                 if field == "role_label":
-                    parsed_response[field] = "Emulated Dr. Anthony Chaffee (AI)"
+                    parsed_response[field] = "Emulated Dr Anthony Chaffee (AI)"
                 elif field == "disclaimers":
                     parsed_response[field] = ["This is an AI emulation, not medical advice"]
                 # Add other defaults as needed
@@ -277,7 +277,7 @@ async def root():
     """Health check endpoint"""
     return {
         "status": "healthy",
-        "service": "Ask Dr. Chaffee Enhanced RAG",
+        "service": "Ask Dr Chaffee Enhanced RAG",
         "version": "2.0.0",
         "ai_enabled": AI_ENABLED,
         "prompts_loaded": prompt_loader is not None,
@@ -377,7 +377,7 @@ async def get_enhanced_stats():
         conn.close()
 
 if __name__ == "__main__":
-    logger.info("🚀 Starting Ask Dr. Chaffee Enhanced RAG Service v2.0")
+    logger.info("🚀 Starting Ask Dr Chaffee Enhanced RAG Service v2.0")
     logger.info(f"Database: {'✅ Connected' if DATABASE_URL else '❌ Not configured'}")
     logger.info(f"AI: {'✅ Enabled' if AI_ENABLED else '⚠️ Mock mode'}")
     logger.info(f"Prompts: {'✅ Loaded' if prompt_loader else '❌ Failed to load'}")

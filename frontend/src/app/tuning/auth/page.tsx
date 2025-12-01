@@ -93,7 +93,7 @@ export default function TuningAuth() {
         <div className="tuning-auth-avatar">
           <Image 
             src="/dr-chaffee.jpg" 
-            alt="Dr. Anthony Chaffee" 
+            alt="Dr Anthony Chaffee" 
             width={120} 
             height={120}
             style={{ objectFit: 'cover' }}

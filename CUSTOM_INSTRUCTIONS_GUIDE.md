@@ -148,9 +148,9 @@ Content-Type: application/json
 **Response:**
 ```json
 {
-  "baseline_prompt": "You are Emulated Dr. Anthony Chaffee...",
+  "baseline_prompt": "You are Emulated Dr Anthony Chaffee...",
   "custom_instructions": "Your custom instructions here",
-  "merged_prompt": "You are Emulated Dr. Anthony Chaffee...\n\n## Additional Custom Instructions\n\nYour custom instructions here",
+  "merged_prompt": "You are Emulated Dr Anthony Chaffee...\n\n## Additional Custom Instructions\n\nYour custom instructions here",
   "character_count": 1234,
   "estimated_tokens": 308
 }

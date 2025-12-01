@@ -715,7 +715,7 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>Ask Dr. Chaffee | Interactive Knowledge Base</title>
+        <title>Ask Dr Chaffee | Interactive Knowledge Base</title>
         <meta name="description" content="Interactive knowledge base with AI-powered answers from Dr Anthony Chaffee's content" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
@@ -763,7 +763,7 @@ export default function Home() {
               >
                 <Image 
                   src="/dr-chaffee.jpg" 
-                  alt="Dr. Anthony Chaffee" 
+                  alt="Dr Anthony Chaffee" 
                   width={80} 
                   height={80}
                   style={{ borderRadius: '50%', objectFit: 'cover' }}
@@ -771,7 +771,7 @@ export default function Home() {
                 />
               </div>
             </div>
-            <h1>Ask Dr. Chaffee</h1>
+            <h1>Ask Dr Chaffee</h1>
             <p>Interactive Knowledge Base</p>
             <div className="search-hint">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -779,7 +779,7 @@ export default function Home() {
                   stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
               <span>
-                <strong>How it works:</strong> Enter your question and get AI-generated answers based on Anthony Chaffee's content, with direct links to video clips.
+                <strong>How it works:</strong> Enter your question and get AI-generated answers based on Dr Anthony Chaffee's content, with direct links to video clips.
               </span>
             </div>
           </div>

@@ -17,14 +17,14 @@ export const Footer: React.FC = () => {
             <div className="footer-logo-icon">
               <Image 
                 src="/dr-chaffee.jpg" 
-                alt="Dr. Anthony Chaffee" 
+                alt="Dr Anthony Chaffee" 
                 width={50} 
                 height={50}
                 style={{ borderRadius: '50%', objectFit: 'cover' }}
               />
             </div>
             <div className="footer-logo-text">
-              <h3>Ask Dr. Chaffee</h3>
+              <h3>Ask Dr Chaffee</h3>
               <p>Interactive Knowledge Base</p>
             </div>
           </div>

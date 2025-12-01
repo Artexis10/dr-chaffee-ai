@@ -330,7 +330,7 @@ curl http://localhost:8000/health
 ```json
 {
   "status": "ok",
-  "service": "Ask Dr. Chaffee API",
+  "service": "Ask Dr Chaffee API",
   "timestamp": "2025-11-23T17:12:00Z",
   "checks": {
     "database": "ok",

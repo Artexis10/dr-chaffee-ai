@@ -128,7 +128,7 @@ def test_ingestion_pipeline_compatibility():
 
 def main():
     """Run all tests"""
-    print("Testing yt-dlp Nightly Updates for Ask Dr. Chaffee Pipeline")
+    print("Testing yt-dlp Nightly Updates for Ask Dr Chaffee Pipeline")
     print("=" * 60)
     
     tests = [

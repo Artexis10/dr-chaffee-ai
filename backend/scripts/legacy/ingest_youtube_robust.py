@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Robust, resumable YouTube ingestion pipeline for Ask Dr. Chaffee.
+Robust, resumable YouTube ingestion pipeline for Ask Dr Chaffee.
 
 Features:
 - Resumable pipeline with ingest_state tracking
@@ -468,7 +468,7 @@ class RobustYouTubeIngester:
 def parse_args() -> IngestConfig:
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(
-        description='Robust YouTube transcript ingestion for Ask Dr. Chaffee',
+        description='Robust YouTube transcript ingestion for Ask Dr Chaffee',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:

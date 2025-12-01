@@ -1,6 +1,6 @@
 # GitHub Actions Workflows
 
-Automated CI/CD pipelines for the Ask Dr. Chaffee project.
+Automated CI/CD pipelines for the Ask Dr Chaffee project.
 
 ## Workflows
 
@@ -100,7 +100,7 @@ Go to **Settings → Secrets and variables → Actions** and add:
 
 ### 5. Add Status Badges to README
 ```markdown
-# Ask Dr. Chaffee
+# Ask Dr Chaffee
 
 ![Unit Tests](https://github.com/YOUR_ORG/ask-dr-chaffee/actions/workflows/unit-tests.yml/badge.svg)
 ![Code Quality](https://github.com/YOUR_ORG/ask-dr-chaffee/actions/workflows/code-quality.yml/badge.svg)

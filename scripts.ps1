@@ -1,4 +1,4 @@
-# Ask Dr. Chaffee - PowerShell Scripts for Windows 11
+# Ask Dr Chaffee - PowerShell Scripts for Windows 11
 # This script provides PowerShell equivalents for all Makefile commands
 
 # Helper function to ensure .env file exists
@@ -398,7 +398,7 @@ Export-ModuleMember -Function *
 
 # Instructions for use
 Write-Host @"
-Ask Dr. Chaffee - PowerShell Scripts
+Ask Dr Chaffee - PowerShell Scripts
 
 To use these functions, first load the script:
   . .\scripts.ps1
