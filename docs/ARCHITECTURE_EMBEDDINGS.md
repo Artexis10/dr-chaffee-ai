@@ -49,17 +49,27 @@ segment_embeddings
 ├── segment_id (FK → segments)
 ├── model_key (TEXT)      ← e.g., "bge-small-en-v1.5"
 ├── dimensions (INT)      ← e.g., 384
-├── embedding (VECTOR)
+├── embedding VECTOR(384) ← Fixed dimension for IVFFlat index
 ├── is_active (BOOL)      ← For model switching
 ├── created_at
 └── UNIQUE(segment_id, model_key)
 ```
+
+**IVFFlat Index:** `idx_segment_embeddings_vector`
+- Required for ANN search performance with 500k+ rows
+- Uses `vector_cosine_ops` for cosine similarity
+- Lists parameter calculated as `sqrt(row_count)`
 
 **Pros:**
 - Multiple models per segment
 - Easy A/B testing
 - No migrations for new models
 - Model provenance tracking
+
+**Important:** The `embedding` column uses `VECTOR(384)` - a fixed dimension
+matching the active model (bge-small-en-v1.5). If the embedding model changes,
+a coordinated migration is needed to update both the column type and rebuild
+the index.
 
 ### Answer Cache (Optional Feature)
 
@@ -71,10 +81,12 @@ answer_cache                    answer_cache_embeddings
 ├── query_text                  ├── answer_cache_id (FK)
 ├── style                       ├── model_key
 ├── answer_md                   ├── dimensions
-├── citations (JSONB)           ├── embedding (VECTOR)
+├── citations (JSONB)           ├── embedding VECTOR(384)
 ├── confidence                  ├── is_active
 └── ...                         └── UNIQUE(answer_cache_id, model_key)
 ```
+
+**IVFFlat Index:** `idx_answer_cache_embeddings_vector`
 
 **Feature Flag:** `ANSWER_CACHE_ENABLED` (default: `false`)
 

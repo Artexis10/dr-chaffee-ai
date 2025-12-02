@@ -13,6 +13,11 @@ This migration introduces a normalized embedding storage system that:
 The segment_embeddings table stores embeddings separately from segments,
 allowing concurrent storage of embeddings from different models (e.g.,
 BGE-small-384, Nomic-768, GTE-Qwen2-1536) for the same segment.
+
+IMPORTANT: The embedding column uses VECTOR(384) - a fixed dimension matching
+the active model (bge-small-en-v1.5). This is required for IVFFlat indexing.
+If the embedding model changes, a coordinated migration is needed to update
+both the column type and rebuild the index.
 """
 from alembic import op
 import sqlalchemy as sa
@@ -113,6 +118,7 @@ def upgrade() -> None:
         # - dimensions stored for validation and index selection
         # - is_active flag for model switching without data deletion
         # - UNIQUE constraint prevents duplicate embeddings per segment/model
+        # - embedding uses VECTOR(384) for IVFFlat index compatibility
         print("\n📦 Creating segment_embeddings table...")
         conn.execute(text("""
             CREATE TABLE segment_embeddings (
@@ -120,13 +126,22 @@ def upgrade() -> None:
                 segment_id INTEGER NOT NULL REFERENCES segments(id) ON DELETE CASCADE,
                 model_key TEXT NOT NULL,
                 dimensions INTEGER NOT NULL,
-                embedding VECTOR NOT NULL,
+                embedding VECTOR(384) NOT NULL,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
                 is_active BOOLEAN NOT NULL DEFAULT TRUE,
                 UNIQUE (segment_id, model_key)
             )
         """))
         print("   ✅ Table created")
+    else:
+        # For existing tables: ensure embedding column has fixed dimensions
+        # This ALTER is required for IVFFlat index creation
+        print("\n🔧 Ensuring embedding column has fixed dimensions...")
+        conn.execute(text("""
+            ALTER TABLE segment_embeddings
+            ALTER COLUMN embedding TYPE VECTOR(384)
+        """))
+        print("   ✅ Embedding column type set to VECTOR(384)")
     
     # 2. Create indexes
     print("\n📊 Creating indexes...")
@@ -216,47 +231,32 @@ def upgrade() -> None:
     else:
         print("   ℹ️  No existing embeddings to migrate")
     
-    # 4. Create per-model vector index for the active model
-    # Note: ivfflat indexes require fixed-dimension columns, but we use VECTOR (no dims)
-    # to support multiple models. Skip index creation here - search still works without it.
-    # For production performance, create a typed index manually after migration.
-    print(f"\n🔍 Attempting vector index for {model_key}...")
+    # 4. Create IVFFlat vector index for ANN search
+    # This index is REQUIRED for performance with 500k+ embeddings
+    # The embedding column must be VECTOR(384) for this to work
+    print(f"\n🔍 Creating IVFFlat vector index...")
     
-    try:
-        # Calculate optimal lists parameter based on row count
-        result = conn.execute(text("""
-            SELECT COUNT(*) FROM segment_embeddings WHERE model_key = :model_key
-        """).bindparams(model_key=model_key))
-        row = result.fetchone()
-        embedding_count = row[0] if row else 0
-        
-        # ivfflat lists should be sqrt(n) for optimal performance
-        # Minimum 10, maximum 1000
-        if embedding_count > 0:
-            import math
-            lists = max(10, min(1000, int(math.sqrt(embedding_count))))
-        else:
-            lists = 100  # Default for empty table
-        
-        print(f"   Using lists={lists} for {embedding_count:,} embeddings")
-        
-        # Create the index with a sanitized name
-        safe_model_key = model_key.replace('-', '_').replace('.', '_')
-        index_name = f"idx_se_vector_{safe_model_key}"
-        
-        conn.execute(text(f"""
-            CREATE INDEX IF NOT EXISTS {index_name}
-            ON segment_embeddings USING ivfflat (embedding vector_cosine_ops)
-            WITH (lists = {lists})
-            WHERE model_key = :model_key AND is_active = TRUE
-        """).bindparams(model_key=model_key))
-        print(f"   ✅ Vector index {index_name} created")
-    except Exception as e:
-        # IVFFlat requires fixed dimensions, which we don't have with VECTOR type
-        # This is expected - search will use sequential scan (slower but works)
-        print(f"   ⚠️  Vector index skipped: {type(e).__name__}")
-        print(f"      Reason: IVFFlat requires fixed-dimension column")
-        print(f"      Search will work but may be slower without index")
+    # Calculate optimal lists parameter based on row count
+    # ivfflat lists should be sqrt(n) for optimal performance
+    result = conn.execute(text("""
+        SELECT COUNT(*) FROM segment_embeddings WHERE model_key = :model_key
+    """).bindparams(model_key=model_key))
+    row = result.fetchone()
+    embedding_count = row[0] if row else 0
+    
+    import math
+    lists = max(10, min(1000, int(math.sqrt(embedding_count)))) if embedding_count > 0 else 100
+    
+    print(f"   Embedding count: {embedding_count:,}")
+    print(f"   Using lists={lists} (sqrt optimization)")
+    
+    # Create the index - no try/except, we want failures to be visible
+    conn.execute(text(f"""
+        CREATE INDEX IF NOT EXISTS idx_segment_embeddings_vector
+        ON segment_embeddings USING ivfflat (embedding vector_cosine_ops)
+        WITH (lists = {lists})
+    """))
+    print(f"   ✅ IVFFlat index idx_segment_embeddings_vector created")
     
     # 5. Add comment for documentation
     conn.execute(text("""
@@ -267,8 +267,9 @@ def upgrade() -> None:
     print("\n" + "=" * 60)
     print("✅ Migration 021 complete!")
     print("=" * 60)
-    print(f"   • segment_embeddings table created")
+    print(f"   • segment_embeddings table with VECTOR(384) column")
     print(f"   • {total_embeddings:,} embeddings backfilled")
+    print(f"   • IVFFlat index created (lists={lists})")
     print(f"   • Legacy segments.embedding preserved for fallback")
     print("=" * 60)
 
@@ -281,8 +282,9 @@ def downgrade() -> None:
     # Drop all indexes first
     conn.execute(text("DROP INDEX IF EXISTS idx_segment_embeddings_model_active"))
     conn.execute(text("DROP INDEX IF EXISTS idx_segment_embeddings_segment_id"))
+    conn.execute(text("DROP INDEX IF EXISTS idx_segment_embeddings_vector"))
     
-    # Drop any model-specific vector indexes
+    # Drop any legacy model-specific vector indexes (from previous migration versions)
     result = conn.execute(text("""
         SELECT indexname FROM pg_indexes 
         WHERE tablename = 'segment_embeddings' 

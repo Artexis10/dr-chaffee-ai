@@ -13,6 +13,9 @@ The table design mirrors segment_embeddings for consistency:
 - One embedding per (answer_cache_id, model_key) pair
 - Supports multiple embedding models
 - Uses is_active flag for model switching
+
+IMPORTANT: The embedding column uses VECTOR(384) - a fixed dimension matching
+the active model (bge-small-en-v1.5). This is required for IVFFlat indexing.
 """
 from alembic import op
 import sqlalchemy as sa
@@ -132,6 +135,7 @@ def upgrade() -> None:
         # - dimensions stored for validation and index selection
         # - is_active flag for model switching without data deletion
         # - UNIQUE constraint prevents duplicate embeddings per cache entry/model
+        # - embedding uses VECTOR(384) for IVFFlat index compatibility
         print("\n📦 Creating answer_cache_embeddings table...")
         conn.execute(text("""
             CREATE TABLE answer_cache_embeddings (
@@ -139,13 +143,21 @@ def upgrade() -> None:
                 answer_cache_id INTEGER NOT NULL REFERENCES answer_cache(id) ON DELETE CASCADE,
                 model_key TEXT NOT NULL,
                 dimensions INTEGER NOT NULL,
-                embedding VECTOR NOT NULL,
+                embedding VECTOR(384) NOT NULL,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
                 is_active BOOLEAN NOT NULL DEFAULT TRUE,
                 UNIQUE (answer_cache_id, model_key)
             )
         """))
         print("   ✅ Table created")
+    else:
+        # For existing tables: ensure embedding column has fixed dimensions
+        print("\n🔧 Ensuring embedding column has fixed dimensions...")
+        conn.execute(text("""
+            ALTER TABLE answer_cache_embeddings
+            ALTER COLUMN embedding TYPE VECTOR(384)
+        """))
+        print("   ✅ Embedding column type set to VECTOR(384)")
     
     # Create indexes
     print("\n📊 Creating indexes...")
@@ -163,19 +175,16 @@ def upgrade() -> None:
     """))
     print("   ✅ idx_ace_answer_cache_id created")
     
-    # Create vector index for the active model
-    print(f"\n🔍 Creating vector index for {model_key}...")
+    # Create IVFFlat vector index for ANN search
+    # This index is required for fast semantic cache lookups
+    print(f"\n🔍 Creating IVFFlat vector index...")
     
-    safe_model_key = model_key.replace('-', '_').replace('.', '_')
-    index_name = f"idx_ace_vector_{safe_model_key}"
-    
-    conn.execute(text(f"""
-        CREATE INDEX IF NOT EXISTS {index_name}
+    conn.execute(text("""
+        CREATE INDEX IF NOT EXISTS idx_answer_cache_embeddings_vector
         ON answer_cache_embeddings USING ivfflat (embedding vector_cosine_ops)
         WITH (lists = 50)
-        WHERE model_key = :model_key AND is_active = TRUE
-    """).bindparams(model_key=model_key))
-    print(f"   ✅ Vector index {index_name} created")
+    """))
+    print(f"   ✅ IVFFlat index idx_answer_cache_embeddings_vector created")
     
     # Migrate existing embeddings from answer_cache if they exist
     print("\n📥 Checking for legacy embeddings in answer_cache...")
@@ -243,8 +252,9 @@ def downgrade() -> None:
     # Drop indexes
     conn.execute(text("DROP INDEX IF EXISTS idx_ace_model_active"))
     conn.execute(text("DROP INDEX IF EXISTS idx_ace_answer_cache_id"))
+    conn.execute(text("DROP INDEX IF EXISTS idx_answer_cache_embeddings_vector"))
     
-    # Drop model-specific vector indexes
+    # Drop legacy model-specific vector indexes (from previous migration versions)
     result = conn.execute(text("""
         SELECT indexname FROM pg_indexes 
         WHERE tablename = 'answer_cache_embeddings' 
