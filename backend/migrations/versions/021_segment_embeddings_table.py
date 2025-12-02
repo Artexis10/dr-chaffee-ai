@@ -217,37 +217,46 @@ def upgrade() -> None:
         print("   ℹ️  No existing embeddings to migrate")
     
     # 4. Create per-model vector index for the active model
-    # Note: ivfflat indexes are dimension-specific, so we create one per model
-    print(f"\n🔍 Creating vector index for {model_key}...")
+    # Note: ivfflat indexes require fixed-dimension columns, but we use VECTOR (no dims)
+    # to support multiple models. Skip index creation here - search still works without it.
+    # For production performance, create a typed index manually after migration.
+    print(f"\n🔍 Attempting vector index for {model_key}...")
     
-    # Calculate optimal lists parameter based on row count
-    result = conn.execute(text("""
-        SELECT COUNT(*) FROM segment_embeddings WHERE model_key = :model_key
-    """).bindparams(model_key=model_key))
-    row = result.fetchone()
-    embedding_count = row[0] if row else 0
-    
-    # ivfflat lists should be sqrt(n) for optimal performance
-    # Minimum 10, maximum 1000
-    if embedding_count > 0:
-        import math
-        lists = max(10, min(1000, int(math.sqrt(embedding_count))))
-    else:
-        lists = 100  # Default for empty table
-    
-    print(f"   Using lists={lists} for {embedding_count:,} embeddings")
-    
-    # Create the index with a sanitized name
-    safe_model_key = model_key.replace('-', '_').replace('.', '_')
-    index_name = f"idx_se_vector_{safe_model_key}"
-    
-    conn.execute(text(f"""
-        CREATE INDEX IF NOT EXISTS {index_name}
-        ON segment_embeddings USING ivfflat (embedding vector_cosine_ops)
-        WITH (lists = {lists})
-        WHERE model_key = :model_key AND is_active = TRUE
-    """).bindparams(model_key=model_key))
-    print(f"   ✅ Vector index {index_name} created")
+    try:
+        # Calculate optimal lists parameter based on row count
+        result = conn.execute(text("""
+            SELECT COUNT(*) FROM segment_embeddings WHERE model_key = :model_key
+        """).bindparams(model_key=model_key))
+        row = result.fetchone()
+        embedding_count = row[0] if row else 0
+        
+        # ivfflat lists should be sqrt(n) for optimal performance
+        # Minimum 10, maximum 1000
+        if embedding_count > 0:
+            import math
+            lists = max(10, min(1000, int(math.sqrt(embedding_count))))
+        else:
+            lists = 100  # Default for empty table
+        
+        print(f"   Using lists={lists} for {embedding_count:,} embeddings")
+        
+        # Create the index with a sanitized name
+        safe_model_key = model_key.replace('-', '_').replace('.', '_')
+        index_name = f"idx_se_vector_{safe_model_key}"
+        
+        conn.execute(text(f"""
+            CREATE INDEX IF NOT EXISTS {index_name}
+            ON segment_embeddings USING ivfflat (embedding vector_cosine_ops)
+            WITH (lists = {lists})
+            WHERE model_key = :model_key AND is_active = TRUE
+        """).bindparams(model_key=model_key))
+        print(f"   ✅ Vector index {index_name} created")
+    except Exception as e:
+        # IVFFlat requires fixed dimensions, which we don't have with VECTOR type
+        # This is expected - search will use sequential scan (slower but works)
+        print(f"   ⚠️  Vector index skipped: {type(e).__name__}")
+        print(f"      Reason: IVFFlat requires fixed-dimension column")
+        print(f"      Search will work but may be slower without index")
     
     # 5. Add comment for documentation
     conn.execute(text("""
@@ -260,7 +269,6 @@ def upgrade() -> None:
     print("=" * 60)
     print(f"   • segment_embeddings table created")
     print(f"   • {total_embeddings:,} embeddings backfilled")
-    print(f"   • Vector index created for {model_key}")
     print(f"   • Legacy segments.embedding preserved for fallback")
     print("=" * 60)
 
