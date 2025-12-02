@@ -58,6 +58,7 @@ from .embedding_config import (
     use_fallback_read,
     get_model_list as get_embedding_model_list,
     load_embedding_config,
+    is_answer_cache_enabled,
 )
 
 app = FastAPI(
@@ -339,7 +340,8 @@ def semantic_search_with_fallback(cur, query_embedding, model_key: str, top_k: i
                     results = cur.fetchall()
                     if results:
                         source = f"segment_embeddings:{model_key}"
-                        logger.debug(f"Semantic search: {len(results)} results from segment_embeddings")
+                        # Log embedding read source for debugging/monitoring
+                        logger.info(f"embedding_read_source: source=segment_embeddings model={model_key} results={len(results)}")
                         return results, source
                     
         except Exception as e:
@@ -371,7 +373,8 @@ def semantic_search_with_fallback(cur, query_embedding, model_key: str, top_k: i
             results = cur.fetchall()
             if results:
                 source = "segments.embedding"
-                logger.debug(f"Semantic search: {len(results)} results from legacy segments.embedding")
+                # Log embedding read source for debugging/monitoring
+                logger.info(f"embedding_read_source: source=segments_legacy model={model_key} results={len(results)}")
                 
         except Exception as e:
             logger.error(f"Legacy storage search failed: {e}")
@@ -1450,7 +1453,15 @@ async def answer_cache_lookup(request: CacheLookupRequest):
     """
     Look up cached answer by semantic similarity.
     Returns cached answer if found, null otherwise.
+    
+    Feature flag: ANSWER_CACHE_ENABLED must be true for this to work.
+    When disabled, returns {"cached": None} immediately.
     """
+    # Early return if answer cache is disabled
+    if not is_answer_cache_enabled():
+        logger.debug("Answer cache lookup skipped: ANSWER_CACHE_ENABLED=false")
+        return {"cached": None}
+    
     try:
         # Generate embedding for the query
         generator = get_embedding_generator()
@@ -1468,7 +1479,7 @@ async def answer_cache_lookup(request: CacheLookupRequest):
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Search for similar cached answers
+        # Search for similar cached answers using normalized storage
         cur.execute("""
             SELECT 
                 ac.id,
@@ -1505,7 +1516,7 @@ async def answer_cache_lookup(request: CacheLookupRequest):
             cur.close()
             conn.close()
             
-            logger.info(f"Cache hit for query: {request.query[:50]}... (similarity: {result['similarity']:.2f})")
+            logger.info(f"Answer cache HIT: query='{request.query[:50]}...' similarity={result['similarity']:.2f} source=answer_cache_embeddings:{model_key}")
             
             return {
                 "cached": {
@@ -1526,11 +1537,11 @@ async def answer_cache_lookup(request: CacheLookupRequest):
         cur.close()
         conn.close()
         
-        logger.info(f"Cache miss for query: {request.query[:50]}...")
+        logger.info(f"Answer cache MISS: query='{request.query[:50]}...'")
         return {"cached": None}
         
     except Exception as e:
-        logger.error(f"Cache lookup failed: {str(e)}", exc_info=True)
+        logger.error(f"Answer cache lookup failed: {str(e)}", exc_info=True)
         return {"cached": None, "error": str(e)}
 
 
@@ -1538,7 +1549,15 @@ async def answer_cache_lookup(request: CacheLookupRequest):
 async def answer_cache_save(request: CacheSaveRequest):
     """
     Save answer to cache with embedding for semantic lookup.
+    
+    Feature flag: ANSWER_CACHE_ENABLED must be true for this to work.
+    When disabled, returns success without actually saving.
     """
+    # Early return if answer cache is disabled
+    if not is_answer_cache_enabled():
+        logger.debug("Answer cache save skipped: ANSWER_CACHE_ENABLED=false")
+        return {"success": True, "cache_id": None, "skipped": True}
+    
     try:
         # Generate embedding for the query
         generator = get_embedding_generator()

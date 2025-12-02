@@ -45,6 +45,7 @@ KEY CONFIG FLAGS:
 - storage_strategy: "normalized" (use segment_embeddings) or "legacy" (use segments.embedding)
 - use_dual_write: If true, write to BOTH normalized and legacy during ingestion
 - use_fallback_read: If true, fall back to legacy if normalized has no results
+- answer_cache_enabled: If true, enable answer cache for semantic recall (default: False)
 
 WRITE PATH (ingestion):
 1. segments_database.py::batch_insert_segments() writes to segments table
@@ -151,6 +152,12 @@ def load_embedding_config(force_refresh: bool = False) -> Dict[str, Any]:
     if os.getenv('EMBEDDING_FALLBACK_READ'):
         config['use_fallback_read'] = os.getenv('EMBEDDING_FALLBACK_READ', '').lower() in ('1', 'true', 'yes')
     
+    # Answer cache feature flag (default: disabled)
+    if os.getenv('ANSWER_CACHE_ENABLED'):
+        config['answer_cache_enabled'] = os.getenv('ANSWER_CACHE_ENABLED', '').lower() in ('1', 'true', 'yes')
+    else:
+        config['answer_cache_enabled'] = config.get('answer_cache_enabled', False)
+    
     _embedding_config_cache = config
     return config.copy()
 
@@ -203,6 +210,23 @@ def use_fallback_read() -> bool:
     """Check if fallback read is enabled (fall back to legacy if normalized empty)"""
     config = load_embedding_config()
     return config.get('use_fallback_read', True)
+
+
+def is_answer_cache_enabled() -> bool:
+    """
+    Check if answer cache feature is enabled.
+    
+    When disabled (default), all answer cache operations are skipped:
+    - Cache lookups return None immediately
+    - Cache saves are no-ops
+    - No database queries to answer_cache or answer_cache_embeddings tables
+    
+    Enable via:
+    - Environment variable: ANSWER_CACHE_ENABLED=true
+    - Config file: "answer_cache_enabled": true in embedding_models.json
+    """
+    config = load_embedding_config()
+    return config.get('answer_cache_enabled', False)
 
 
 def get_all_models() -> Dict[str, Dict[str, Any]]:
@@ -270,6 +294,7 @@ def _log_config():
         logger.info(f"   Storage Strategy: {config.get('storage_strategy')}")
         logger.info(f"   Dual Write: {config.get('use_dual_write')}")
         logger.info(f"   Fallback Read: {config.get('use_fallback_read')}")
+        logger.info(f"   Answer Cache: {'ENABLED' if config.get('answer_cache_enabled') else 'DISABLED'}")
         logger.info("=" * 50)
     except Exception as e:
         logger.warning(f"Could not log embedding config: {e}")
