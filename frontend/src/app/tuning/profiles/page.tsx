@@ -20,16 +20,24 @@ interface RagProfile {
   updated_at?: string;
 }
 
-const ALLOWED_MODELS = [
-  { value: 'gpt-4.1', label: 'GPT-4.1 (Best quality)' },
-  { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini (Fast & cheap)' },
-  { value: 'gpt-4.1-nano', label: 'GPT-4.1 Nano (Ultra budget)' },
-  { value: 'gpt-4-turbo', label: 'GPT-4 Turbo (Legacy)' },
-  { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo (Budget)' },
+interface RagModel {
+  key: string;
+  label: string;
+  max_tokens: number;
+  supports_json_mode: boolean;
+  supports_128k_context: boolean;
+  recommended: boolean;
+}
+
+// Fallback models if API fails
+const FALLBACK_MODELS: RagModel[] = [
+  { key: 'gpt-4.1', label: 'GPT-4.1 (Best quality)', max_tokens: 128000, supports_json_mode: true, supports_128k_context: true, recommended: true },
+  { key: 'gpt-4o-mini', label: 'GPT-4o Mini (Cheapest)', max_tokens: 128000, supports_json_mode: true, supports_128k_context: true, recommended: true },
 ];
 
 export default function ProfilesPage() {
   const [profiles, setProfiles] = useState<RagProfile[]>([]);
+  const [ragModels, setRagModels] = useState<RagModel[]>(FALLBACK_MODELS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +57,25 @@ export default function ProfilesPage() {
 
   useEffect(() => {
     loadProfiles();
+    loadRagModels();
   }, []);
+
+  const loadRagModels = async () => {
+    try {
+      const res = await fetch('/api/tuning/models/rag', { credentials: 'include' });
+      if (!res.ok) {
+        console.warn('Failed to load RAG models from API, using fallback');
+        return;
+      }
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        setRagModels(data);
+      }
+    } catch (err) {
+      console.warn('Failed to load RAG models:', err);
+      // Keep using fallback models
+    }
+  };
 
   const loadProfiles = async () => {
     try {
@@ -250,8 +276,10 @@ export default function ProfilesPage() {
                   onChange={(e) => setFormData({ ...formData, model_name: e.target.value })}
                   className="tuning-select"
                 >
-                  {ALLOWED_MODELS.map((m) => (
-                    <option key={m.value} value={m.value}>{m.label}</option>
+                  {ragModels.map((m) => (
+                    <option key={m.key} value={m.key}>
+                      {m.label}{m.recommended ? ' ★' : ''}
+                    </option>
                   ))}
                 </select>
               </div>

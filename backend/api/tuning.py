@@ -19,12 +19,22 @@ from pydantic import BaseModel, Field
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
+# Import model catalog helpers
+from .model_catalog import (
+    get_rag_model_catalog,
+    get_rag_model,
+    get_rag_model_keys,
+    get_rag_models_list,
+    validate_rag_model_key,
+    get_embedding_model_catalog,
+    get_embedding_models_list,
+    save_embedding_model_catalog,
+    EMBEDDING_MODELS_PATH,
+)
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/tuning", tags=["tuning"])
-
-# Path to embedding models config
-EMBEDDING_MODELS_PATH = Path(__file__).parent.parent / "config" / "embedding_models.json"
 
 # Tuning password from environment (must be set for security)
 TUNING_PASSWORD = os.getenv('TUNING_PASSWORD')
@@ -105,21 +115,18 @@ class TestSearchResult(BaseModel):
 
 
 def load_embedding_models() -> Dict[str, Any]:
-    """Load embedding models configuration"""
+    """Load embedding models configuration from catalog"""
     try:
-        with open(EMBEDDING_MODELS_PATH, 'r') as f:
-            return json.load(f)
+        return get_embedding_model_catalog()
     except Exception as e:
         logger.error(f"Failed to load embedding models config: {e}")
         raise HTTPException(status_code=500, detail="Failed to load configuration")
 
 
 def save_embedding_models(config: Dict[str, Any]) -> None:
-    """Save embedding models configuration"""
+    """Save embedding models configuration via catalog"""
     try:
-        with open(EMBEDDING_MODELS_PATH, 'w') as f:
-            json.dump(config, f, indent=2)
-        logger.info("Embedding models configuration saved")
+        save_embedding_model_catalog(config)
     except Exception as e:
         logger.error(f"Failed to save embedding models config: {e}")
         raise HTTPException(status_code=500, detail="Failed to save configuration")
@@ -223,6 +230,44 @@ async def list_models(request: Request):
         ))
     
     return result
+
+
+class RagModelInfo(BaseModel):
+    """Information about a RAG/answer model"""
+    key: str
+    label: str
+    max_tokens: int
+    supports_json_mode: bool
+    supports_128k_context: bool
+    recommended: bool
+
+
+@router.get(
+    "/models/rag",
+    response_model=List[RagModelInfo],
+    dependencies=[Depends(require_tuning_auth)],
+)
+async def list_rag_models(request: Request):
+    """
+    List all available RAG/answer models from the catalog.
+    Returns models sorted with recommended models first.
+    Protected: requires tuning_auth cookie.
+    """
+    models = get_rag_models_list(sort_recommended_first=True)
+    return [RagModelInfo(**m) for m in models]
+
+
+@router.get(
+    "/models/embeddings",
+    dependencies=[Depends(require_tuning_auth)],
+)
+async def list_embedding_models_catalog(request: Request):
+    """
+    List all available embedding models from the catalog.
+    Returns models sorted with production/recommended models first.
+    Protected: requires tuning_auth cookie.
+    """
+    return get_embedding_models_list(sort_recommended_first=True)
 
 
 @router.get(
@@ -1621,6 +1666,14 @@ async def update_profile(profile_id: str, profile: RagProfile, request: Request)
     Update an existing RAG profile.
     Protected: requires tuning_auth cookie.
     """
+    # Validate model_name against catalog
+    if profile.model_name and not validate_rag_model_key(profile.model_name):
+        valid_keys = get_rag_model_keys()
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown model_name '{profile.model_name}' – must be one of: {', '.join(valid_keys)}"
+        )
+    
     try:
         conn = get_db_connection()
         cur = conn.cursor()
@@ -1693,6 +1746,14 @@ async def create_profile(profile: RagProfile, request: Request):
     Protected: requires tuning_auth cookie.
     """
     import uuid
+    
+    # Validate model_name against catalog
+    if profile.model_name and not validate_rag_model_key(profile.model_name):
+        valid_keys = get_rag_model_keys()
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown model_name '{profile.model_name}' – must be one of: {', '.join(valid_keys)}"
+        )
     
     try:
         conn = get_db_connection()

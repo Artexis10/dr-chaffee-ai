@@ -1,0 +1,77 @@
+{
+  "models": {
+    "bge-small-en-v1.5": {
+      "key": "bge-small-en-v1.5",
+      "provider": "sentence-transformers",
+      "model_name": "BAAI/bge-small-en-v1.5",
+      "dimensions": 384,
+      "cost_per_1k": 0.0,
+      "description": "BGE-small model - lightweight, 384 dims, fast inference",
+      "recommended": true,
+      "production": true
+    },
+    "gte-qwen2-1.5b": {
+      "key": "gte-qwen2-1.5b",
+      "provider": "sentence-transformers",
+      "model_name": "Alibaba-NLP/gte-Qwen2-1.5B-instruct",
+      "dimensions": 1536,
+      "cost_per_1k": 0.0,
+      "description": "GTE-Qwen2 - high quality, 1536 dims, requires GPU",
+      "recommended": false,
+      "production": false
+    },
+    "nomic-v1.5": {
+      "key": "nomic-v1.5",
+      "provider": "nomic",
+      "model_name": "nomic-embed-text-v1.5",
+      "dimensions": 768,
+      "cost_per_1k": 0.0,
+      "description": "Nomic embeddings - 10M free tokens/month, exact local/API parity",
+      "recommended": false,
+      "production": false
+    },
+    "bge-large-en": {
+      "key": "bge-large-en",
+      "provider": "sentence-transformers",
+      "model_name": "BAAI/bge-large-en-v1.5",
+      "dimensions": 1024,
+      "cost_per_1k": 0.0,
+      "description": "BGE-large model - higher quality, 1024 dims",
+      "recommended": false,
+      "production": false
+    },
+    "openai-3-large": {
+      "key": "openai-3-large",
+      "provider": "openai",
+      "model_name": "text-embedding-3-large",
+      "dimensions": 3072,
+      "cost_per_1k": 0.13,
+      "description": "OpenAI API, paid, highest quality",
+      "recommended": false,
+      "production": false
+    },
+    "openai-3-small": {
+      "key": "openai-3-small",
+      "provider": "openai",
+      "model_name": "text-embedding-3-small",
+      "dimensions": 1536,
+      "cost_per_1k": 0.02,
+      "description": "OpenAI API, paid, cheaper",
+      "recommended": false,
+      "production": false
+    }
+  },
+  "active_query_model": "bge-small-en-v1.5",
+  "active_ingestion_models": ["bge-small-en-v1.5"],
+  "recommended_model": "bge-small-en-v1.5",
+  "storage_strategy": "legacy",
+  "notes": [
+    "Legacy storage: segments.embedding column (single model per deployment)",
+    "Default: BGE-small-en-v1.5 (384 dims) - fast, CPU-friendly",
+    "For CPU-only deployments: Set FORCE_CPU_ONLY=1 in .env",
+    "active_query_model: Which embeddings to use for search queries",
+    "active_ingestion_models: Which embeddings to generate during ingestion",
+    "recommended: true models appear first in UI dropdowns",
+    "production: true marks the model currently used in production"
+  ]
+}

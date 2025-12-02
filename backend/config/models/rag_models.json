@@ -1,0 +1,53 @@
+{
+  "models": {
+    "gpt-4.1": {
+      "label": "GPT-4.1 (Best quality)",
+      "max_tokens": 128000,
+      "supports_json_mode": true,
+      "supports_128k_context": true,
+      "recommended": true
+    },
+    "gpt-4.1-mini": {
+      "label": "GPT-4.1 Mini (Fast & cheap)",
+      "max_tokens": 64000,
+      "supports_json_mode": true,
+      "supports_128k_context": true,
+      "recommended": true
+    },
+    "gpt-4o": {
+      "label": "GPT-4o (General purpose)",
+      "max_tokens": 128000,
+      "supports_json_mode": true,
+      "supports_128k_context": true,
+      "recommended": false
+    },
+    "gpt-4o-mini": {
+      "label": "GPT-4o Mini (Cheapest)",
+      "max_tokens": 128000,
+      "supports_json_mode": true,
+      "supports_128k_context": true,
+      "recommended": true
+    },
+    "gpt-4-turbo": {
+      "label": "GPT-4 Turbo (Legacy)",
+      "max_tokens": 128000,
+      "supports_json_mode": true,
+      "supports_128k_context": true,
+      "recommended": false
+    },
+    "gpt-3.5-turbo": {
+      "label": "GPT-3.5 Turbo (Budget)",
+      "max_tokens": 16385,
+      "supports_json_mode": true,
+      "supports_128k_context": false,
+      "recommended": false
+    }
+  },
+  "default_model": "gpt-4.1",
+  "notes": [
+    "RAG/answer generation models for OpenAI chat completions",
+    "recommended: true models appear first in UI dropdowns",
+    "max_tokens: context window size for the model",
+    "supports_json_mode: can use response_format={'type': 'json_object'}"
+  ]
+}

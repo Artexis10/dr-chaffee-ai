@@ -123,6 +123,8 @@ backend/backend/
 # Model cache
 .cache/
 models/
+# But track config/models for model catalog JSON files
+!backend/config/models/
 
 # Audio files (temporary downloads)
 *.mp3

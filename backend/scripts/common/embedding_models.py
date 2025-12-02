@@ -13,7 +13,8 @@ class EmbeddingModelRegistry:
     
     def __init__(self, config_path: str = None):
         if config_path is None:
-            config_path = Path(__file__).parent.parent.parent / 'config' / 'embedding_models.json'
+            # New location: backend/config/models/embedding_models.json
+            config_path = Path(__file__).parent.parent.parent / 'config' / 'models' / 'embedding_models.json'
         
         with open(config_path, 'r') as f:
             self.config = json.load(f)

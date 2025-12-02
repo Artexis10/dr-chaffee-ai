@@ -39,6 +39,14 @@ from scripts.common.embeddings import EmbeddingGenerator, resolve_embedding_conf
 # Import tuning router and search config helper
 from .tuning import router as tuning_router, get_search_config_from_db, SearchConfigDB, get_rag_profile_from_db, RagProfile
 
+# Import model catalog helpers
+from .model_catalog import (
+    get_rag_model,
+    get_rag_model_keys,
+    get_default_rag_model_key,
+    validate_rag_model_key,
+)
+
 app = FastAPI(
     title="Ask Dr Chaffee API",
     description="Multi-source transcript processing and LLM search",
@@ -611,11 +619,8 @@ async def semantic_search(request: SearchRequest):
         logger.info(f"Database has {db_model['count']} embeddings with model '{model_key}' ({expected_dim} dims)")
         
         # Load config to get model details
-        import json
-        from pathlib import Path
-        config_path = Path(__file__).parent.parent / 'config' / 'embedding_models.json'
-        with open(config_path, 'r') as f:
-            config = json.load(f)
+        from .model_catalog import get_embedding_model_catalog
+        config = get_embedding_model_catalog()
         
         # Check if model exists in config
         if model_key not in config['models']:
@@ -1082,19 +1087,56 @@ async def answer_question(request: AnswerRequest):
             logger.error(f"Failed to import OpenAI: {e}")
             raise HTTPException(status_code=503, detail="OpenAI library not available")
         
-        # Use model from RAG profile, fall back to env vars for backward compatibility
-        model = profile_meta.get('model_name') or os.getenv('SUMMARIZER_MODEL') or os.getenv('OPENAI_MODEL', 'gpt-4.1')
+        # Model selection priority:
+        # 1. RAG profile model_name (if valid in catalog)
+        # 2. SUMMARIZER_MODEL env var
+        # 3. OPENAI_MODEL env var
+        # 4. Default from catalog
+        model_source = "catalog_default"
+        profile_model = profile_meta.get('model_name')
+        
+        if profile_model and validate_rag_model_key(profile_model):
+            model = profile_model
+            model_source = "profile"
+        elif profile_model:
+            # Profile has invalid model, log warning and fall back
+            logger.warning(
+                f"RAG profile '{profile_meta.get('name')}' has invalid model_name '{profile_model}', "
+                f"falling back to default. Valid models: {', '.join(get_rag_model_keys())}"
+            )
+            model = os.getenv('SUMMARIZER_MODEL') or os.getenv('OPENAI_MODEL') or get_default_rag_model_key()
+            model_source = "env" if os.getenv('SUMMARIZER_MODEL') or os.getenv('OPENAI_MODEL') else "catalog_default"
+        elif os.getenv('SUMMARIZER_MODEL'):
+            model = os.getenv('SUMMARIZER_MODEL')
+            model_source = "env"
+        elif os.getenv('OPENAI_MODEL'):
+            model = os.getenv('OPENAI_MODEL')
+            model_source = "env"
+        else:
+            model = get_default_rag_model_key()
+            model_source = "catalog_default"
+        
         temperature = profile_meta.get('temperature') or float(os.getenv('SUMMARIZER_TEMPERATURE', '0.3'))
+        
+        # Get model info from catalog for max_tokens cap
+        model_info = get_rag_model(model)
+        if model_info:
+            catalog_max_tokens = model_info.get('max_tokens', 128000)
+            # Cap max_tokens to min of profile setting and catalog limit
+            profile_max_context = profile_meta.get('max_context_tokens', 8000)
+            effective_max_tokens = min(max_tokens, catalog_max_tokens)
+        else:
+            effective_max_tokens = max_tokens
         
         # Log summarizer model and profile being used
         logger.info(
-            "SummarizerCall: model=%s, profile=%s (v%d), query_preview=%r, clips=%d, temperature=%.2f",
+            "SummarizerCall: model=%s, source=%s, profile_id=%s, profile_version=%s, temperature=%.2f, clips=%d",
             model,
-            profile_meta.get('name', 'unknown'),
+            model_source,
+            profile_meta.get('id'),
             profile_meta.get('version', 0),
-            request.query[:100],
-            len(results_for_llm),
-            temperature
+            temperature,
+            len(results_for_llm)
         )
         
         response = client.chat.completions.create(
