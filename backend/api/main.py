@@ -45,6 +45,9 @@ from .model_catalog import (
     get_rag_model_keys,
     get_default_rag_model_key,
     validate_rag_model_key,
+    model_max_context,
+    model_supports_json_mode,
+    find_model_with_capability,
 )
 
 app = FastAPI(
@@ -1088,14 +1091,61 @@ async def answer_question(request: AnswerRequest):
             raise HTTPException(status_code=503, detail="OpenAI library not available")
         
         # Model selection priority:
-        # 1. RAG profile model_name (if valid in catalog)
-        # 2. SUMMARIZER_MODEL env var
-        # 3. OPENAI_MODEL env var
-        # 4. Default from catalog
+        # 1. Auto-select if profile.auto_select_model == True
+        # 2. RAG profile model_name (if valid in catalog)
+        # 3. SUMMARIZER_MODEL env var
+        # 4. OPENAI_MODEL env var
+        # 5. Default from catalog
         model_source = "catalog_default"
         profile_model = profile_meta.get('model_name')
+        auto_select = profile_meta.get('auto_select_model', False)
         
-        if profile_model and validate_rag_model_key(profile_model):
+        # Estimate context length for auto-selection
+        estimated_context_tokens = len(system_prompt) // 4 + len(user_prompt) // 4  # Rough estimate
+        
+        if auto_select:
+            # Auto model selection logic
+            original_model = profile_model if profile_model and validate_rag_model_key(profile_model) else get_default_rag_model_key()
+            model = original_model
+            model_source = "auto"
+            
+            # Check 1: Context window upgrade
+            current_max_context = model_max_context(model)
+            if estimated_context_tokens > current_max_context * 0.8:  # 80% threshold
+                # Need a larger context model
+                upgraded = find_model_with_capability(
+                    required_context=estimated_context_tokens,
+                    require_json_mode=True
+                )
+                if upgraded and upgraded != model:
+                    logger.info(f"Auto-select: upgrading from {model} to {upgraded} for larger context ({estimated_context_tokens} tokens)")
+                    model = upgraded
+            
+            # Check 2: JSON mode requirement (we always need it for structured output)
+            if not model_supports_json_mode(model):
+                upgraded = find_model_with_capability(
+                    required_context=estimated_context_tokens,
+                    require_json_mode=True
+                )
+                if upgraded:
+                    logger.info(f"Auto-select: upgrading from {model} to {upgraded} for JSON mode support")
+                    model = upgraded
+            
+            # Check 3: Cheap/fast downgrade for small contexts
+            if estimated_context_tokens < 4000:  # Small context
+                cheaper = find_model_with_capability(
+                    required_context=estimated_context_tokens,
+                    require_json_mode=True,
+                    prefer_cheap=True,
+                    prefer_fast=True
+                )
+                if cheaper and cheaper != model:
+                    # Only downgrade if the cheaper model is recommended
+                    cheaper_info = get_rag_model(cheaper)
+                    if cheaper_info and cheaper_info.get('recommended', False):
+                        logger.info(f"Auto-select: downgrading from {model} to {cheaper} for small context ({estimated_context_tokens} tokens)")
+                        model = cheaper
+        elif profile_model and validate_rag_model_key(profile_model):
             model = profile_model
             model_source = "profile"
         elif profile_model:
@@ -1105,7 +1155,7 @@ async def answer_question(request: AnswerRequest):
                 f"falling back to default. Valid models: {', '.join(get_rag_model_keys())}"
             )
             model = os.getenv('SUMMARIZER_MODEL') or os.getenv('OPENAI_MODEL') or get_default_rag_model_key()
-            model_source = "env" if os.getenv('SUMMARIZER_MODEL') or os.getenv('OPENAI_MODEL') else "catalog_default"
+            model_source = "fallback"
         elif os.getenv('SUMMARIZER_MODEL'):
             model = os.getenv('SUMMARIZER_MODEL')
             model_source = "env"
@@ -1130,12 +1180,14 @@ async def answer_question(request: AnswerRequest):
         
         # Log summarizer model and profile being used
         logger.info(
-            "SummarizerCall: model=%s, source=%s, profile_id=%s, profile_version=%s, temperature=%.2f, clips=%d",
+            "SummarizerCall: model=%s, source=%s, profile_id=%s, profile_version=%s, auto_select=%s, temperature=%.2f, est_tokens=%d, clips=%d",
             model,
             model_source,
             profile_meta.get('id'),
             profile_meta.get('version', 0),
+            auto_select,
             temperature,
+            estimated_context_tokens,
             len(results_for_llm)
         )
         

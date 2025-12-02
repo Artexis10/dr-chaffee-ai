@@ -232,14 +232,21 @@ async def list_models(request: Request):
     return result
 
 
+class ModelCapabilities(BaseModel):
+    """Model capabilities for structured access"""
+    json_mode: bool = True
+    vision: bool = False
+    max_context: int = 128000
+
+
 class RagModelInfo(BaseModel):
-    """Information about a RAG/answer model"""
+    """Information about a RAG/answer model with tags and capabilities"""
     key: str
     label: str
     max_tokens: int
-    supports_json_mode: bool
-    supports_128k_context: bool
     recommended: bool
+    tags: List[str] = []
+    capabilities: ModelCapabilities
 
 
 @router.get(
@@ -251,10 +258,21 @@ async def list_rag_models(request: Request):
     """
     List all available RAG/answer models from the catalog.
     Returns models sorted with recommended models first.
+    Includes tags and capabilities for each model.
     Protected: requires tuning_auth cookie.
     """
     models = get_rag_models_list(sort_recommended_first=True)
-    return [RagModelInfo(**m) for m in models]
+    result = []
+    for m in models:
+        result.append(RagModelInfo(
+            key=m['key'],
+            label=m['label'],
+            max_tokens=m['max_tokens'],
+            recommended=m['recommended'],
+            tags=m.get('tags', []),
+            capabilities=ModelCapabilities(**m.get('capabilities', {}))
+        ))
+    return result
 
 
 @router.get(
@@ -1393,6 +1411,7 @@ class RagProfile(BaseModel):
     model_name: str = Field(default="gpt-4.1", max_length=100)
     max_context_tokens: int = Field(default=8000, ge=1000, le=32000)
     temperature: float = Field(default=0.3, ge=0.0, le=1.0)
+    auto_select_model: bool = Field(default=False, description="Enable automatic model selection based on context")
     version: int = Field(default=1)
     is_default: bool = Field(default=False)
     created_at: Optional[datetime] = None
@@ -1461,9 +1480,43 @@ DEFAULT_RAG_PROFILE = RagProfile(
     model_name="gpt-4.1",
     max_context_tokens=8000,
     temperature=0.3,
+    auto_select_model=False,
     version=1,
     is_default=True
 )
+
+
+def _row_to_rag_profile(row: Dict[str, Any]) -> RagProfile:
+    """Convert a database row to a RagProfile object with backward compatibility."""
+    # Handle auto_select_model which may not exist in older schemas
+    auto_select = False
+    if 'auto_select_model' in row.keys():
+        auto_select = row['auto_select_model'] or False
+    
+    return RagProfile(
+        id=str(row['id']) if row['id'] else None,
+        name=row['name'],
+        description=row['description'],
+        base_instructions=row['base_instructions'] or "",
+        style_instructions=row['style_instructions'] or "",
+        retrieval_hints=row['retrieval_hints'] or "",
+        model_name=row['model_name'] or "gpt-4.1",
+        max_context_tokens=row['max_context_tokens'] or 8000,
+        temperature=row['temperature'] or 0.3,
+        auto_select_model=auto_select,
+        version=row['version'] or 1,
+        is_default=row['is_default'],
+        created_at=row['created_at'],
+        updated_at=row['updated_at']
+    )
+
+
+def _get_profile_select_columns() -> str:
+    """Get SELECT columns for rag_profiles, including auto_select_model if available."""
+    return """id, name, description, base_instructions, style_instructions,
+              retrieval_hints, model_name, max_context_tokens, temperature,
+              COALESCE(auto_select_model, false) as auto_select_model,
+              version, is_default, created_at, updated_at"""
 
 
 def get_rag_profile_from_db() -> RagProfile:
@@ -1481,34 +1534,31 @@ def get_rag_profile_from_db() -> RagProfile:
         conn = get_db_connection()
         cur = conn.cursor()
         
-        cur.execute("""
-            SELECT id, name, description, base_instructions, style_instructions,
-                   retrieval_hints, model_name, max_context_tokens, temperature,
-                   version, is_default, created_at, updated_at
-            FROM rag_profiles
-            WHERE is_default = true
-            LIMIT 1
-        """)
+        # Try with auto_select_model column first, fall back if not exists
+        try:
+            cur.execute(f"""
+                SELECT {_get_profile_select_columns()}
+                FROM rag_profiles
+                WHERE is_default = true
+                LIMIT 1
+            """)
+        except (psycopg2.errors.UndefinedColumn, psycopg2.ProgrammingError):
+            # Column doesn't exist yet - migration 020 not applied
+            conn.rollback()
+            cur.execute("""
+                SELECT id, name, description, base_instructions, style_instructions,
+                       retrieval_hints, model_name, max_context_tokens, temperature,
+                       version, is_default, created_at, updated_at
+                FROM rag_profiles
+                WHERE is_default = true
+                LIMIT 1
+            """)
         row = cur.fetchone()
         cur.close()
         conn.close()
         
         if row:
-            return RagProfile(
-                id=str(row['id']) if row['id'] else None,
-                name=row['name'],
-                description=row['description'],
-                base_instructions=row['base_instructions'] or "",
-                style_instructions=row['style_instructions'] or "",
-                retrieval_hints=row['retrieval_hints'] or "",
-                model_name=row['model_name'] or "gpt-4.1",
-                max_context_tokens=row['max_context_tokens'] or 8000,
-                temperature=row['temperature'] or 0.3,
-                version=row['version'] or 1,
-                is_default=row['is_default'],
-                created_at=row['created_at'],
-                updated_at=row['updated_at']
-            )
+            return _row_to_rag_profile(row)
         else:
             # Table exists but no default profile - return fallback
             logger.info("rag_profiles table exists but has no default profile, using fallback")
@@ -1542,36 +1592,28 @@ async def list_rag_profiles(request: Request):
         conn = get_db_connection()
         cur = conn.cursor()
         
-        cur.execute("""
-            SELECT id, name, description, base_instructions, style_instructions,
-                   retrieval_hints, model_name, max_context_tokens, temperature,
-                   version, is_default, created_at, updated_at
-            FROM rag_profiles
-            ORDER BY is_default DESC, updated_at DESC
-        """)
+        # Try with auto_select_model column first
+        try:
+            cur.execute(f"""
+                SELECT {_get_profile_select_columns()}
+                FROM rag_profiles
+                ORDER BY is_default DESC, updated_at DESC
+            """)
+        except (psycopg2.errors.UndefinedColumn, psycopg2.ProgrammingError):
+            conn.rollback()
+            cur.execute("""
+                SELECT id, name, description, base_instructions, style_instructions,
+                       retrieval_hints, model_name, max_context_tokens, temperature,
+                       version, is_default, created_at, updated_at
+                FROM rag_profiles
+                ORDER BY is_default DESC, updated_at DESC
+            """)
         
         results = cur.fetchall()
         cur.close()
         conn.close()
         
-        profiles = []
-        for row in results:
-            profiles.append(RagProfile(
-                id=str(row['id']) if row['id'] else None,
-                name=row['name'],
-                description=row['description'],
-                base_instructions=row['base_instructions'] or "",
-                style_instructions=row['style_instructions'] or "",
-                retrieval_hints=row['retrieval_hints'] or "",
-                model_name=row['model_name'] or "gpt-4.1",
-                max_context_tokens=row['max_context_tokens'] or 8000,
-                temperature=row['temperature'] or 0.3,
-                version=row['version'] or 1,
-                is_default=row['is_default'],
-                created_at=row['created_at'],
-                updated_at=row['updated_at']
-            ))
-        
+        profiles = [_row_to_rag_profile(row) for row in results]
         return profiles
         
     except psycopg2.errors.UndefinedTable:
@@ -1618,13 +1660,21 @@ async def get_profile(profile_id: str, request: Request):
         conn = get_db_connection()
         cur = conn.cursor()
         
-        cur.execute("""
-            SELECT id, name, description, base_instructions, style_instructions,
-                   retrieval_hints, model_name, max_context_tokens, temperature,
-                   version, is_default, created_at, updated_at
-            FROM rag_profiles
-            WHERE id = %s
-        """, (profile_id,))
+        try:
+            cur.execute(f"""
+                SELECT {_get_profile_select_columns()}
+                FROM rag_profiles
+                WHERE id = %s
+            """, (profile_id,))
+        except (psycopg2.errors.UndefinedColumn, psycopg2.ProgrammingError):
+            conn.rollback()
+            cur.execute("""
+                SELECT id, name, description, base_instructions, style_instructions,
+                       retrieval_hints, model_name, max_context_tokens, temperature,
+                       version, is_default, created_at, updated_at
+                FROM rag_profiles
+                WHERE id = %s
+            """, (profile_id,))
         
         row = cur.fetchone()
         cur.close()
@@ -1633,21 +1683,7 @@ async def get_profile(profile_id: str, request: Request):
         if not row:
             raise HTTPException(status_code=404, detail="Profile not found")
         
-        return RagProfileResponse(profile=RagProfile(
-            id=str(row['id']) if row['id'] else None,
-            name=row['name'],
-            description=row['description'],
-            base_instructions=row['base_instructions'] or "",
-            style_instructions=row['style_instructions'] or "",
-            retrieval_hints=row['retrieval_hints'] or "",
-            model_name=row['model_name'] or "gpt-4.1",
-            max_context_tokens=row['max_context_tokens'] or 8000,
-            temperature=row['temperature'] or 0.3,
-            version=row['version'] or 1,
-            is_default=row['is_default'],
-            created_at=row['created_at'],
-            updated_at=row['updated_at']
-        ))
+        return RagProfileResponse(profile=_row_to_rag_profile(row))
         
     except HTTPException:
         raise
@@ -1682,22 +1718,45 @@ async def update_profile(profile_id: str, profile: RagProfile, request: Request)
         if profile.is_default:
             cur.execute("UPDATE rag_profiles SET is_default = false WHERE id != %s", (profile_id,))
         
-        cur.execute("""
-            UPDATE rag_profiles
-            SET name = %s, description = %s, base_instructions = %s,
-                style_instructions = %s, retrieval_hints = %s,
-                model_name = %s, max_context_tokens = %s, temperature = %s,
-                is_default = %s
-            WHERE id = %s
-            RETURNING id, name, description, base_instructions, style_instructions,
-                      retrieval_hints, model_name, max_context_tokens, temperature,
-                      version, is_default, created_at, updated_at
-        """, (
-            profile.name, profile.description, profile.base_instructions,
-            profile.style_instructions, profile.retrieval_hints,
-            profile.model_name, profile.max_context_tokens, profile.temperature,
-            profile.is_default, profile_id
-        ))
+        # Try with auto_select_model column, fall back if not exists
+        try:
+            cur.execute("""
+                UPDATE rag_profiles
+                SET name = %s, description = %s, base_instructions = %s,
+                    style_instructions = %s, retrieval_hints = %s,
+                    model_name = %s, max_context_tokens = %s, temperature = %s,
+                    auto_select_model = %s, is_default = %s
+                WHERE id = %s
+                RETURNING id, name, description, base_instructions, style_instructions,
+                          retrieval_hints, model_name, max_context_tokens, temperature,
+                          auto_select_model, version, is_default, created_at, updated_at
+            """, (
+                profile.name, profile.description, profile.base_instructions,
+                profile.style_instructions, profile.retrieval_hints,
+                profile.model_name, profile.max_context_tokens, profile.temperature,
+                profile.auto_select_model, profile.is_default, profile_id
+            ))
+        except (psycopg2.errors.UndefinedColumn, psycopg2.ProgrammingError):
+            conn.rollback()
+            # Retry without auto_select_model
+            if profile.is_default:
+                cur.execute("UPDATE rag_profiles SET is_default = false WHERE id != %s", (profile_id,))
+            cur.execute("""
+                UPDATE rag_profiles
+                SET name = %s, description = %s, base_instructions = %s,
+                    style_instructions = %s, retrieval_hints = %s,
+                    model_name = %s, max_context_tokens = %s, temperature = %s,
+                    is_default = %s
+                WHERE id = %s
+                RETURNING id, name, description, base_instructions, style_instructions,
+                          retrieval_hints, model_name, max_context_tokens, temperature,
+                          version, is_default, created_at, updated_at
+            """, (
+                profile.name, profile.description, profile.base_instructions,
+                profile.style_instructions, profile.retrieval_hints,
+                profile.model_name, profile.max_context_tokens, profile.temperature,
+                profile.is_default, profile_id
+            ))
         
         row = cur.fetchone()
         
@@ -1712,21 +1771,7 @@ async def update_profile(profile_id: str, profile: RagProfile, request: Request)
         
         logger.info(f"Updated RAG profile: {profile.name} (v{row['version']})")
         
-        return RagProfileResponse(profile=RagProfile(
-            id=str(row['id']) if row['id'] else None,
-            name=row['name'],
-            description=row['description'],
-            base_instructions=row['base_instructions'] or "",
-            style_instructions=row['style_instructions'] or "",
-            retrieval_hints=row['retrieval_hints'] or "",
-            model_name=row['model_name'] or "gpt-4.1",
-            max_context_tokens=row['max_context_tokens'] or 8000,
-            temperature=row['temperature'] or 0.3,
-            version=row['version'] or 1,
-            is_default=row['is_default'],
-            created_at=row['created_at'],
-            updated_at=row['updated_at']
-        ))
+        return RagProfileResponse(profile=_row_to_rag_profile(row))
         
     except HTTPException:
         raise
@@ -1765,20 +1810,42 @@ async def create_profile(profile: RagProfile, request: Request):
         
         new_id = str(uuid.uuid4())
         
-        cur.execute("""
-            INSERT INTO rag_profiles (id, name, description, base_instructions,
-                                      style_instructions, retrieval_hints,
-                                      model_name, max_context_tokens, temperature, is_default)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            RETURNING id, name, description, base_instructions, style_instructions,
-                      retrieval_hints, model_name, max_context_tokens, temperature,
-                      version, is_default, created_at, updated_at
-        """, (
-            new_id, profile.name, profile.description, profile.base_instructions,
-            profile.style_instructions, profile.retrieval_hints,
-            profile.model_name, profile.max_context_tokens, profile.temperature,
-            profile.is_default
-        ))
+        # Try with auto_select_model column, fall back if not exists
+        try:
+            cur.execute("""
+                INSERT INTO rag_profiles (id, name, description, base_instructions,
+                                          style_instructions, retrieval_hints,
+                                          model_name, max_context_tokens, temperature,
+                                          auto_select_model, is_default)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id, name, description, base_instructions, style_instructions,
+                          retrieval_hints, model_name, max_context_tokens, temperature,
+                          auto_select_model, version, is_default, created_at, updated_at
+            """, (
+                new_id, profile.name, profile.description, profile.base_instructions,
+                profile.style_instructions, profile.retrieval_hints,
+                profile.model_name, profile.max_context_tokens, profile.temperature,
+                profile.auto_select_model, profile.is_default
+            ))
+        except (psycopg2.errors.UndefinedColumn, psycopg2.ProgrammingError):
+            conn.rollback()
+            # Retry without auto_select_model
+            if profile.is_default:
+                cur.execute("UPDATE rag_profiles SET is_default = false")
+            cur.execute("""
+                INSERT INTO rag_profiles (id, name, description, base_instructions,
+                                          style_instructions, retrieval_hints,
+                                          model_name, max_context_tokens, temperature, is_default)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id, name, description, base_instructions, style_instructions,
+                          retrieval_hints, model_name, max_context_tokens, temperature,
+                          version, is_default, created_at, updated_at
+            """, (
+                new_id, profile.name, profile.description, profile.base_instructions,
+                profile.style_instructions, profile.retrieval_hints,
+                profile.model_name, profile.max_context_tokens, profile.temperature,
+                profile.is_default
+            ))
         
         row = cur.fetchone()
         conn.commit()
@@ -1787,21 +1854,7 @@ async def create_profile(profile: RagProfile, request: Request):
         
         logger.info(f"Created RAG profile: {profile.name}")
         
-        return RagProfileResponse(profile=RagProfile(
-            id=str(row['id']) if row['id'] else None,
-            name=row['name'],
-            description=row['description'],
-            base_instructions=row['base_instructions'] or "",
-            style_instructions=row['style_instructions'] or "",
-            retrieval_hints=row['retrieval_hints'] or "",
-            model_name=row['model_name'] or "gpt-4.1",
-            max_context_tokens=row['max_context_tokens'] or 8000,
-            temperature=row['temperature'] or 0.3,
-            version=row['version'] or 1,
-            is_default=row['is_default'],
-            created_at=row['created_at'],
-            updated_at=row['updated_at']
-        ))
+        return RagProfileResponse(profile=_row_to_rag_profile(row))
         
     except psycopg2.IntegrityError as e:
         conn.rollback()
@@ -1828,15 +1881,25 @@ async def activate_profile(profile_id: str, request: Request):
         # Unset all other defaults
         cur.execute("UPDATE rag_profiles SET is_default = false")
         
-        # Set this one as default
-        cur.execute("""
-            UPDATE rag_profiles
-            SET is_default = true
-            WHERE id = %s
-            RETURNING id, name, description, base_instructions, style_instructions,
-                      retrieval_hints, model_name, max_context_tokens, temperature,
-                      version, is_default, created_at, updated_at
-        """, (profile_id,))
+        # Set this one as default and return with auto_select_model if available
+        try:
+            cur.execute(f"""
+                UPDATE rag_profiles
+                SET is_default = true
+                WHERE id = %s
+                RETURNING {_get_profile_select_columns()}
+            """, (profile_id,))
+        except (psycopg2.errors.UndefinedColumn, psycopg2.ProgrammingError):
+            conn.rollback()
+            cur.execute("UPDATE rag_profiles SET is_default = false")
+            cur.execute("""
+                UPDATE rag_profiles
+                SET is_default = true
+                WHERE id = %s
+                RETURNING id, name, description, base_instructions, style_instructions,
+                          retrieval_hints, model_name, max_context_tokens, temperature,
+                          version, is_default, created_at, updated_at
+            """, (profile_id,))
         
         row = cur.fetchone()
         
@@ -1851,21 +1914,7 @@ async def activate_profile(profile_id: str, request: Request):
         
         logger.info(f"Activated RAG profile: {row['name']}")
         
-        return RagProfileResponse(profile=RagProfile(
-            id=str(row['id']) if row['id'] else None,
-            name=row['name'],
-            description=row['description'],
-            base_instructions=row['base_instructions'] or "",
-            style_instructions=row['style_instructions'] or "",
-            retrieval_hints=row['retrieval_hints'] or "",
-            model_name=row['model_name'] or "gpt-4.1",
-            max_context_tokens=row['max_context_tokens'] or 8000,
-            temperature=row['temperature'] or 0.3,
-            version=row['version'] or 1,
-            is_default=row['is_default'],
-            created_at=row['created_at'],
-            updated_at=row['updated_at']
-        ))
+        return RagProfileResponse(profile=_row_to_rag_profile(row))
         
     except HTTPException:
         raise

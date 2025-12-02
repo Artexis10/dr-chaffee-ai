@@ -3,44 +3,68 @@
     "gpt-4.1": {
       "label": "GPT-4.1 (Best quality)",
       "max_tokens": 128000,
-      "supports_json_mode": true,
-      "supports_128k_context": true,
-      "recommended": true
+      "recommended": true,
+      "tags": ["high-quality", "json-mode", "128k"],
+      "capabilities": {
+        "json_mode": true,
+        "vision": false,
+        "max_context": 128000
+      }
     },
     "gpt-4.1-mini": {
       "label": "GPT-4.1 Mini (Fast & cheap)",
       "max_tokens": 64000,
-      "supports_json_mode": true,
-      "supports_128k_context": true,
-      "recommended": true
+      "recommended": true,
+      "tags": ["fast", "cheap", "json-mode"],
+      "capabilities": {
+        "json_mode": true,
+        "vision": false,
+        "max_context": 64000
+      }
     },
     "gpt-4o": {
       "label": "GPT-4o (General purpose)",
       "max_tokens": 128000,
-      "supports_json_mode": true,
-      "supports_128k_context": true,
-      "recommended": false
+      "recommended": false,
+      "tags": ["general", "json-mode", "128k", "vision"],
+      "capabilities": {
+        "json_mode": true,
+        "vision": true,
+        "max_context": 128000
+      }
     },
     "gpt-4o-mini": {
       "label": "GPT-4o Mini (Cheapest)",
       "max_tokens": 128000,
-      "supports_json_mode": true,
-      "supports_128k_context": true,
-      "recommended": true
+      "recommended": true,
+      "tags": ["fast", "cheap", "json-mode", "128k"],
+      "capabilities": {
+        "json_mode": true,
+        "vision": false,
+        "max_context": 128000
+      }
     },
     "gpt-4-turbo": {
       "label": "GPT-4 Turbo (Legacy)",
       "max_tokens": 128000,
-      "supports_json_mode": true,
-      "supports_128k_context": true,
-      "recommended": false
+      "recommended": false,
+      "tags": ["legacy", "json-mode", "128k", "vision"],
+      "capabilities": {
+        "json_mode": true,
+        "vision": true,
+        "max_context": 128000
+      }
     },
     "gpt-3.5-turbo": {
       "label": "GPT-3.5 Turbo (Budget)",
       "max_tokens": 16385,
-      "supports_json_mode": true,
-      "supports_128k_context": false,
-      "recommended": false
+      "recommended": false,
+      "tags": ["budget", "fast", "json-mode"],
+      "capabilities": {
+        "json_mode": true,
+        "vision": false,
+        "max_context": 16385
+      }
     }
   },
   "default_model": "gpt-4.1",
@@ -48,6 +72,7 @@
     "RAG/answer generation models for OpenAI chat completions",
     "recommended: true models appear first in UI dropdowns",
     "max_tokens: context window size for the model",
-    "supports_json_mode: can use response_format={'type': 'json_object'}"
+    "tags: searchable labels for filtering (fast, cheap, high-quality, json-mode, vision, 128k)",
+    "capabilities: structured feature flags for programmatic access"
   ]
 }

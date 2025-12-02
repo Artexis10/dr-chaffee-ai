@@ -1,43 +1,27 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FileText, Save, Check, X, Plus, Trash2, Edit2, AlertCircle } from 'lucide-react';
+import { FileText, Save, Check, X, Plus, Trash2, Edit2, AlertCircle, Zap, DollarSign, Sparkles } from 'lucide-react';
 import '../tuning-pages.css';
+import type { RAGModelInfo, RagProfile } from '@/types/models';
+import { FALLBACK_RAG_MODELS } from '@/types/models';
 
-interface RagProfile {
-  id?: string;
-  name: string;
-  description?: string;
-  base_instructions: string;
-  style_instructions?: string;
-  retrieval_hints?: string;
-  model_name: string;
-  max_context_tokens: number;
-  temperature: number;
-  version?: number;
-  is_default: boolean;
-  created_at?: string;
-  updated_at?: string;
-}
-
-interface RagModel {
-  key: string;
-  label: string;
-  max_tokens: number;
-  supports_json_mode: boolean;
-  supports_128k_context: boolean;
-  recommended: boolean;
-}
-
-// Fallback models if API fails
-const FALLBACK_MODELS: RagModel[] = [
-  { key: 'gpt-4.1', label: 'GPT-4.1 (Best quality)', max_tokens: 128000, supports_json_mode: true, supports_128k_context: true, recommended: true },
-  { key: 'gpt-4o-mini', label: 'GPT-4o Mini (Cheapest)', max_tokens: 128000, supports_json_mode: true, supports_128k_context: true, recommended: true },
-];
+// Tag badge colors
+const TAG_COLORS: Record<string, string> = {
+  'fast': 'bg-green-100 text-green-800',
+  'cheap': 'bg-blue-100 text-blue-800',
+  'high-quality': 'bg-purple-100 text-purple-800',
+  'json-mode': 'bg-gray-100 text-gray-600',
+  '128k': 'bg-orange-100 text-orange-800',
+  'vision': 'bg-pink-100 text-pink-800',
+  'general': 'bg-teal-100 text-teal-800',
+  'budget': 'bg-yellow-100 text-yellow-800',
+  'legacy': 'bg-red-100 text-red-800',
+};
 
 export default function ProfilesPage() {
   const [profiles, setProfiles] = useState<RagProfile[]>([]);
-  const [ragModels, setRagModels] = useState<RagModel[]>(FALLBACK_MODELS);
+  const [ragModels, setRagModels] = useState<RAGModelInfo[]>(FALLBACK_RAG_MODELS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +36,7 @@ export default function ProfilesPage() {
     model_name: 'gpt-4.1',
     max_context_tokens: 8000,
     temperature: 0.3,
+    auto_select_model: false,
     is_default: false,
   });
 
@@ -186,6 +171,7 @@ export default function ProfilesPage() {
       model_name: 'gpt-4.1',
       max_context_tokens: 8000,
       temperature: 0.3,
+      auto_select_model: false,
       is_default: false,
     });
     setEditMode(true);
@@ -275,6 +261,7 @@ export default function ProfilesPage() {
                   value={formData.model_name}
                   onChange={(e) => setFormData({ ...formData, model_name: e.target.value })}
                   className="tuning-select"
+                  disabled={formData.auto_select_model}
                 >
                   {ragModels.map((m) => (
                     <option key={m.key} value={m.key}>
@@ -282,6 +269,26 @@ export default function ProfilesPage() {
                     </option>
                   ))}
                 </select>
+                {/* Model tags */}
+                {(() => {
+                  const selectedModel = ragModels.find(m => m.key === formData.model_name);
+                  if (selectedModel && selectedModel.tags && selectedModel.tags.length > 0) {
+                    return (
+                      <div style={{ display: 'flex', gap: '4px', marginTop: '6px', flexWrap: 'wrap' }}>
+                        {selectedModel.tags.map(tag => (
+                          <span
+                            key={tag}
+                            className={`${TAG_COLORS[tag] || 'bg-gray-100 text-gray-600'}`}
+                            style={{ padding: '2px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: 500 }}
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
               <div>
                 <label className="tuning-label">Temperature ({formData.temperature})</label>
@@ -305,7 +312,38 @@ export default function ProfilesPage() {
                   max={32000}
                   className="tuning-input"
                 />
+                {/* Context warning */}
+                {(() => {
+                  const selectedModel = ragModels.find(m => m.key === formData.model_name);
+                  if (selectedModel && selectedModel.capabilities && formData.max_context_tokens > selectedModel.capabilities.max_context * 0.8) {
+                    return (
+                      <div style={{ color: '#d97706', fontSize: '12px', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <AlertCircle size={14} />
+                        Model may not support this context size
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
+            </div>
+
+            {/* Auto-select model checkbox */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
+              <input
+                type="checkbox"
+                id="auto_select_model"
+                checked={formData.auto_select_model}
+                onChange={(e) => setFormData({ ...formData, auto_select_model: e.target.checked })}
+                style={{ width: '16px', height: '16px' }}
+              />
+              <label htmlFor="auto_select_model" className="tuning-label" style={{ margin: 0, cursor: 'pointer' }}>
+                <Zap size={14} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
+                Auto-select model based on context
+              </label>
+              <span className="tuning-text-muted" style={{ fontSize: '12px' }}>
+                (Automatically upgrades/downgrades model based on context length)
+              </span>
             </div>
 
             {/* Base Instructions */}

@@ -36,16 +36,24 @@ DEFAULT_RAG_CATALOG = {
         "gpt-4.1": {
             "label": "GPT-4.1 (Best quality)",
             "max_tokens": 128000,
-            "supports_json_mode": True,
-            "supports_128k_context": True,
-            "recommended": True
+            "recommended": True,
+            "tags": ["high-quality", "json-mode", "128k"],
+            "capabilities": {
+                "json_mode": True,
+                "vision": False,
+                "max_context": 128000
+            }
         },
         "gpt-4o-mini": {
             "label": "GPT-4o Mini (Cheapest)",
             "max_tokens": 128000,
-            "supports_json_mode": True,
-            "supports_128k_context": True,
-            "recommended": True
+            "recommended": True,
+            "tags": ["fast", "cheap", "json-mode", "128k"],
+            "capabilities": {
+                "json_mode": True,
+                "vision": False,
+                "max_context": 128000
+            }
         }
     },
     "default_model": "gpt-4.1"
@@ -145,20 +153,26 @@ def get_rag_models_list(sort_recommended_first: bool = True) -> List[Dict[str, A
     """
     Get RAG models as a flat list for API responses.
     
-    Returns list of dicts with 'key', 'label', 'max_tokens', etc.
+    Returns list of dicts with 'key', 'label', 'max_tokens', 'tags', 'capabilities', etc.
     Optionally sorts recommended models first.
     """
     catalog = get_rag_model_catalog()
     models = []
     
     for key, model in catalog.get('models', {}).items():
+        # Get capabilities with defaults
+        capabilities = model.get('capabilities', {})
         models.append({
             'key': key,
             'label': model.get('label', key),
             'max_tokens': model.get('max_tokens', 128000),
-            'supports_json_mode': model.get('supports_json_mode', True),
-            'supports_128k_context': model.get('supports_128k_context', True),
-            'recommended': model.get('recommended', False)
+            'recommended': model.get('recommended', False),
+            'tags': model.get('tags', []),
+            'capabilities': {
+                'json_mode': capabilities.get('json_mode', True),
+                'vision': capabilities.get('vision', False),
+                'max_context': capabilities.get('max_context', model.get('max_tokens', 128000))
+            }
         })
     
     if sort_recommended_first:
@@ -170,6 +184,115 @@ def get_rag_models_list(sort_recommended_first: bool = True) -> List[Dict[str, A
 def validate_rag_model_key(model_key: str) -> bool:
     """Check if a model key exists in the RAG catalog."""
     return model_key in get_rag_model_keys()
+
+
+# =============================================================================
+# RAG Model Tags & Capabilities Helpers
+# =============================================================================
+
+def get_all_model_tags(model_key: str) -> List[str]:
+    """
+    Get all tags for a specific model.
+    
+    Returns empty list if model not found.
+    """
+    model = get_rag_model(model_key)
+    if model:
+        return model.get('tags', [])
+    return []
+
+
+def get_model_capabilities(model_key: str) -> Dict[str, Any]:
+    """
+    Get capabilities dict for a specific model.
+    
+    Returns default capabilities if model not found.
+    """
+    model = get_rag_model(model_key)
+    if model:
+        capabilities = model.get('capabilities', {})
+        return {
+            'json_mode': capabilities.get('json_mode', True),
+            'vision': capabilities.get('vision', False),
+            'max_context': capabilities.get('max_context', model.get('max_tokens', 128000))
+        }
+    return {'json_mode': True, 'vision': False, 'max_context': 128000}
+
+
+def model_supports_json_mode(model_key: str) -> bool:
+    """Check if a model supports JSON mode output."""
+    capabilities = get_model_capabilities(model_key)
+    return capabilities.get('json_mode', True)
+
+
+def model_max_context(model_key: str) -> int:
+    """Get the max context window size for a model."""
+    capabilities = get_model_capabilities(model_key)
+    return capabilities.get('max_context', 128000)
+
+
+def get_rag_model_definitions() -> List[Dict[str, Any]]:
+    """
+    Get all RAG model definitions as a list for frontend consumption.
+    
+    Returns list of dicts with full model metadata including tags and capabilities.
+    Sorted with recommended models first.
+    """
+    return get_rag_models_list(sort_recommended_first=True)
+
+
+def find_model_with_capability(
+    required_context: int = 0,
+    require_json_mode: bool = False,
+    prefer_cheap: bool = False,
+    prefer_fast: bool = False
+) -> Optional[str]:
+    """
+    Find a suitable model based on requirements.
+    
+    Used for auto model selection logic.
+    Returns model key or None if no suitable model found.
+    
+    Priority:
+    1. Must meet required_context
+    2. Must have json_mode if required
+    3. Prefer recommended models
+    4. Prefer cheap/fast if requested
+    """
+    catalog = get_rag_model_catalog()
+    candidates = []
+    
+    for key, model in catalog.get('models', {}).items():
+        capabilities = model.get('capabilities', {})
+        tags = model.get('tags', [])
+        max_context = capabilities.get('max_context', model.get('max_tokens', 128000))
+        has_json = capabilities.get('json_mode', True)
+        
+        # Filter by requirements
+        if required_context > 0 and max_context < required_context:
+            continue
+        if require_json_mode and not has_json:
+            continue
+        
+        # Score the model
+        score = 0
+        if model.get('recommended', False):
+            score += 100
+        if prefer_cheap and 'cheap' in tags:
+            score += 50
+        if prefer_fast and 'fast' in tags:
+            score += 50
+        if 'high-quality' in tags:
+            score += 25
+        
+        candidates.append((key, score, max_context))
+    
+    if not candidates:
+        return None
+    
+    # Sort by score (desc), then by max_context (desc) for tie-breaking
+    candidates.sort(key=lambda x: (-x[1], -x[2]))
+    return candidates[0][0]
 
 
 # =============================================================================
