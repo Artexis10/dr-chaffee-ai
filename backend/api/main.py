@@ -59,6 +59,9 @@ from .embedding_config import (
     get_model_list as get_embedding_model_list,
     load_embedding_config,
     is_answer_cache_enabled,
+    resolve_embedding_model_config,
+    get_segment_table_for_model,
+    get_answer_cache_table_for_model,
 )
 
 app = FastAPI(
@@ -276,6 +279,9 @@ def semantic_search_with_fallback(cur, query_embedding, model_key: str, top_k: i
     """
     Perform semantic search with fallback from normalized to legacy storage.
     
+    Uses table-per-dimension architecture: queries segment_embeddings_{dim} table
+    based on the model's configured segment_table.
+    
     Args:
         cur: Database cursor
         query_embedding: Query embedding vector (list or numpy array)
@@ -295,27 +301,30 @@ def semantic_search_with_fallback(cur, query_embedding, model_key: str, top_k: i
     # Try normalized storage first if enabled
     if use_normalized_storage():
         try:
-            # Check if segment_embeddings table exists and has data for this model
+            # Get the table name for this model (table-per-dimension architecture)
+            segment_table = get_segment_table_for_model(model_key)
+            
+            # Check if the dimension-specific table exists
             cur.execute("""
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables 
                     WHERE table_schema = 'public' 
-                    AND table_name = 'segment_embeddings'
+                    AND table_name = %s
                 )
-            """)
+            """, [segment_table])
             table_exists = cur.fetchone()[0]
             
             if table_exists:
                 # Check if there are embeddings for this model
-                cur.execute("""
-                    SELECT COUNT(*) FROM segment_embeddings 
-                    WHERE model_key = %s AND is_active = TRUE
+                cur.execute(f"""
+                    SELECT COUNT(*) FROM {segment_table} 
+                    WHERE model_key = %s
                 """, [model_key])
                 count = cur.fetchone()[0]
                 
                 if count > 0:
-                    # Use normalized storage
-                    cur.execute("""
+                    # Use normalized storage with dynamic table name
+                    cur.execute(f"""
                         SELECT 
                             seg.id,
                             s.id as source_id,
@@ -327,11 +336,10 @@ def semantic_search_with_fallback(cur, query_embedding, model_key: str, top_k: i
                             s.published_at,
                             s.source_type,
                             1 - (se.embedding <=> %s::vector) as similarity
-                        FROM segment_embeddings se
+                        FROM {segment_table} se
                         JOIN segments seg ON se.segment_id = seg.id
                         JOIN sources s ON seg.source_id = s.id
                         WHERE se.model_key = %s 
-                          AND se.is_active = TRUE
                           AND 1 - (se.embedding <=> %s::vector) >= %s
                         ORDER BY se.embedding <=> %s::vector
                         LIMIT %s
@@ -339,9 +347,8 @@ def semantic_search_with_fallback(cur, query_embedding, model_key: str, top_k: i
                     
                     results = cur.fetchall()
                     if results:
-                        source = f"segment_embeddings:{model_key}"
-                        # Log embedding read source for debugging/monitoring
-                        logger.info(f"embedding_read_source: source=segment_embeddings model={model_key} results={len(results)}")
+                        source = f"{segment_table}:{model_key}"
+                        logger.info(f"embedding_read_source: source={segment_table} model={model_key} results={len(results)}")
                         return results, source
                     
         except Exception as e:
@@ -382,15 +389,20 @@ def semantic_search_with_fallback(cur, query_embedding, model_key: str, top_k: i
     return results, source
 
 def get_available_embedding_models():
-    """Get list of embedding models from both normalized and legacy storage"""
+    """Get list of embedding models from both normalized and legacy storage.
+    
+    Uses table-per-dimension architecture: checks segment_embeddings_{dim} tables.
+    """
     models = []
     
     try:
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Check normalized storage first (segment_embeddings table)
+        # Check normalized storage (table-per-dimension architecture)
+        # Query the segment_embeddings view which points to the active table
         try:
+            # First check if the compatibility view exists
             cur.execute("""
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables 
@@ -398,16 +410,15 @@ def get_available_embedding_models():
                     AND table_name = 'segment_embeddings'
                 )
             """)
-            table_exists = cur.fetchone()['exists']
+            view_exists = cur.fetchone()['exists']
             
-            if table_exists:
+            if view_exists:
                 cur.execute("""
                     SELECT 
                         model_key,
                         dimensions,
                         COUNT(*) as count
                     FROM segment_embeddings
-                    WHERE is_active = TRUE
                     GROUP BY model_key, dimensions
                     ORDER BY count DESC
                 """)
@@ -416,10 +427,10 @@ def get_available_embedding_models():
                         "model_key": row['model_key'],
                         "dimensions": row['dimensions'],
                         "count": row['count'],
-                        "storage": "segment_embeddings"
+                        "storage": f"segment_embeddings_{row['dimensions']}"
                     })
         except Exception as e:
-            logger.debug(f"Could not check segment_embeddings: {e}")
+            logger.debug(f"Could not check segment_embeddings view: {e}")
         
         # Also check legacy storage
         cur.execute("""

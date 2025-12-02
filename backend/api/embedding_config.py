@@ -6,35 +6,41 @@ ARCHITECTURE OVERVIEW (Dec 2025)
 --------------------------------
 
 This module is the single source of truth for embedding model configuration.
-It drives the normalized embedding storage architecture introduced in migrations
-021 (segment_embeddings) and 022 (answer_cache_embeddings).
+It drives the TABLE-PER-DIMENSION embedding storage architecture.
 
-STORAGE ARCHITECTURE:
+STORAGE ARCHITECTURE (Table-Per-Dimension):
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         EMBEDDING STORAGE                                    │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
-│  PRIMARY (Normalized):              LEGACY (Fallback):                       │
-│  ┌─────────────────────────┐       ┌─────────────────────────┐              │
-│  │ segment_embeddings      │       │ segments.embedding      │              │
-│  │ - segment_id (FK)       │       │ (single vector column)  │              │
-│  │ - model_key             │       └─────────────────────────┘              │
-│  │ - dimensions            │                                                 │
-│  │ - embedding (VECTOR)    │       ┌─────────────────────────┐              │
-│  │ - is_active             │       │ answer_cache.query_*    │              │
-│  │ - UNIQUE(seg_id, model) │       │ (legacy dimension cols) │              │
-│  └─────────────────────────┘       └─────────────────────────┘              │
+│  NORMALIZED (Per-Dimension Tables):     LEGACY (Fallback):                   │
+│  ┌─────────────────────────────┐       ┌─────────────────────────┐          │
+│  │ segment_embeddings_384      │       │ segments.embedding      │          │
+│  │ - segment_id (FK)           │       │ (single vector column)  │          │
+│  │ - model_key                 │       └─────────────────────────┘          │
+│  │ - embedding VECTOR(384)     │                                             │
+│  │ - created_at                │       ┌─────────────────────────┐          │
+│  │ + IVFFlat index             │       │ answer_cache.query_*    │          │
+│  └─────────────────────────────┘       │ (legacy dimension cols) │          │
+│                                         └─────────────────────────┘          │
+│  ┌─────────────────────────────┐                                             │
+│  │ segment_embeddings_768      │  (created on-demand)                        │
+│  │ segment_embeddings_1024     │                                             │
+│  │ segment_embeddings_1536     │                                             │
+│  │ segment_embeddings_3072     │                                             │
+│  └─────────────────────────────┘                                             │
 │                                                                              │
-│  ┌─────────────────────────┐                                                │
-│  │ answer_cache_embeddings │                                                │
-│  │ - answer_cache_id (FK)  │                                                │
-│  │ - model_key             │                                                │
-│  │ - dimensions            │                                                │
-│  │ - embedding (VECTOR)    │                                                │
-│  │ - is_active             │                                                │
-│  └─────────────────────────┘                                                │
+│  ┌─────────────────────────────┐                                             │
+│  │ answer_cache_embeddings_384 │  (same pattern for answer cache)            │
+│  └─────────────────────────────┘                                             │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
+
+WHY TABLE-PER-DIMENSION:
+- IVFFlat indexes require fixed-dimension VECTOR(N) columns
+- Each dimension table has its own optimized index
+- No dimension mismatch errors at query time
+- Clean separation between models
 
 CONFIGURATION PRIORITY (highest to lowest):
 1. Environment variables (EMBEDDING_MODEL_KEY, EMBEDDING_STORAGE_STRATEGY, etc.)
@@ -42,37 +48,38 @@ CONFIGURATION PRIORITY (highest to lowest):
 3. Hardcoded defaults (bge-small-en-v1.5, 384 dims)
 
 KEY CONFIG FLAGS:
-- storage_strategy: "normalized" (use segment_embeddings) or "legacy" (use segments.embedding)
+- storage_strategy: "normalized" (use dimension tables) or "legacy" (use segments.embedding)
 - use_dual_write: If true, write to BOTH normalized and legacy during ingestion
 - use_fallback_read: If true, fall back to legacy if normalized has no results
 - answer_cache_enabled: If true, enable answer cache for semantic recall (default: False)
 
+MODEL CONFIG FIELDS:
+- segment_table: Table name for segment embeddings (e.g., "segment_embeddings_384")
+- answer_cache_table: Table name for answer cache embeddings
+- paid: If true, model uses paid API - backfills require explicit confirmation
+- auto_backfill: Always false - backfills must be triggered manually
+
 WRITE PATH (ingestion):
 1. segments_database.py::batch_insert_segments() writes to segments table
-2. If use_dual_write=true, also writes to segment_embeddings via _dual_write_embeddings()
+2. If use_dual_write=true, also writes to segment_embeddings_{dim} table
 
 READ PATH (search):
-1. If storage_strategy="normalized", query segment_embeddings first
+1. If storage_strategy="normalized", query segment_embeddings_{dim} first
 2. If no results AND use_fallback_read=true, query segments.embedding
 3. Log which source was used for debugging
 
 MULTI-MODEL SUPPORT:
-- segment_embeddings supports multiple embeddings per segment (different model_key)
-- is_active flag allows switching models without deleting old embeddings
-- ivfflat indexes are per-model with WHERE model_key = X AND is_active = TRUE
-
-Provides helpers for:
-- Loading embedding model configuration
-- Getting active model key and dimensions
-- Determining storage strategy (normalized vs legacy)
-- Dual-write and fallback read settings
+- Each dimension has its own table with IVFFlat index
+- model_key column tracks which model generated the embedding
+- Only bge-small-en-v1.5 (384) is active by default
 """
 
 import os
 import json
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple, NamedTuple
 from functools import lru_cache
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
@@ -282,6 +289,147 @@ def clear_config_cache():
     """Clear the configuration cache (useful for testing)"""
     global _embedding_config_cache
     _embedding_config_cache = None
+
+
+# =============================================================================
+# TABLE-PER-DIMENSION ARCHITECTURE HELPERS
+# =============================================================================
+
+@dataclass
+class ResolvedEmbeddingModelConfig:
+    """
+    Resolved configuration for an embedding model.
+    
+    This dataclass provides all the information needed to read/write embeddings
+    for a specific model, including table names and safety flags.
+    """
+    model_key: str
+    provider: str
+    model_name: str
+    dimensions: int
+    segment_table: str
+    answer_cache_table: str
+    paid: bool
+    auto_backfill: bool
+    cost_per_1k: float
+    description: str
+    recommended: bool
+    production: bool
+
+
+def resolve_embedding_model_config(model_key: str) -> ResolvedEmbeddingModelConfig:
+    """
+    Resolve full configuration for an embedding model.
+    
+    This is the primary interface for getting model configuration including
+    table names for the table-per-dimension architecture.
+    
+    Args:
+        model_key: The model key (e.g., "bge-small-en-v1.5")
+        
+    Returns:
+        ResolvedEmbeddingModelConfig with all model settings
+        
+    Raises:
+        ValueError: If model_key is not found in configuration
+    """
+    model_config = get_model_config(model_key)
+    if model_config is None:
+        raise ValueError(f"Unknown embedding model: {model_key}")
+    
+    dimensions = model_config.get('dimensions', 384)
+    
+    return ResolvedEmbeddingModelConfig(
+        model_key=model_key,
+        provider=model_config.get('provider', 'unknown'),
+        model_name=model_config.get('model_name', model_key),
+        dimensions=dimensions,
+        segment_table=model_config.get('segment_table', f'segment_embeddings_{dimensions}'),
+        answer_cache_table=model_config.get('answer_cache_table', f'answer_cache_embeddings_{dimensions}'),
+        paid=model_config.get('paid', False),
+        auto_backfill=model_config.get('auto_backfill', False),
+        cost_per_1k=model_config.get('cost_per_1k', 0.0),
+        description=model_config.get('description', ''),
+        recommended=model_config.get('recommended', False),
+        production=model_config.get('production', False),
+    )
+
+
+def resolve_tables_for_model(model_key: str) -> Tuple[str, str]:
+    """
+    Get table names for a model.
+    
+    Convenience function that returns just the table names.
+    
+    Args:
+        model_key: The model key (e.g., "bge-small-en-v1.5")
+        
+    Returns:
+        Tuple of (segment_table, answer_cache_table)
+        
+    Raises:
+        ValueError: If model_key is not found in configuration
+    """
+    cfg = resolve_embedding_model_config(model_key)
+    return (cfg.segment_table, cfg.answer_cache_table)
+
+
+def get_active_model_config() -> ResolvedEmbeddingModelConfig:
+    """
+    Get resolved configuration for the active query model.
+    
+    Returns:
+        ResolvedEmbeddingModelConfig for the active model
+    """
+    return resolve_embedding_model_config(get_active_model_key())
+
+
+def is_paid_model(model_key: str) -> bool:
+    """
+    Check if a model uses a paid API.
+    
+    Paid models require explicit confirmation for backfills to prevent
+    unexpected API costs.
+    
+    Args:
+        model_key: The model key to check
+        
+    Returns:
+        True if the model uses a paid API
+    """
+    try:
+        cfg = resolve_embedding_model_config(model_key)
+        return cfg.paid
+    except ValueError:
+        return False
+
+
+def get_segment_table_for_model(model_key: str) -> str:
+    """
+    Get the segment embeddings table name for a model.
+    
+    Args:
+        model_key: The model key (e.g., "bge-small-en-v1.5")
+        
+    Returns:
+        Table name (e.g., "segment_embeddings_384")
+    """
+    cfg = resolve_embedding_model_config(model_key)
+    return cfg.segment_table
+
+
+def get_answer_cache_table_for_model(model_key: str) -> str:
+    """
+    Get the answer cache embeddings table name for a model.
+    
+    Args:
+        model_key: The model key (e.g., "bge-small-en-v1.5")
+        
+    Returns:
+        Table name (e.g., "answer_cache_embeddings_384")
+    """
+    cfg = resolve_embedding_model_config(model_key)
+    return cfg.answer_cache_table
 
 
 # Log configuration on module load

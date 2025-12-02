@@ -9,10 +9,36 @@ This document describes the embedding storage and retrieval architecture for Dr.
 | Component | Status | Description |
 |-----------|--------|-------------|
 | Legacy Storage | Active | `segments.embedding` column |
-| Normalized Storage | Active | `segment_embeddings` table |
-| Answer Cache | Optional | `answer_cache` + `answer_cache_embeddings` |
+| Normalized Storage | Active | `segment_embeddings_384` table (table-per-dimension) |
+| Answer Cache | Optional | `answer_cache` + `answer_cache_embeddings_384` |
 | Dual-Write | Enabled | Writes to both storage types |
 | Fallback Read | Enabled | Falls back to legacy if normalized empty |
+
+## Table-Per-Dimension Architecture
+
+Each embedding dimension gets its own table with a fixed-dimension VECTOR column
+and optimized IVFFlat index. This design ensures:
+
+- **IVFFlat compatibility**: Indexes require fixed-dimension columns
+- **No dimension mismatch errors**: Each table only stores vectors of one size
+- **Clean model separation**: Easy to add/remove models without affecting others
+- **Optimal index performance**: Each table has its own tuned index
+
+### Tables by Dimension
+
+| Dimension | Segment Table | Answer Cache Table | Status |
+|-----------|---------------|-------------------|--------|
+| 384 | `segment_embeddings_384` | `answer_cache_embeddings_384` | ✅ Created via migration |
+| 768 | `segment_embeddings_768` | `answer_cache_embeddings_768` | Created on-demand |
+| 1024 | `segment_embeddings_1024` | `answer_cache_embeddings_1024` | Created on-demand |
+| 1536 | `segment_embeddings_1536` | `answer_cache_embeddings_1536` | Created on-demand |
+| 3072 | `segment_embeddings_3072` | `answer_cache_embeddings_3072` | Created on-demand |
+
+### Compatibility Views
+
+For backward compatibility, views are created that point to the active tables:
+- `segment_embeddings` → `segment_embeddings_384`
+- `answer_cache_embeddings` → `answer_cache_embeddings_384`
 
 ## Storage Architecture
 
@@ -39,23 +65,21 @@ segments
 - Single model per deployment
 - Requires migration to change dimensions
 
-### Normalized Storage (segment_embeddings)
+### Normalized Storage (segment_embeddings_384)
 
-Separate table supporting multiple embedding models per segment.
+Table-per-dimension architecture for multi-model support.
 
 ```
-segment_embeddings
-├── id (UUID PK)
+segment_embeddings_384
+├── id (BIGSERIAL PK)
 ├── segment_id (FK → segments)
 ├── model_key (TEXT)      ← e.g., "bge-small-en-v1.5"
-├── dimensions (INT)      ← e.g., 384
-├── embedding VECTOR(384) ← Fixed dimension for IVFFlat index
-├── is_active (BOOL)      ← For model switching
+├── embedding VECTOR(384) ← Fixed dimension for IVFFlat
 ├── created_at
 └── UNIQUE(segment_id, model_key)
 ```
 
-**IVFFlat Index:** `idx_segment_embeddings_vector`
+**IVFFlat Index:** `idx_segment_embeddings_384_ivfflat`
 - Required for ANN search performance with 500k+ rows
 - Uses `vector_cosine_ops` for cosine similarity
 - Lists parameter calculated as `sqrt(row_count)`
@@ -63,30 +87,25 @@ segment_embeddings
 **Pros:**
 - Multiple models per segment
 - Easy A/B testing
-- No migrations for new models
+- Clean dimension separation
 - Model provenance tracking
-
-**Important:** The `embedding` column uses `VECTOR(384)` - a fixed dimension
-matching the active model (bge-small-en-v1.5). If the embedding model changes,
-a coordinated migration is needed to update both the column type and rebuild
-the index.
 
 ### Answer Cache (Optional Feature)
 
 Caches AI-generated answers for semantic recall.
 
 ```
-answer_cache                    answer_cache_embeddings
-├── id (PK)                     ├── id (UUID PK)
+answer_cache                    answer_cache_embeddings_384
+├── id (PK)                     ├── id (BIGSERIAL PK)
 ├── query_text                  ├── answer_cache_id (FK)
 ├── style                       ├── model_key
-├── answer_md                   ├── dimensions
-├── citations (JSONB)           ├── embedding VECTOR(384)
-├── confidence                  ├── is_active
-└── ...                         └── UNIQUE(answer_cache_id, model_key)
+├── answer_md                   ├── embedding VECTOR(384)
+├── citations (JSONB)           ├── created_at
+├── confidence                  └── UNIQUE(answer_cache_id, model_key)
+└── ...
 ```
 
-**IVFFlat Index:** `idx_answer_cache_embeddings_vector`
+**IVFFlat Index:** `idx_answer_cache_embeddings_384_ivfflat`
 
 **Feature Flag:** `ANSWER_CACHE_ENABLED` (default: `false`)
 
@@ -206,6 +225,40 @@ Answer cache MISS: query='...'
 Answer cache lookup skipped: ANSWER_CACHE_ENABLED=false
 ```
 
+## Storage Initialization
+
+### Environment Behavior
+
+| Environment | Missing Table Behavior |
+|-------------|----------------------|
+| **Production** (`ENV=prod`) | Hard error - tables must exist via migration |
+| **Development** (`ENV=dev`) | Auto-create if `AUTO_CREATE_EMBEDDING_TABLES=true` |
+
+### Manual Table Initialization
+
+To manually create tables for a new model dimension:
+
+```python
+from backend.scripts.embedding_storage import (
+    create_segment_embedding_table,
+    create_answer_cache_embedding_table,
+    create_ivfflat_index,
+)
+
+# Example: Create 768-dim tables for Nomic
+conn = get_db_connection()
+create_segment_embedding_table(conn, 'segment_embeddings_768', 768)
+create_ivfflat_index(conn, 'segment_embeddings_768', 768)
+create_answer_cache_embedding_table(conn, 'answer_cache_embeddings_768', 768)
+create_ivfflat_index(conn, 'answer_cache_embeddings_768', 768)
+```
+
+### Paid Model Warning
+
+Models marked with `"paid": true` in `embedding_models.json` require explicit
+confirmation for backfills to prevent unexpected API costs. Backfills are
+**never automatic** - they must be triggered manually.
+
 ## Migration History
 
 | Migration | Description |
@@ -214,15 +267,16 @@ Answer cache lookup skipped: ANSWER_CACHE_ENABLED=false
 | 015 | Fix embedding dimensions |
 | 016 | Adaptive embedding index |
 | 017 | Drop old segment_embeddings (cleanup) |
-| 021 | Create `segment_embeddings` table (normalized) |
-| 022 | Create `answer_cache_embeddings` table (normalized) |
+| 021 | Create `segment_embeddings_384` table + IVFFlat index |
+| 022 | Create `answer_cache_embeddings_384` table + IVFFlat index |
 
 ## Files
 
 | File | Purpose |
 |------|---------|
 | `backend/api/embedding_config.py` | Single source of truth for config |
-| `backend/config/models/embedding_models.json` | Model catalog and settings |
+| `backend/config/models/embedding_models.json` | Model catalog with table mappings |
+| `backend/scripts/embedding_storage.py` | Table creation and initialization |
 | `backend/api/main.py` | Search endpoints, answer cache |
 | `backend/scripts/common/segments_database.py` | Dual-write logic |
 | `backend/scripts/common/embeddings.py` | Embedding generation |

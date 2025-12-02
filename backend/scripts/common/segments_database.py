@@ -27,11 +27,25 @@ try:
         get_model_dimensions,
         use_dual_write,
         use_normalized_storage,
+        get_segment_table_for_model,
     )
     _HAS_EMBEDDING_CONFIG = True
 except ImportError:
     _HAS_EMBEDDING_CONFIG = False
     logger.debug("embedding_config not available, using defaults")
+    
+    def get_segment_table_for_model(model_key: str) -> str:
+        """Fallback: derive table name from model dimensions"""
+        dim_map = {
+            'bge-small-en-v1.5': 384,
+            'nomic-v1.5': 768,
+            'bge-large-en': 1024,
+            'gte-qwen2-1.5b': 1536,
+            'openai-3-small': 1536,
+            'openai-3-large': 3072,
+        }
+        dims = dim_map.get(model_key, 384)
+        return f'segment_embeddings_{dims}'
 
 
 def _get_embedding_config_fallback():
@@ -303,10 +317,10 @@ class SegmentsDatabase:
     def _dual_write_embeddings(self, cur, conn, source_id: int, segments: List[Dict[str, Any]], 
                                 embed_chaffee_only: bool = True) -> int:
         """
-        Dual-write embeddings to segment_embeddings table.
+        Dual-write embeddings to segment_embeddings_{dim} table.
         
-        This enables the normalized embedding storage architecture while maintaining
-        backward compatibility with the legacy segments.embedding column.
+        Uses table-per-dimension architecture: writes to the table configured
+        for the active model (e.g., segment_embeddings_384 for BGE-small).
         
         Args:
             cur: Database cursor
@@ -316,38 +330,41 @@ class SegmentsDatabase:
             embed_chaffee_only: If True, only embed Chaffee segments
             
         Returns:
-            Number of embeddings written to segment_embeddings
+            Number of embeddings written to segment_embeddings_{dim}
         """
         # Check if dual-write is enabled
         if _HAS_EMBEDDING_CONFIG:
             if not use_dual_write():
-                logger.debug("Dual-write disabled, skipping segment_embeddings")
+                logger.debug("Dual-write disabled, skipping normalized storage")
                 return 0
             model_key = get_active_model_key()
             dimensions = get_model_dimensions(model_key)
         else:
             config = _get_embedding_config_fallback()
             if not config['use_dual_write']:
-                logger.debug("Dual-write disabled, skipping segment_embeddings")
+                logger.debug("Dual-write disabled, skipping normalized storage")
                 return 0
             model_key = config['model_key']
             dimensions = config['dimensions']
         
-        # Check if segment_embeddings table exists
+        # Get the table name for this model (table-per-dimension architecture)
+        segment_table = get_segment_table_for_model(model_key)
+        
+        # Check if the dimension-specific table exists
         try:
             cur.execute("""
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables 
                     WHERE table_schema = 'public' 
-                    AND table_name = 'segment_embeddings'
+                    AND table_name = %s
                 )
-            """)
+            """, [segment_table])
             table_exists = cur.fetchone()[0]
             if not table_exists:
-                logger.debug("segment_embeddings table does not exist, skipping dual-write")
+                logger.debug(f"{segment_table} table does not exist, skipping dual-write")
                 return 0
         except Exception as e:
-            logger.warning(f"Could not check segment_embeddings table: {e}")
+            logger.warning(f"Could not check {segment_table} table: {e}")
             return 0
         
         # Collect embeddings to write
@@ -412,31 +429,30 @@ class SegmentsDatabase:
                         values.append((segment_id, model_key, dimensions, embedding))
                 
                 if values:
-                    # Batch insert with ON CONFLICT
+                    # Batch insert with ON CONFLICT (table-per-dimension)
                     psycopg2.extras.execute_values(
                         cur,
-                        """
-                        INSERT INTO segment_embeddings (segment_id, model_key, dimensions, embedding, is_active)
+                        f"""
+                        INSERT INTO {segment_table} (segment_id, model_key, embedding)
                         VALUES %s
                         ON CONFLICT (segment_id, model_key) DO UPDATE SET
                             embedding = EXCLUDED.embedding,
-                            dimensions = EXCLUDED.dimensions,
                             created_at = now()
                         """,
-                        values,
-                        template="(%s, %s, %s, %s::vector, TRUE)"
+                        [(v[0], v[1], v[3]) for v in values],  # segment_id, model_key, embedding
+                        template="(%s, %s, %s::vector)"
                     )
                     insert_count += len(values)
             
             conn.commit()
             
             if insert_count > 0:
-                logger.info(f"Dual-write: {insert_count} embeddings written to segment_embeddings (model: {model_key})")
+                logger.info(f"Dual-write: {insert_count} embeddings written to {segment_table} (model: {model_key})")
             
             return insert_count
             
         except Exception as e:
-            logger.warning(f"Dual-write to segment_embeddings failed (non-fatal): {e}")
+            logger.warning(f"Dual-write to {segment_table} failed (non-fatal): {e}")
             # Don't raise - dual-write failure should not break ingestion
             try:
                 conn.rollback()

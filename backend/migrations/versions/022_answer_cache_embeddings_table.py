@@ -1,29 +1,23 @@
-"""Create answer_cache_embeddings table for normalized answer cache embedding storage
+"""Create answer_cache_embeddings_384 table for BGE-small answer cache embeddings
 
 Revision ID: 022
 Revises: 021
 Create Date: 2025-12-02
 
-This migration creates the answer_cache_embeddings table that was referenced
-in main.py but never created via migration. This table stores embeddings
-for cached answers, enabling semantic similarity lookup across different
-embedding models.
+TABLE-PER-DIMENSION ARCHITECTURE:
+This migration creates the answer_cache_embeddings_384 table for BGE-small-en-v1.5
+embeddings (384 dimensions). Mirrors the segment_embeddings_384 pattern.
 
-The table design mirrors segment_embeddings for consistency:
-- One embedding per (answer_cache_id, model_key) pair
-- Supports multiple embedding models
-- Uses is_active flag for model switching
-
-IMPORTANT: The embedding column uses VECTOR(384) - a fixed dimension matching
-the active model (bge-small-en-v1.5). This is required for IVFFlat indexing.
+This migration also creates a compatibility view 'answer_cache_embeddings' that
+points to answer_cache_embeddings_384 for backward compatibility with existing code.
 """
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy import text
 import os
 import json
 import logging
+import math
 
 logger = logging.getLogger(__name__)
 
@@ -33,214 +27,154 @@ down_revision = '021'
 branch_labels = None
 depends_on = None
 
-
-def get_active_model_config():
-    """Get active embedding model configuration from embedding_models.json"""
-    config_paths = [
-        os.path.join(os.path.dirname(__file__), '..', '..', 'config', 'models', 'embedding_models.json'),
-        '/app/config/models/embedding_models.json',
-    ]
-    
-    for config_path in config_paths:
-        try:
-            with open(config_path, 'r') as f:
-                config = json.load(f)
-                active_model_key = config.get('active_query_model', 'bge-small-en-v1.5')
-                models = config.get('models', {})
-                if active_model_key in models:
-                    model = models[active_model_key]
-                    return {
-                        'model_key': active_model_key,
-                        'dimensions': model.get('dimensions', 384)
-                    }
-        except (FileNotFoundError, json.JSONDecodeError):
-            continue
-    
-    dimensions = int(os.getenv('EMBEDDING_DIMENSIONS', '384'))
-    model_key = os.getenv('EMBEDDING_MODEL_KEY', 'bge-small-en-v1.5')
-    
-    return {'model_key': model_key, 'dimensions': dimensions}
+# Fixed configuration for this migration
+TABLE_NAME = 'answer_cache_embeddings_384'
+DIMENSIONS = 384
+MODEL_KEY = 'bge-small-en-v1.5'
 
 
 def upgrade() -> None:
     conn = op.get_bind()
     
     print("=" * 60)
-    print("🔧 Migration 022: Creating answer_cache_embeddings table")
+    print("🔧 Migration 022: Creating answer_cache_embeddings_384 table")
     print("=" * 60)
+    print(f"📋 Table: {TABLE_NAME} (VECTOR({DIMENSIONS}))")
+    print(f"📋 Model: {MODEL_KEY}")
     
-    model_config = get_active_model_config()
-    model_key = model_config['model_key']
-    dimensions = model_config['dimensions']
-    
-    print(f"📋 Active model: {model_key} ({dimensions} dimensions)")
-    
-    # Check if table already exists (may have been created manually)
+    # 1. Check if table already exists
     result = conn.execute(text("""
         SELECT EXISTS (
             SELECT FROM information_schema.tables 
             WHERE table_schema = 'public' 
-            AND table_name = 'answer_cache_embeddings'
+            AND table_name = :table_name
         )
-    """))
+    """).bindparams(table_name=TABLE_NAME))
     table_exists = result.scalar()
     
     if table_exists:
-        print("   ℹ️  Table already exists, checking structure...")
-        
-        # Verify required columns exist
+        print(f"\n📦 {TABLE_NAME} already exists, verifying structure...")
         result = conn.execute(text("""
             SELECT column_name FROM information_schema.columns
-            WHERE table_name = 'answer_cache_embeddings'
-        """))
+            WHERE table_name = :table_name
+        """).bindparams(table_name=TABLE_NAME))
         existing_columns = {row[0] for row in result}
-        required_columns = {'id', 'answer_cache_id', 'model_key', 'embedding'}
+        required_columns = {'id', 'answer_cache_id', 'model_key', 'embedding', 'created_at'}
         
         if required_columns.issubset(existing_columns):
             print("   ✅ Table structure is valid")
-            
-            # Add missing columns if needed
-            if 'dimensions' not in existing_columns:
-                conn.execute(text("""
-                    ALTER TABLE answer_cache_embeddings 
-                    ADD COLUMN IF NOT EXISTS dimensions INTEGER
-                """))
-                print("   ✅ Added dimensions column")
-            
-            if 'is_active' not in existing_columns:
-                conn.execute(text("""
-                    ALTER TABLE answer_cache_embeddings 
-                    ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE
-                """))
-                print("   ✅ Added is_active column")
-            
-            if 'created_at' not in existing_columns:
-                conn.execute(text("""
-                    ALTER TABLE answer_cache_embeddings 
-                    ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now()
-                """))
-                print("   ✅ Added created_at column")
         else:
-            print(f"   ⚠️  Missing columns: {required_columns - existing_columns}")
-            print("   Recreating table...")
-            conn.execute(text("DROP TABLE IF EXISTS answer_cache_embeddings CASCADE"))
+            missing = required_columns - existing_columns
+            print(f"   ⚠️  Missing columns: {missing}")
+            print("   Dropping and recreating table...")
+            conn.execute(text(f"DROP TABLE IF EXISTS {TABLE_NAME} CASCADE"))
             table_exists = False
     
     if not table_exists:
-        # Create answer_cache_embeddings table
-        # Schema design mirrors segment_embeddings for consistency:
-        # - UUID primary key for distributed systems compatibility
-        # - answer_cache_id FK with CASCADE delete for data integrity
-        # - model_key to identify which embedding model was used
-        # - dimensions stored for validation and index selection
-        # - is_active flag for model switching without data deletion
-        # - UNIQUE constraint prevents duplicate embeddings per cache entry/model
-        # - embedding uses VECTOR(384) for IVFFlat index compatibility
-        print("\n📦 Creating answer_cache_embeddings table...")
-        conn.execute(text("""
-            CREATE TABLE answer_cache_embeddings (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                answer_cache_id INTEGER NOT NULL REFERENCES answer_cache(id) ON DELETE CASCADE,
+        print(f"\n📦 Creating {TABLE_NAME}...")
+        conn.execute(text(f"""
+            CREATE TABLE {TABLE_NAME} (
+                id BIGSERIAL PRIMARY KEY,
+                answer_cache_id BIGINT NOT NULL REFERENCES answer_cache(id) ON DELETE CASCADE,
                 model_key TEXT NOT NULL,
-                dimensions INTEGER NOT NULL,
-                embedding VECTOR(384) NOT NULL,
+                embedding VECTOR({DIMENSIONS}) NOT NULL,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-                is_active BOOLEAN NOT NULL DEFAULT TRUE,
-                UNIQUE (answer_cache_id, model_key)
+                UNIQUE(answer_cache_id, model_key)
             )
         """))
         print("   ✅ Table created")
-    else:
-        # For existing tables: ensure embedding column has fixed dimensions
-        print("\n🔧 Ensuring embedding column has fixed dimensions...")
-        conn.execute(text("""
-            ALTER TABLE answer_cache_embeddings
-            ALTER COLUMN embedding TYPE VECTOR(384)
-        """))
-        print("   ✅ Embedding column type set to VECTOR(384)")
     
-    # Create indexes
+    # 2. Create indexes
     print("\n📊 Creating indexes...")
     
-    conn.execute(text("""
-        CREATE INDEX IF NOT EXISTS idx_ace_model_active 
-        ON answer_cache_embeddings(model_key, is_active) 
-        WHERE is_active = TRUE
+    conn.execute(text(f"""
+        CREATE INDEX IF NOT EXISTS idx_{TABLE_NAME}_model_key
+        ON {TABLE_NAME}(model_key)
     """))
-    print("   ✅ idx_ace_model_active created")
+    print(f"   ✅ idx_{TABLE_NAME}_model_key created")
     
-    conn.execute(text("""
-        CREATE INDEX IF NOT EXISTS idx_ace_answer_cache_id 
-        ON answer_cache_embeddings(answer_cache_id)
+    conn.execute(text(f"""
+        CREATE INDEX IF NOT EXISTS idx_{TABLE_NAME}_answer_cache_id
+        ON {TABLE_NAME}(answer_cache_id)
     """))
-    print("   ✅ idx_ace_answer_cache_id created")
+    print(f"   ✅ idx_{TABLE_NAME}_answer_cache_id created")
     
-    # Create IVFFlat vector index for ANN search
-    # This index is required for fast semantic cache lookups
-    print(f"\n🔍 Creating IVFFlat vector index...")
-    
-    conn.execute(text("""
-        CREATE INDEX IF NOT EXISTS idx_answer_cache_embeddings_vector
-        ON answer_cache_embeddings USING ivfflat (embedding vector_cosine_ops)
-        WITH (lists = 50)
-    """))
-    print(f"   ✅ IVFFlat index idx_answer_cache_embeddings_vector created")
-    
-    # Migrate existing embeddings from answer_cache if they exist
+    # 3. Migrate existing embeddings from answer_cache legacy columns
     print("\n📥 Checking for legacy embeddings in answer_cache...")
     
-    # Check if answer_cache has embedding columns
     result = conn.execute(text("""
         SELECT column_name FROM information_schema.columns
         WHERE table_name = 'answer_cache' AND column_name LIKE 'query_embedding_%'
     """))
     legacy_columns = [row[0] for row in result]
     
-    if legacy_columns:
-        print(f"   Found legacy columns: {legacy_columns}")
+    if 'query_embedding_384' in legacy_columns:
+        result = conn.execute(text("""
+            SELECT COUNT(*) FROM answer_cache WHERE query_embedding_384 IS NOT NULL
+        """))
+        count = result.scalar() or 0
         
-        # Migrate from the appropriate column based on dimensions
-        dim_to_column = {
-            384: 'query_embedding_384',
-            768: 'query_embedding_768',
-            1536: 'query_embedding_1536'
-        }
-        
-        source_column = dim_to_column.get(dimensions)
-        if source_column and source_column in legacy_columns:
-            result = conn.execute(text(f"""
-                SELECT COUNT(*) FROM answer_cache WHERE {source_column} IS NOT NULL
-            """))
-            count = result.scalar()
-            
-            if count > 0:
-                print(f"   Migrating {count} embeddings from {source_column}...")
-                conn.execute(text(f"""
-                    INSERT INTO answer_cache_embeddings (answer_cache_id, model_key, dimensions, embedding, is_active)
-                    SELECT 
-                        id,
-                        :model_key,
-                        :dimensions,
-                        {source_column},
-                        TRUE
-                    FROM answer_cache
-                    WHERE {source_column} IS NOT NULL
-                    ON CONFLICT (answer_cache_id, model_key) DO NOTHING
-                """).bindparams(model_key=model_key, dimensions=dimensions))
-                print(f"   ✅ Migrated {count} embeddings")
+        if count > 0:
+            print(f"   Migrating {count} embeddings from query_embedding_384...")
+            conn.execute(text(f"""
+                INSERT INTO {TABLE_NAME} (answer_cache_id, model_key, embedding)
+                SELECT id, :model_key, query_embedding_384
+                FROM answer_cache
+                WHERE query_embedding_384 IS NOT NULL
+                ON CONFLICT (answer_cache_id, model_key) DO NOTHING
+            """).bindparams(model_key=MODEL_KEY))
+            print(f"   ✅ Migrated {count} embeddings")
         else:
-            print(f"   ℹ️  No matching legacy column for {dimensions} dimensions")
+            print("   ℹ️  No legacy embeddings to migrate")
     else:
-        print("   ℹ️  No legacy embedding columns found")
+        print("   ℹ️  No query_embedding_384 column found")
     
-    # Add comment
-    conn.execute(text("""
-        COMMENT ON TABLE answer_cache_embeddings IS 
-        'Normalized storage for answer cache embeddings. Supports multiple embedding models for semantic cache lookup.'
+    # 4. Create IVFFlat index
+    print(f"\n🔍 Creating IVFFlat vector index...")
+    
+    result = conn.execute(text(f"SELECT COUNT(*) FROM {TABLE_NAME}"))
+    row = result.fetchone()
+    embedding_count = row[0] if row else 0
+    
+    lists = max(10, min(100, int(math.sqrt(embedding_count)))) if embedding_count > 0 else 50
+    print(f"   Embedding count: {embedding_count:,}, lists={lists}")
+    
+    conn.execute(text(f"""
+        CREATE INDEX IF NOT EXISTS idx_{TABLE_NAME}_ivfflat
+        ON {TABLE_NAME} USING ivfflat (embedding vector_cosine_ops)
+        WITH (lists = {lists})
+    """))
+    print(f"   ✅ IVFFlat index created")
+    
+    # 5. Create compatibility view
+    print("\n📋 Creating compatibility view...")
+    conn.execute(text("DROP VIEW IF EXISTS answer_cache_embeddings CASCADE"))
+    conn.execute(text(f"""
+        CREATE VIEW answer_cache_embeddings AS
+        SELECT 
+            id,
+            answer_cache_id,
+            model_key,
+            {DIMENSIONS} as dimensions,
+            embedding,
+            created_at,
+            TRUE as is_active
+        FROM {TABLE_NAME}
+    """))
+    print("   ✅ answer_cache_embeddings view created")
+    
+    # 6. Add comment
+    conn.execute(text(f"""
+        COMMENT ON TABLE {TABLE_NAME} IS 
+        'Answer cache embeddings for 384-dimension models (BGE-small-en-v1.5). Part of table-per-dimension architecture.'
     """))
     
     print("\n" + "=" * 60)
     print("✅ Migration 022 complete!")
+    print("=" * 60)
+    print(f"   • {TABLE_NAME} with VECTOR({DIMENSIONS})")
+    print(f"   • IVFFlat index (lists={lists})")
+    print(f"   • answer_cache_embeddings compatibility view")
     print("=" * 60)
 
 
@@ -249,21 +183,15 @@ def downgrade() -> None:
     
     print("🔄 Rolling back migration 022...")
     
+    # Drop compatibility view
+    conn.execute(text("DROP VIEW IF EXISTS answer_cache_embeddings CASCADE"))
+    
     # Drop indexes
-    conn.execute(text("DROP INDEX IF EXISTS idx_ace_model_active"))
-    conn.execute(text("DROP INDEX IF EXISTS idx_ace_answer_cache_id"))
-    conn.execute(text("DROP INDEX IF EXISTS idx_answer_cache_embeddings_vector"))
+    conn.execute(text(f"DROP INDEX IF EXISTS idx_{TABLE_NAME}_model_key"))
+    conn.execute(text(f"DROP INDEX IF EXISTS idx_{TABLE_NAME}_answer_cache_id"))
+    conn.execute(text(f"DROP INDEX IF EXISTS idx_{TABLE_NAME}_ivfflat"))
     
-    # Drop legacy model-specific vector indexes (from previous migration versions)
-    result = conn.execute(text("""
-        SELECT indexname FROM pg_indexes 
-        WHERE tablename = 'answer_cache_embeddings' 
-        AND indexname LIKE 'idx_ace_vector_%'
-    """))
-    for row in result:
-        conn.execute(text(f"DROP INDEX IF EXISTS {row[0]}"))
+    # Drop table
+    conn.execute(text(f"DROP TABLE IF EXISTS {TABLE_NAME} CASCADE"))
     
-    # Drop the table
-    conn.execute(text("DROP TABLE IF EXISTS answer_cache_embeddings CASCADE"))
-    
-    print("   ✅ answer_cache_embeddings table dropped")
+    print(f"   ✅ {TABLE_NAME} dropped")
