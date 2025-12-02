@@ -123,8 +123,10 @@ def upgrade() -> None:
         """)
         
         # Seed default profile with current hardcoded instructions
+        # Note: op.execute() doesn't support parameters, use connection.execute() instead
         default_id = str(uuid.uuid4())
-        op.execute(
+        conn = op.get_bind()
+        conn.execute(
             sa.text("""
                 INSERT INTO rag_profiles (id, name, description, base_instructions, style_instructions, retrieval_hints, model_name, max_context_tokens, temperature, is_default)
                 VALUES (:id, :name, :description, :base_instructions, :style_instructions, :retrieval_hints, :model_name, :max_context_tokens, :temperature, true)
