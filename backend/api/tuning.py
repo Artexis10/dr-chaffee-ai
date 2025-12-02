@@ -690,15 +690,18 @@ async def list_summarizer_models():
 async def test_search(search_request: TestSearchRequest, request: Request):
     """
     Test search with current or specified model.
+    Uses normalized storage (segment_embeddings) with fallback to legacy (segments.embedding).
     Protected: requires tuning_auth cookie.
     """
     from ..services.embeddings_service import EmbeddingsService
+    from .embedding_config import get_active_model_key, use_normalized_storage, use_fallback_read
     import psycopg2
+    from psycopg2.extras import RealDictCursor
     
     try:
         # Get active model or use override
         config = load_embedding_models()
-        model_key = search_request.model_key or config.get("active_query_model")
+        model_key = search_request.model_key or config.get("active_query_model") or get_active_model_key()
         
         # Generate query embedding
         embeddings_service = EmbeddingsService.get_instance()
@@ -706,39 +709,101 @@ async def test_search(search_request: TestSearchRequest, request: Request):
         
         # Search database
         top_k = search_request.top_k or int(os.getenv("ANSWER_TOPK", "20"))
+        embedding_list = query_embedding.tolist() if hasattr(query_embedding, 'tolist') else query_embedding
+        embedding_str = str(embedding_list)
         
         conn = psycopg2.connect(os.getenv('DATABASE_URL'))
+        results = []
+        search_source = "none"
+        
         try:
-            with conn.cursor() as cur:
-                # Use pgvector cosine similarity search with JOIN to get YouTube ID
-                cur.execute("""
-                    SELECT 
-                        s.text,
-                        1 - (s.embedding <=> %s::vector) as similarity,
-                        s.source_id,
-                        src.source_id as youtube_id,
-                        s.start_sec,
-                        s.end_sec,
-                        s.speaker_label
-                    FROM segments s
-                    JOIN sources src ON s.source_id = src.id
-                    WHERE s.embedding IS NOT NULL
-                    ORDER BY s.embedding <=> %s::vector
-                    LIMIT %s
-                """, (query_embedding.tolist(), query_embedding.tolist(), top_k))
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                # Try normalized storage first if enabled
+                if use_normalized_storage():
+                    try:
+                        # Check if segment_embeddings table exists and has data
+                        cur.execute("""
+                            SELECT EXISTS (
+                                SELECT FROM information_schema.tables 
+                                WHERE table_schema = 'public' 
+                                AND table_name = 'segment_embeddings'
+                            )
+                        """)
+                        table_exists = cur.fetchone()['exists']
+                        
+                        if table_exists:
+                            cur.execute("""
+                                SELECT COUNT(*) as cnt FROM segment_embeddings 
+                                WHERE model_key = %s AND is_active = TRUE
+                            """, [model_key])
+                            count = cur.fetchone()['cnt']
+                            
+                            if count > 0:
+                                cur.execute("""
+                                    SELECT 
+                                        s.text,
+                                        1 - (se.embedding <=> %s::vector) as similarity,
+                                        s.source_id,
+                                        src.source_id as youtube_id,
+                                        s.start_sec,
+                                        s.end_sec,
+                                        s.speaker_label
+                                    FROM segment_embeddings se
+                                    JOIN segments s ON se.segment_id = s.id
+                                    JOIN sources src ON s.source_id = src.id
+                                    WHERE se.model_key = %s AND se.is_active = TRUE
+                                    ORDER BY se.embedding <=> %s::vector
+                                    LIMIT %s
+                                """, (embedding_str, model_key, embedding_str, top_k))
+                                
+                                rows = cur.fetchall()
+                                if rows:
+                                    search_source = f"segment_embeddings:{model_key}"
+                                    for row in rows:
+                                        results.append(TestSearchResult(
+                                            text=row['text'],
+                                            similarity=float(row['similarity']),
+                                            source_id=row['source_id'],
+                                            youtube_id=row['youtube_id'],
+                                            start_sec=float(row['start_sec']),
+                                            end_sec=float(row['end_sec']),
+                                            speaker_label=row['speaker_label']
+                                        ))
+                    except Exception as e:
+                        logger.warning(f"Normalized search failed, falling back: {e}")
                 
-                results = []
-                for row in cur.fetchall():
-                    results.append(TestSearchResult(
-                        text=row[0],
-                        similarity=float(row[1]),
-                        source_id=row[2],
-                        youtube_id=row[3],
-                        start_sec=float(row[4]),
-                        end_sec=float(row[5]),
-                        speaker_label=row[6]
-                    ))
+                # Fallback to legacy storage if needed
+                if not results and (use_fallback_read() or not use_normalized_storage()):
+                    cur.execute("""
+                        SELECT 
+                            s.text,
+                            1 - (s.embedding <=> %s::vector) as similarity,
+                            s.source_id,
+                            src.source_id as youtube_id,
+                            s.start_sec,
+                            s.end_sec,
+                            s.speaker_label
+                        FROM segments s
+                        JOIN sources src ON s.source_id = src.id
+                        WHERE s.embedding IS NOT NULL
+                        ORDER BY s.embedding <=> %s::vector
+                        LIMIT %s
+                    """, (embedding_str, embedding_str, top_k))
+                    
+                    rows = cur.fetchall()
+                    search_source = "segments.embedding"
+                    for row in rows:
+                        results.append(TestSearchResult(
+                            text=row['text'],
+                            similarity=float(row['similarity']),
+                            source_id=row['source_id'],
+                            youtube_id=row['youtube_id'],
+                            start_sec=float(row['start_sec']),
+                            end_sec=float(row['end_sec']),
+                            speaker_label=row['speaker_label']
+                        ))
                 
+                logger.info(f"Test search completed: {len(results)} results from {search_source}")
                 return results
         finally:
             conn.close()
@@ -751,8 +816,9 @@ async def test_search(search_request: TestSearchRequest, request: Request):
 @router.get("/stats")
 async def get_stats():
     """
-    Get ingestion and embedding statistics
+    Get ingestion and embedding statistics including normalized storage metrics
     """
+    from .embedding_config import get_active_model_key, use_normalized_storage, load_embedding_config
     import psycopg2
     
     try:
@@ -770,7 +836,7 @@ async def get_stats():
                 """)
                 stats = cur.fetchone()
                 
-                # Get embedding dimension info
+                # Get embedding dimension info from legacy storage
                 cur.execute("""
                     SELECT vector_dims(embedding) as dimensions
                     FROM segments
@@ -778,15 +844,67 @@ async def get_stats():
                     LIMIT 1
                 """)
                 dim_row = cur.fetchone()
-                dimensions = dim_row[0] if dim_row else None
+                legacy_dimensions = dim_row[0] if dim_row else None
+                
+                # Get normalized storage stats
+                normalized_stats = {}
+                try:
+                    cur.execute("""
+                        SELECT EXISTS (
+                            SELECT FROM information_schema.tables 
+                            WHERE table_schema = 'public' 
+                            AND table_name = 'segment_embeddings'
+                        )
+                    """)
+                    table_exists = cur.fetchone()[0]
+                    
+                    if table_exists:
+                        # Get per-model counts
+                        cur.execute("""
+                            SELECT 
+                                model_key,
+                                dimensions,
+                                COUNT(*) as count,
+                                COUNT(*) FILTER (WHERE is_active) as active_count
+                            FROM segment_embeddings
+                            GROUP BY model_key, dimensions
+                            ORDER BY count DESC
+                        """)
+                        model_stats = []
+                        for row in cur.fetchall():
+                            model_stats.append({
+                                "model_key": row[0],
+                                "dimensions": row[1],
+                                "total_embeddings": row[2],
+                                "active_embeddings": row[3]
+                            })
+                        
+                        normalized_stats = {
+                            "table_exists": True,
+                            "models": model_stats,
+                            "total_embeddings": sum(m["total_embeddings"] for m in model_stats)
+                        }
+                    else:
+                        normalized_stats = {"table_exists": False, "models": [], "total_embeddings": 0}
+                except Exception as e:
+                    logger.warning(f"Could not get normalized stats: {e}")
+                    normalized_stats = {"table_exists": False, "error": str(e)}
+                
+                # Get embedding config
+                config = load_embedding_config()
                 
                 return {
                     "total_segments": stats[0],
                     "total_videos": stats[1],
                     "segments_with_embeddings": stats[2],
                     "unique_speakers": stats[3],
-                    "embedding_dimensions": dimensions,
-                    "embedding_coverage": f"{(stats[2] / stats[0] * 100):.1f}%" if stats[0] > 0 else "0%"
+                    "embedding_dimensions": legacy_dimensions,
+                    "embedding_coverage": f"{(stats[2] / stats[0] * 100):.1f}%" if stats[0] > 0 else "0%",
+                    "storage_strategy": config.get("storage_strategy", "legacy"),
+                    "active_model": get_active_model_key(),
+                    "normalized_storage": normalized_stats,
+                    "dual_write_enabled": config.get("use_dual_write", False),
+                    "fallback_read_enabled": config.get("use_fallback_read", True)
                 }
         finally:
             conn.close()
@@ -794,6 +912,25 @@ async def get_stats():
     except Exception as e:
         logger.error(f"Failed to get stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/embeddings/models")
+async def list_embedding_models_tuning():
+    """
+    List available embedding models with their configurations.
+    """
+    from .embedding_config import get_model_list, get_active_model_key, load_embedding_config
+    
+    config = load_embedding_config()
+    models = get_model_list()
+    
+    return {
+        "models": models,
+        "active_query_model": config.get("active_query_model"),
+        "active_ingestion_models": config.get("active_ingestion_models", []),
+        "storage_strategy": config.get("storage_strategy"),
+        "recommended_model": config.get("recommended_model")
+    }
 
 
 # ============================================================================

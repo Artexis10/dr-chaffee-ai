@@ -15,7 +15,7 @@ import json
 import os
 import logging
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime
 import uuid
 
@@ -48,6 +48,16 @@ from .model_catalog import (
     model_max_context,
     model_supports_json_mode,
     find_model_with_capability,
+)
+
+# Import embedding config helpers
+from .embedding_config import (
+    get_active_model_key as get_active_embedding_model_key,
+    get_model_dimensions,
+    use_normalized_storage,
+    use_fallback_read,
+    get_model_list as get_embedding_model_list,
+    load_embedding_config,
 )
 
 app = FastAPI(
@@ -256,30 +266,159 @@ def check_db_embedding_consistency():
         return True, f"Check skipped: {e}"
 
 def get_active_model_key():
-    """Get the active model key from resolved config"""
-    config = resolve_embedding_config()
-    
-    # Map model name to key
-    model_to_key = {
-        'BAAI/bge-small-en-v1.5': 'bge-small-en-v1.5',
-        'Alibaba-NLP/gte-Qwen2-1.5B-instruct': 'gte-qwen2-1.5b',
-        'nomic-embed-text-v1.5': 'nomic-v1.5',
-    }
-    
-    return model_to_key.get(config['model'], 'bge-small-en-v1.5')
+    """Get the active model key from embedding config"""
+    return get_active_embedding_model_key()
 
-# Removed: use_normalized_embeddings() - using legacy storage only
+
+def semantic_search_with_fallback(cur, query_embedding, model_key: str, top_k: int, 
+                                   min_similarity: float = 0.0) -> Tuple[List[Dict], str]:
+    """
+    Perform semantic search with fallback from normalized to legacy storage.
+    
+    Args:
+        cur: Database cursor
+        query_embedding: Query embedding vector (list or numpy array)
+        model_key: Embedding model key
+        top_k: Number of results to return
+        min_similarity: Minimum similarity threshold (0-1)
+        
+    Returns:
+        Tuple of (results list, source string indicating which storage was used)
+    """
+    embedding_list = query_embedding.tolist() if hasattr(query_embedding, 'tolist') else query_embedding
+    embedding_str = str(embedding_list)
+    
+    results = []
+    source = "none"
+    
+    # Try normalized storage first if enabled
+    if use_normalized_storage():
+        try:
+            # Check if segment_embeddings table exists and has data for this model
+            cur.execute("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_schema = 'public' 
+                    AND table_name = 'segment_embeddings'
+                )
+            """)
+            table_exists = cur.fetchone()[0]
+            
+            if table_exists:
+                # Check if there are embeddings for this model
+                cur.execute("""
+                    SELECT COUNT(*) FROM segment_embeddings 
+                    WHERE model_key = %s AND is_active = TRUE
+                """, [model_key])
+                count = cur.fetchone()[0]
+                
+                if count > 0:
+                    # Use normalized storage
+                    cur.execute("""
+                        SELECT 
+                            seg.id,
+                            s.id as source_id,
+                            s.source_id as video_id,
+                            s.title,
+                            seg.text,
+                            seg.start_sec as start_time_seconds,
+                            seg.end_sec as end_time_seconds,
+                            s.published_at,
+                            s.source_type,
+                            1 - (se.embedding <=> %s::vector) as similarity
+                        FROM segment_embeddings se
+                        JOIN segments seg ON se.segment_id = seg.id
+                        JOIN sources s ON seg.source_id = s.id
+                        WHERE se.model_key = %s 
+                          AND se.is_active = TRUE
+                          AND 1 - (se.embedding <=> %s::vector) >= %s
+                        ORDER BY se.embedding <=> %s::vector
+                        LIMIT %s
+                    """, [embedding_str, model_key, embedding_str, min_similarity, embedding_str, top_k])
+                    
+                    results = cur.fetchall()
+                    if results:
+                        source = f"segment_embeddings:{model_key}"
+                        logger.debug(f"Semantic search: {len(results)} results from segment_embeddings")
+                        return results, source
+                    
+        except Exception as e:
+            logger.warning(f"Normalized storage search failed, falling back to legacy: {e}")
+    
+    # Fallback to legacy storage if enabled or if normalized failed
+    if use_fallback_read() or not use_normalized_storage():
+        try:
+            cur.execute("""
+                SELECT 
+                    seg.id,
+                    s.id as source_id,
+                    s.source_id as video_id,
+                    s.title,
+                    seg.text,
+                    seg.start_sec as start_time_seconds,
+                    seg.end_sec as end_time_seconds,
+                    s.published_at,
+                    s.source_type,
+                    1 - (seg.embedding <=> %s::vector) as similarity
+                FROM segments seg
+                JOIN sources s ON seg.source_id = s.id
+                WHERE seg.embedding IS NOT NULL
+                  AND 1 - (seg.embedding <=> %s::vector) >= %s
+                ORDER BY seg.embedding <=> %s::vector
+                LIMIT %s
+            """, [embedding_str, embedding_str, min_similarity, embedding_str, top_k])
+            
+            results = cur.fetchall()
+            if results:
+                source = "segments.embedding"
+                logger.debug(f"Semantic search: {len(results)} results from legacy segments.embedding")
+                
+        except Exception as e:
+            logger.error(f"Legacy storage search failed: {e}")
+    
+    return results, source
 
 def get_available_embedding_models():
-    """Get list of embedding models from legacy segments.embedding column"""
-    import logging
-    logger = logging.getLogger(__name__)
+    """Get list of embedding models from both normalized and legacy storage"""
+    models = []
     
     try:
         conn = get_db_connection()
         cur = conn.cursor()
         
-        logger.info("Checking legacy segments table for embeddings...")
+        # Check normalized storage first (segment_embeddings table)
+        try:
+            cur.execute("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_schema = 'public' 
+                    AND table_name = 'segment_embeddings'
+                )
+            """)
+            table_exists = cur.fetchone()['exists']
+            
+            if table_exists:
+                cur.execute("""
+                    SELECT 
+                        model_key,
+                        dimensions,
+                        COUNT(*) as count
+                    FROM segment_embeddings
+                    WHERE is_active = TRUE
+                    GROUP BY model_key, dimensions
+                    ORDER BY count DESC
+                """)
+                for row in cur.fetchall():
+                    models.append({
+                        "model_key": row['model_key'],
+                        "dimensions": row['dimensions'],
+                        "count": row['count'],
+                        "storage": "segment_embeddings"
+                    })
+        except Exception as e:
+            logger.debug(f"Could not check segment_embeddings: {e}")
+        
+        # Also check legacy storage
         cur.execute("""
             SELECT COUNT(*) as count
             FROM segments
@@ -288,68 +427,42 @@ def get_available_embedding_models():
         legacy_result = cur.fetchone()
         
         if legacy_result and legacy_result['count'] > 0:
-            # Get a sample embedding to determine dimensions
+            # Get dimensions from legacy storage
             cur.execute("""
-                SELECT embedding
+                SELECT vector_dims(embedding) as dimensions
                 FROM segments
                 WHERE embedding IS NOT NULL
                 LIMIT 1
             """)
-            sample = cur.fetchone()
-            
-            if sample and sample['embedding']:
-                # Get dimensions from the vector
-                # Try multiple methods to be robust
-                try:
-                    # Method 1: If it's already a list/array (most common)
-                    if isinstance(sample['embedding'], (list, tuple)):
-                        dimensions = len(sample['embedding'])
-                    elif hasattr(sample['embedding'], '__len__') and not isinstance(sample['embedding'], str):
-                        dimensions = len(sample['embedding'])
-                    else:
-                        # Method 2: Parse as string '[0.1, 0.2, ...]'
-                        embedding_str = str(sample['embedding'])
-                        # Remove brackets and split by comma
-                        parts = embedding_str.strip('[]').split(',')
-                        # Filter out empty strings
-                        parts = [p.strip() for p in parts if p.strip()]
-                        dimensions = len(parts)
-                except Exception as e:
-                    logger.error(f"Failed to determine dimensions: {e}")
-                    # Fallback to resolved config dimension
-                    dimensions = resolve_embedding_config()['dimensions']
+            dim_row = cur.fetchone()
+            if dim_row and dim_row['dimensions']:
+                dimensions = dim_row['dimensions']
                 
-                # Get count of embeddings
-                cur.execute("""
-                    SELECT COUNT(*) as count
-                    FROM segments
-                    WHERE embedding IS NOT NULL
-                """)
-                result = cur.fetchone()
-                cur.close()
-                conn.close()
+                # Map dimensions to model key
+                dimension_to_model = {
+                    384: 'bge-small-en-v1.5',
+                    768: 'nomic-v1.5',
+                    1024: 'bge-large-en',
+                    1536: 'gte-qwen2-1.5b',
+                    3072: 'openai-3-large'
+                }
+                model_key = dimension_to_model.get(dimensions, f'unknown-{dimensions}d')
                 
-                if result and result['count'] > 0:
-                    # Map dimensions to model key (must match keys in embedding_models.json)
-                    # 384 = BGE-small, 768 = Nomic, 1536 = OpenAI/GTE-Qwen2
-                    dimension_to_model = {
-                        384: 'bge-small-en-v1.5',
-                        768: 'nomic-v1.5',
-                        1536: 'gte-qwen2-1.5b'
-                    }
-                    model_key = dimension_to_model.get(dimensions, 'bge-small-en-v1.5')
-                    
-                    model = {
-                        "model_key": model_key, 
-                        "dimensions": dimensions, 
-                        "count": result['count']
-                    }
-                    logger.info(f"Available embedding model: {model}")
-                    return [model]
+                # Only add if not already in normalized list
+                if not any(m['model_key'] == model_key for m in models):
+                    models.append({
+                        "model_key": model_key,
+                        "dimensions": dimensions,
+                        "count": legacy_result['count'],
+                        "storage": "segments.embedding"
+                    })
         
         cur.close()
         conn.close()
-        return []
+        
+        logger.info(f"Available embedding models: {models}")
+        return models
+        
     except Exception as e:
         logger.error(f"Failed to get available models: {e}", exc_info=True)
         return []
@@ -1465,11 +1578,15 @@ async def answer_cache_save(request: CacheSaveRequest):
         cache_id = cur.fetchone()['id']
         
         # Insert embedding into answer_cache_embeddings table
+        dimensions = len(embedding_list)
         cur.execute("""
             INSERT INTO answer_cache_embeddings (
-                answer_cache_id, model_key, embedding
-            ) VALUES (%s, %s, %s::vector)
-        """, [cache_id, model_key, str(embedding_list)])
+                answer_cache_id, model_key, dimensions, embedding
+            ) VALUES (%s, %s, %s, %s::vector)
+            ON CONFLICT (answer_cache_id, model_key) DO UPDATE SET
+                embedding = EXCLUDED.embedding,
+                dimensions = EXCLUDED.dimensions
+        """, [cache_id, model_key, dimensions, str(embedding_list)])
         
         conn.commit()
         cur.close()
@@ -1488,13 +1605,14 @@ async def answer_cache_save(request: CacheSaveRequest):
 async def get_answer_chunks(request: ChunksRequest):
     """
     Get relevant chunks for RAG answer generation.
-    Uses semantic search if embedding available, falls back to text search.
+    Uses semantic search with normalized/legacy fallback, then text search.
     """
     try:
         conn = get_db_connection()
         cur = conn.cursor()
         
         chunks = []
+        search_source = "none"
         
         if request.use_semantic:
             # Generate embedding for the query
@@ -1503,28 +1621,15 @@ async def get_answer_chunks(request: ChunksRequest):
             
             if embeddings and len(embeddings) > 0:
                 query_embedding = embeddings[0]
-                embedding_list = query_embedding.tolist() if hasattr(query_embedding, 'tolist') else query_embedding
+                model_key = get_active_model_key()
                 
-                cur.execute("""
-                    SELECT 
-                        seg.id,
-                        s.id as source_id,
-                        s.source_id as video_id,
-                        s.title,
-                        seg.text,
-                        seg.start_sec as start_time_seconds,
-                        seg.end_sec as end_time_seconds,
-                        s.published_at,
-                        s.source_type,
-                        1 - (seg.embedding <=> %s::vector) as similarity
-                    FROM segments seg
-                    JOIN sources s ON seg.source_id = s.id
-                    WHERE seg.embedding IS NOT NULL
-                    ORDER BY seg.embedding <=> %s::vector
-                    LIMIT %s
-                """, [str(embedding_list), str(embedding_list), request.top_k])
+                # Use semantic search with fallback
+                chunks, search_source = semantic_search_with_fallback(
+                    cur, query_embedding, model_key, request.top_k
+                )
                 
-                chunks = cur.fetchall()
+                if search_source != "none":
+                    logger.info(f"Semantic search source: {search_source}")
         
         # Fallback to text search if no semantic results
         if not chunks:
@@ -1548,6 +1653,7 @@ async def get_answer_chunks(request: ChunksRequest):
             """, [f'%{request.query}%', request.top_k])
             
             chunks = cur.fetchall()
+            search_source = "text_search"
         
         cur.close()
         conn.close()

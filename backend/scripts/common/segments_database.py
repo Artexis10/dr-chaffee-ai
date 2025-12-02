@@ -2,10 +2,15 @@
 """
 Enhanced segments database integration for distil-large-v3 + Chaffee-aware system
 Replaces the old chunks-based system with proper speaker attribution
+
+Supports dual-write architecture:
+- Legacy: segments.embedding column
+- Normalized: segment_embeddings table (multi-model support)
 """
 
 import os
 import uuid
+import json
 import logging
 import psycopg2
 import psycopg2.extras
@@ -14,6 +19,29 @@ from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
+
+# Import embedding config helpers (with fallback for standalone usage)
+try:
+    from api.embedding_config import (
+        get_active_model_key,
+        get_model_dimensions,
+        use_dual_write,
+        use_normalized_storage,
+    )
+    _HAS_EMBEDDING_CONFIG = True
+except ImportError:
+    _HAS_EMBEDDING_CONFIG = False
+    logger.debug("embedding_config not available, using defaults")
+
+
+def _get_embedding_config_fallback():
+    """Fallback embedding config when api.embedding_config is not available"""
+    return {
+        'model_key': os.getenv('EMBEDDING_MODEL_KEY', 'bge-small-en-v1.5'),
+        'dimensions': int(os.getenv('EMBEDDING_DIMENSIONS', '384')),
+        'use_dual_write': os.getenv('EMBEDDING_DUAL_WRITE', 'true').lower() in ('1', 'true', 'yes'),
+        'use_normalized': os.getenv('EMBEDDING_STORAGE_STRATEGY', 'normalized') == 'normalized',
+    }
 
 class SegmentsDatabase:
     """Enhanced segments database with speaker attribution and pgvector support"""
@@ -52,88 +80,10 @@ class SegmentsDatabase:
                 self.connection = psycopg2.connect(self.db_url)
         return self.connection
     
-    def get_cached_voice_embeddings(self, video_id: str, max_age_days: int = 30) -> Dict[Tuple[float, float], Any]:
-        """Retrieve cached voice embeddings from database for a video
-        
-        Args:
-            video_id: Video ID to get cached embeddings for
-            max_age_days: Maximum age of cache in days (default: 30)
-                         Set to None to disable age check
-            
-        Returns:
-            Dict mapping (start_sec, end_sec) -> voice_embedding
-            Empty dict if no cached embeddings found or cache too old
-            
-        Cache Invalidation Strategy:
-        - Only returns cache for videos processed within max_age_days
-        - This prevents stale embeddings if speaker voice changes
-        - For reprocessing with --force, cache is still used (efficiency)
-        - New videos always get fresh embeddings (no cache exists)
-        """
-        try:
-            conn = self.get_connection()
-            # Ensure connection is in good state before proceeding
-            if conn.get_transaction_status() == 3:  # TRANSACTION_STATUS_INERROR
-                conn.rollback()
-            with conn.cursor() as cur:
-                # Check if video exists and when it was last processed
-                # Note: Skip age check if sources table doesn't exist or has different schema
-                if max_age_days is not None:
-                    try:
-                        age_check = """
-                            SELECT created_at 
-                            FROM sources 
-                            WHERE source_id = %s 
-                            AND created_at > NOW() - INTERVAL '%s days'
-                        """
-                        cur.execute(age_check, (video_id, max_age_days))
-                        if not cur.fetchone():
-                            logger.debug(f"Voice embedding cache expired or video not found: {video_id}")
-                            return {}
-                    except Exception as e:
-                        # Sources table might not exist or have different schema - skip age check
-                        logger.debug(f"Skipping age check (sources table issue): {e}")
-                
-                # Retrieve cached embeddings - use source_id FK
-                # First get source_id from video_id (YouTube ID)
-                cur.execute("SELECT id FROM sources WHERE source_id = %s", (video_id,))
-                result = cur.fetchone()
-                if not result:
-                    logger.debug(f"Source not found for video_id {video_id}")
-                    return {}
-                source_id = result[0]
-                
-                query = """
-                    SELECT start_sec, end_sec, voice_embedding
-                    FROM segments
-                    WHERE source_id = %s AND voice_embedding IS NOT NULL
-                    ORDER BY start_sec
-                """
-                cur.execute(query, (source_id,))
-                rows = cur.fetchall()
-                
-                if rows:
-                    cache = {(row[0], row[1]): row[2] for row in rows}
-                    logger.info(f"✅ Voice embedding cache hit: {len(cache)} embeddings for {video_id}")
-                    return cache
-                else:
-                    logger.debug(f"Voice embedding cache miss: no embeddings for {video_id}")
-                    return {}
-                    
-        except Exception as e:
-            logger.warning(f"Failed to retrieve cached voice embeddings: {e}")
-            # CRITICAL: Ensure rollback and connection reset on error
-            try:
-                conn = self.get_connection()
-                if conn and not conn.closed:
-                    if conn.get_transaction_status() == 3:  # TRANSACTION_STATUS_INERROR
-                        logger.warning("Connection in failed transaction state, rolling back and resetting")
-                        conn.rollback()
-                        # Force connection reset to clear error state
-                        conn.reset()
-            except Exception as reset_error:
-                logger.debug(f"Error during connection reset: {reset_error}")
-            return {}
+    # NOTE: get_cached_voice_embeddings was removed in Dec 2025.
+    # Voice embedding / speaker ID feature is not wired end-to-end.
+    # The segments.voice_embedding column was never created in production.
+    # Re-introduce this method when speaker identification is properly implemented.
     
     def upsert_source(self, video_id: str, title: str, 
                      source_type: str = 'youtube', 
@@ -241,12 +191,13 @@ class SegmentsDatabase:
                 source_id = result[0]
                 
                 # Prepare batch insert with ON CONFLICT UPDATE to handle reprocessing
+                # NOTE: voice_embedding column removed Dec 2025 - speaker ID not wired end-to-end
                 insert_query = """
                     INSERT INTO segments (
                         source_id, start_sec, end_sec, speaker_label, speaker_conf,
                         text, avg_logprob, compression_ratio, no_speech_prob,
                         temperature_used, re_asr, is_overlap, needs_refinement,
-                        embedding, voice_embedding
+                        embedding
                     ) VALUES %s
                     ON CONFLICT (source_id, start_sec, end_sec, text)
                     DO UPDATE SET
@@ -259,9 +210,26 @@ class SegmentsDatabase:
                         re_asr = EXCLUDED.re_asr,
                         is_overlap = EXCLUDED.is_overlap,
                         needs_refinement = EXCLUDED.needs_refinement,
-                        embedding = EXCLUDED.embedding,
-                        voice_embedding = COALESCE(EXCLUDED.voice_embedding, segments.voice_embedding)
+                        embedding = EXCLUDED.embedding
                 """
+                
+                # Helper functions for value conversion
+                def to_native(val):
+                    """Convert numpy types to Python native types"""
+                    if val is None:
+                        return None
+                    if hasattr(val, 'item'):  # numpy scalar
+                        return val.item()
+                    return val
+                
+                def safe_float(val, default=0.0):
+                    """Safely convert to float, handling None"""
+                    if val is None:
+                        return default
+                    try:
+                        return float(to_native(val))
+                    except (ValueError, TypeError):
+                        return default
                 
                 # Prepare values for batch insert
                 values = []
@@ -274,37 +242,6 @@ class SegmentsDatabase:
                         # CRITICAL: If speaker_label is None (speaker ID disabled), treat as Chaffee
                         if not embed_chaffee_only or speaker_label == 'Chaffee' or speaker_label is None:
                             embedding = self._get_segment_value(segment, 'embedding')
-                    
-                    # Get voice embedding (always store for speaker identification)
-                    voice_embedding = self._get_segment_value(segment, 'voice_embedding')
-                    
-                    # Convert voice embedding (numpy array) to JSON string for jsonb column
-                    if voice_embedding is not None:
-                        import json
-                        if isinstance(voice_embedding, np.ndarray):
-                            voice_embedding = json.dumps(voice_embedding.tolist())
-                        elif hasattr(voice_embedding, 'tolist'):
-                            voice_embedding = json.dumps(voice_embedding.tolist())
-                        elif isinstance(voice_embedding, list):
-                            voice_embedding = json.dumps(voice_embedding)
-                    
-                    # Convert numpy types to Python native types to avoid "schema np does not exist" error
-                    def to_native(val):
-                        """Convert numpy types to Python native types"""
-                        if val is None:
-                            return None
-                        if hasattr(val, 'item'):  # numpy scalar
-                            return val.item()
-                        return val
-                    
-                    def safe_float(val, default=0.0):
-                        """Safely convert to float, handling None"""
-                        if val is None:
-                            return default
-                        try:
-                            return float(to_native(val))
-                        except (ValueError, TypeError):
-                            return default
                     
                     # Clamp speaker confidence to [0.0, 1.0] range
                     speaker_conf = to_native(self._get_segment_value(segment, 'speaker_confidence', None))
@@ -325,8 +262,7 @@ class SegmentsDatabase:
                         bool(self._get_segment_value(segment, 're_asr', False)),
                         bool(self._get_segment_value(segment, 'is_overlap', False)),
                         bool(self._get_segment_value(segment, 'needs_refinement', False)),
-                        embedding,
-                        voice_embedding
+                        embedding
                     ))
                 # Execute batch insert/update
                 psycopg2.extras.execute_values(cur, insert_query, values)
@@ -338,6 +274,9 @@ class SegmentsDatabase:
                     logger.info(f"Successfully inserted/updated {affected_count} segments for video {video_id}")
                 else:
                     logger.info(f"Successfully processed {total_segments} segments for video {video_id} ({affected_count} new/changed)")
+                
+                # Dual-write to segment_embeddings table if enabled
+                self._dual_write_embeddings(cur, conn, source_id, segments, embed_chaffee_only)
                 
                 # Classify video type based on speaker distribution
                 self._classify_video_type(video_id, segments, conn)
@@ -360,6 +299,150 @@ class SegmentsDatabase:
                         pass
                     self.connection = None
             raise
+    
+    def _dual_write_embeddings(self, cur, conn, source_id: int, segments: List[Dict[str, Any]], 
+                                embed_chaffee_only: bool = True) -> int:
+        """
+        Dual-write embeddings to segment_embeddings table.
+        
+        This enables the normalized embedding storage architecture while maintaining
+        backward compatibility with the legacy segments.embedding column.
+        
+        Args:
+            cur: Database cursor
+            conn: Database connection
+            source_id: Source ID (FK to sources table)
+            segments: List of segment dicts with embeddings
+            embed_chaffee_only: If True, only embed Chaffee segments
+            
+        Returns:
+            Number of embeddings written to segment_embeddings
+        """
+        # Check if dual-write is enabled
+        if _HAS_EMBEDDING_CONFIG:
+            if not use_dual_write():
+                logger.debug("Dual-write disabled, skipping segment_embeddings")
+                return 0
+            model_key = get_active_model_key()
+            dimensions = get_model_dimensions(model_key)
+        else:
+            config = _get_embedding_config_fallback()
+            if not config['use_dual_write']:
+                logger.debug("Dual-write disabled, skipping segment_embeddings")
+                return 0
+            model_key = config['model_key']
+            dimensions = config['dimensions']
+        
+        # Check if segment_embeddings table exists
+        try:
+            cur.execute("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_schema = 'public' 
+                    AND table_name = 'segment_embeddings'
+                )
+            """)
+            table_exists = cur.fetchone()[0]
+            if not table_exists:
+                logger.debug("segment_embeddings table does not exist, skipping dual-write")
+                return 0
+        except Exception as e:
+            logger.warning(f"Could not check segment_embeddings table: {e}")
+            return 0
+        
+        # Collect embeddings to write
+        embeddings_to_write = []
+        
+        for segment in segments:
+            embedding = self._get_segment_value(segment, 'embedding')
+            if embedding is None:
+                continue
+            
+            speaker_label = self._get_segment_value(segment, 'speaker_label', 'Guest')
+            
+            # Apply same filtering as legacy write
+            if embed_chaffee_only and speaker_label != 'Chaffee' and speaker_label is not None:
+                continue
+            
+            # Get segment ID by matching on unique constraint
+            start_sec = self._get_segment_value(segment, 'start', 0.0)
+            end_sec = self._get_segment_value(segment, 'end', 0.0)
+            text = self._get_segment_value(segment, 'text', '')
+            
+            embeddings_to_write.append({
+                'source_id': source_id,
+                'start_sec': float(start_sec) if start_sec else 0.0,
+                'end_sec': float(end_sec) if end_sec else 0.0,
+                'text': text,
+                'embedding': embedding,
+            })
+        
+        if not embeddings_to_write:
+            logger.debug("No embeddings to dual-write")
+            return 0
+        
+        # Batch insert into segment_embeddings
+        try:
+            # Use a single query to get segment IDs and insert embeddings
+            insert_count = 0
+            batch_size = 1000
+            
+            for i in range(0, len(embeddings_to_write), batch_size):
+                batch = embeddings_to_write[i:i + batch_size]
+                
+                # Build values for batch insert
+                values = []
+                for emb_data in batch:
+                    # Get segment_id from the segments table
+                    cur.execute("""
+                        SELECT id FROM segments 
+                        WHERE source_id = %s AND start_sec = %s AND end_sec = %s AND text = %s
+                        LIMIT 1
+                    """, (emb_data['source_id'], emb_data['start_sec'], emb_data['end_sec'], emb_data['text']))
+                    
+                    result = cur.fetchone()
+                    if result:
+                        segment_id = result[0]
+                        embedding = emb_data['embedding']
+                        
+                        # Convert embedding to list if needed
+                        if hasattr(embedding, 'tolist'):
+                            embedding = embedding.tolist()
+                        
+                        values.append((segment_id, model_key, dimensions, embedding))
+                
+                if values:
+                    # Batch insert with ON CONFLICT
+                    psycopg2.extras.execute_values(
+                        cur,
+                        """
+                        INSERT INTO segment_embeddings (segment_id, model_key, dimensions, embedding, is_active)
+                        VALUES %s
+                        ON CONFLICT (segment_id, model_key) DO UPDATE SET
+                            embedding = EXCLUDED.embedding,
+                            dimensions = EXCLUDED.dimensions,
+                            created_at = now()
+                        """,
+                        values,
+                        template="(%s, %s, %s, %s::vector, TRUE)"
+                    )
+                    insert_count += len(values)
+            
+            conn.commit()
+            
+            if insert_count > 0:
+                logger.info(f"Dual-write: {insert_count} embeddings written to segment_embeddings (model: {model_key})")
+            
+            return insert_count
+            
+        except Exception as e:
+            logger.warning(f"Dual-write to segment_embeddings failed (non-fatal): {e}")
+            # Don't raise - dual-write failure should not break ingestion
+            try:
+                conn.rollback()
+            except:
+                pass
+            return 0
     
     def _classify_video_type(self, video_id: str, segments: List[Dict[str, Any]], conn) -> None:
         """Classify video type based on speaker distribution and update all segments."""
