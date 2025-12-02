@@ -1331,3 +1331,526 @@ async def update_search_config(config: SearchConfigDB, request: Request):
     except Exception as e:
         logger.error(f"Failed to update search config: {e}")
         return SearchConfigResponse(config=config, error=f"Failed to save configuration: {str(e)}", error_code="SAVE_ERROR")
+
+
+# =============================================================================
+# RAG Profiles - DB-backed prompt configuration
+# =============================================================================
+
+class RagProfile(BaseModel):
+    """RAG profile for DB-backed prompt configuration"""
+    id: Optional[str] = None  # UUID as string
+    name: str = Field(default="default", max_length=255)
+    description: Optional[str] = None
+    base_instructions: str = Field(default="", description="Main prompt block (voice, style, approach)")
+    style_instructions: Optional[str] = Field(default="", description="What to avoid/aim for")
+    retrieval_hints: Optional[str] = Field(default="", description="Citation and source rules")
+    model_name: str = Field(default="gpt-4.1", max_length=100)
+    max_context_tokens: int = Field(default=8000, ge=1000, le=32000)
+    temperature: float = Field(default=0.3, ge=0.0, le=1.0)
+    version: int = Field(default=1)
+    is_default: bool = Field(default=False)
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    
+    model_config = {"protected_namespaces": ()}  # Allow model_name field
+
+
+class RagProfileResponse(BaseModel):
+    """Response wrapper for RAG profile with error info"""
+    profile: Optional[RagProfile] = None
+    error: Optional[str] = None
+    error_code: Optional[str] = None
+
+
+# Default fallback profile (used when DB table doesn't exist)
+DEFAULT_RAG_PROFILE = RagProfile(
+    name="default",
+    description="Default Dr. Chaffee persona - professional, carnivore-focused, evidence-based",
+    base_instructions="""## Speaking Style (CRITICAL)
+
+- **Professional yet approachable**: Clear and articulate, but not stiff or academic
+- **Always use first person**: "I recommend", "I've seen", "What I tell people", "I've found"
+- **Be specific, not generic**: Don't say "the carnivore diet focuses on..." - say "When you eat carnivore, you're..."
+- Natural speech patterns: "you know", "I mean", "so", "and"
+- Complete sentences but conversational flow
+- Explain things clearly without being overly formal
+- Use contractions naturally: "it's", "you're", "don't", "that's"
+- **Avoid third-person descriptions**: Don't describe the diet from outside - speak from experience
+
+## Content Approach
+
+- Get to the point but explain thoroughly
+- Use clear, straightforward language
+- Share practical examples and observations from YOUR content
+- Reference your content naturally: "As I talked about...", "I've mentioned..."
+- Be confident and knowledgeable without being preachy
+- Acknowledge complexity when relevant
+- **You advocate for carnivore/animal-based eating** - Never recommend plant foods or tea""",
+    style_instructions="""## What to AVOID
+
+- ❌ Overly casual: "Look", "Here's the deal", "So basically"
+- ❌ Academic formality: "moreover", "furthermore", "in conclusion", "it is important to note"
+- ❌ Generic descriptions: "The carnivore diet, which focuses on...", "has been associated with"
+- ❌ Third-person narration: "The diet can contribute..." - say "I've seen it help..."
+- ❌ Essay structure: No formal introductions or conclusions
+- ❌ Hedging language: "One might consider", "It could be argued", "may be beneficial"
+- ❌ Overly formal transitions: "Another significant benefit is..."
+- ❌ Generic disclaimers: "consult with a healthcare professional", "dietary balance", "individual needs may vary"
+- ❌ Hedging conclusions: "In summary", "Overall", "It's important to note"
+- ❌ Wishy-washy endings: Don't undermine the message with generic medical disclaimers
+
+## Aim For
+
+- ✅ Natural explanation: "So what happens is...", "The thing is..."
+- ✅ Professional but human: "I've found that...", "What we see is..."
+- ✅ Clear and direct: Just explain it well without being stuffy""",
+    retrieval_hints="""## Citation & Source Rules
+
+- **ONLY use information from the provided context** - Never add generic medical knowledge
+- **If something isn't in your content, say so** - Don't make up answers
+- **CITATION FORMAT**: Use numbered citations [1], [2], [3] matching excerpt numbers
+- Example: "As I talked about [1]" or "I've discussed this [2]"
+- Each citation number must correspond to an excerpt from the retrieved context
+- Do NOT cite excerpts that weren't provided""",
+    model_name="gpt-4.1",
+    max_context_tokens=8000,
+    temperature=0.3,
+    version=1,
+    is_default=True
+)
+
+
+def get_rag_profile_from_db() -> RagProfile:
+    """
+    Get the default RAG profile from database, with fallback if not found.
+    
+    This function ALWAYS returns a valid RagProfile object with defaults
+    if the table is missing or any error occurs. This ensures /answer
+    never 500 due to missing migrations.
+    
+    Returns:
+        RagProfile: Profile object (defaults if table missing)
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id, name, description, base_instructions, style_instructions,
+                   retrieval_hints, model_name, max_context_tokens, temperature,
+                   version, is_default, created_at, updated_at
+            FROM rag_profiles
+            WHERE is_default = true
+            LIMIT 1
+        """)
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if row:
+            return RagProfile(
+                id=str(row['id']) if row['id'] else None,
+                name=row['name'],
+                description=row['description'],
+                base_instructions=row['base_instructions'] or "",
+                style_instructions=row['style_instructions'] or "",
+                retrieval_hints=row['retrieval_hints'] or "",
+                model_name=row['model_name'] or "gpt-4.1",
+                max_context_tokens=row['max_context_tokens'] or 8000,
+                temperature=row['temperature'] or 0.3,
+                version=row['version'] or 1,
+                is_default=row['is_default'],
+                created_at=row['created_at'],
+                updated_at=row['updated_at']
+            )
+        else:
+            # Table exists but no default profile - return fallback
+            logger.info("rag_profiles table exists but has no default profile, using fallback")
+            return DEFAULT_RAG_PROFILE
+            
+    except psycopg2.errors.UndefinedTable:
+        logger.warning("rag_profiles table does not exist - migration 019 needs to be applied. Using defaults.")
+        return DEFAULT_RAG_PROFILE
+    except psycopg2.ProgrammingError as e:
+        if "does not exist" in str(e):
+            logger.warning(f"rag_profiles table missing: {e}. Using defaults.")
+            return DEFAULT_RAG_PROFILE
+        logger.error(f"Database programming error: {e}. Using defaults.")
+        return DEFAULT_RAG_PROFILE
+    except Exception as e:
+        logger.warning(f"Failed to load RAG profile from DB: {e}. Using defaults.")
+        return DEFAULT_RAG_PROFILE
+
+
+@router.get(
+    "/profiles",
+    response_model=List[RagProfile],
+    dependencies=[Depends(require_tuning_auth)],
+)
+async def list_rag_profiles(request: Request):
+    """
+    List all RAG profiles.
+    Protected: requires tuning_auth cookie.
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id, name, description, base_instructions, style_instructions,
+                   retrieval_hints, model_name, max_context_tokens, temperature,
+                   version, is_default, created_at, updated_at
+            FROM rag_profiles
+            ORDER BY is_default DESC, updated_at DESC
+        """)
+        
+        results = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        profiles = []
+        for row in results:
+            profiles.append(RagProfile(
+                id=str(row['id']) if row['id'] else None,
+                name=row['name'],
+                description=row['description'],
+                base_instructions=row['base_instructions'] or "",
+                style_instructions=row['style_instructions'] or "",
+                retrieval_hints=row['retrieval_hints'] or "",
+                model_name=row['model_name'] or "gpt-4.1",
+                max_context_tokens=row['max_context_tokens'] or 8000,
+                temperature=row['temperature'] or 0.3,
+                version=row['version'] or 1,
+                is_default=row['is_default'],
+                created_at=row['created_at'],
+                updated_at=row['updated_at']
+            ))
+        
+        return profiles
+        
+    except psycopg2.errors.UndefinedTable:
+        logger.warning("rag_profiles table does not exist")
+        return [DEFAULT_RAG_PROFILE]
+    except Exception as e:
+        logger.error(f"Failed to list RAG profiles: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/profiles/active",
+    response_model=RagProfileResponse,
+    dependencies=[Depends(require_tuning_auth)],
+)
+async def get_active_profile(request: Request):
+    """
+    Get the currently active (default) RAG profile.
+    Protected: requires tuning_auth cookie.
+    """
+    try:
+        profile = get_rag_profile_from_db()
+        return RagProfileResponse(profile=profile)
+    except Exception as e:
+        logger.error(f"Failed to get active profile: {e}")
+        return RagProfileResponse(
+            profile=DEFAULT_RAG_PROFILE,
+            error=str(e),
+            error_code="LOAD_ERROR"
+        )
+
+
+@router.get(
+    "/profiles/{profile_id}",
+    response_model=RagProfileResponse,
+    dependencies=[Depends(require_tuning_auth)],
+)
+async def get_profile(profile_id: str, request: Request):
+    """
+    Get a specific RAG profile by ID.
+    Protected: requires tuning_auth cookie.
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id, name, description, base_instructions, style_instructions,
+                   retrieval_hints, model_name, max_context_tokens, temperature,
+                   version, is_default, created_at, updated_at
+            FROM rag_profiles
+            WHERE id = %s
+        """, (profile_id,))
+        
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not row:
+            raise HTTPException(status_code=404, detail="Profile not found")
+        
+        return RagProfileResponse(profile=RagProfile(
+            id=str(row['id']) if row['id'] else None,
+            name=row['name'],
+            description=row['description'],
+            base_instructions=row['base_instructions'] or "",
+            style_instructions=row['style_instructions'] or "",
+            retrieval_hints=row['retrieval_hints'] or "",
+            model_name=row['model_name'] or "gpt-4.1",
+            max_context_tokens=row['max_context_tokens'] or 8000,
+            temperature=row['temperature'] or 0.3,
+            version=row['version'] or 1,
+            is_default=row['is_default'],
+            created_at=row['created_at'],
+            updated_at=row['updated_at']
+        ))
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get profile: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put(
+    "/profiles/{profile_id}",
+    response_model=RagProfileResponse,
+    dependencies=[Depends(require_tuning_auth)],
+)
+async def update_profile(profile_id: str, profile: RagProfile, request: Request):
+    """
+    Update an existing RAG profile.
+    Protected: requires tuning_auth cookie.
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # If this should be default, unset other defaults first
+        if profile.is_default:
+            cur.execute("UPDATE rag_profiles SET is_default = false WHERE id != %s", (profile_id,))
+        
+        cur.execute("""
+            UPDATE rag_profiles
+            SET name = %s, description = %s, base_instructions = %s,
+                style_instructions = %s, retrieval_hints = %s,
+                model_name = %s, max_context_tokens = %s, temperature = %s,
+                is_default = %s
+            WHERE id = %s
+            RETURNING id, name, description, base_instructions, style_instructions,
+                      retrieval_hints, model_name, max_context_tokens, temperature,
+                      version, is_default, created_at, updated_at
+        """, (
+            profile.name, profile.description, profile.base_instructions,
+            profile.style_instructions, profile.retrieval_hints,
+            profile.model_name, profile.max_context_tokens, profile.temperature,
+            profile.is_default, profile_id
+        ))
+        
+        row = cur.fetchone()
+        
+        if not row:
+            cur.close()
+            conn.close()
+            raise HTTPException(status_code=404, detail="Profile not found")
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        logger.info(f"Updated RAG profile: {profile.name} (v{row['version']})")
+        
+        return RagProfileResponse(profile=RagProfile(
+            id=str(row['id']) if row['id'] else None,
+            name=row['name'],
+            description=row['description'],
+            base_instructions=row['base_instructions'] or "",
+            style_instructions=row['style_instructions'] or "",
+            retrieval_hints=row['retrieval_hints'] or "",
+            model_name=row['model_name'] or "gpt-4.1",
+            max_context_tokens=row['max_context_tokens'] or 8000,
+            temperature=row['temperature'] or 0.3,
+            version=row['version'] or 1,
+            is_default=row['is_default'],
+            created_at=row['created_at'],
+            updated_at=row['updated_at']
+        ))
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update profile: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/profiles",
+    response_model=RagProfileResponse,
+    dependencies=[Depends(require_tuning_auth)],
+)
+async def create_profile(profile: RagProfile, request: Request):
+    """
+    Create a new RAG profile.
+    Protected: requires tuning_auth cookie.
+    """
+    import uuid
+    
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # If this should be default, unset other defaults first
+        if profile.is_default:
+            cur.execute("UPDATE rag_profiles SET is_default = false")
+        
+        new_id = str(uuid.uuid4())
+        
+        cur.execute("""
+            INSERT INTO rag_profiles (id, name, description, base_instructions,
+                                      style_instructions, retrieval_hints,
+                                      model_name, max_context_tokens, temperature, is_default)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, name, description, base_instructions, style_instructions,
+                      retrieval_hints, model_name, max_context_tokens, temperature,
+                      version, is_default, created_at, updated_at
+        """, (
+            new_id, profile.name, profile.description, profile.base_instructions,
+            profile.style_instructions, profile.retrieval_hints,
+            profile.model_name, profile.max_context_tokens, profile.temperature,
+            profile.is_default
+        ))
+        
+        row = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        logger.info(f"Created RAG profile: {profile.name}")
+        
+        return RagProfileResponse(profile=RagProfile(
+            id=str(row['id']) if row['id'] else None,
+            name=row['name'],
+            description=row['description'],
+            base_instructions=row['base_instructions'] or "",
+            style_instructions=row['style_instructions'] or "",
+            retrieval_hints=row['retrieval_hints'] or "",
+            model_name=row['model_name'] or "gpt-4.1",
+            max_context_tokens=row['max_context_tokens'] or 8000,
+            temperature=row['temperature'] or 0.3,
+            version=row['version'] or 1,
+            is_default=row['is_default'],
+            created_at=row['created_at'],
+            updated_at=row['updated_at']
+        ))
+        
+    except psycopg2.IntegrityError as e:
+        conn.rollback()
+        raise HTTPException(status_code=400, detail=f"Profile name '{profile.name}' already exists")
+    except Exception as e:
+        logger.error(f"Failed to create profile: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/profiles/{profile_id}/activate",
+    response_model=RagProfileResponse,
+    dependencies=[Depends(require_tuning_auth)],
+)
+async def activate_profile(profile_id: str, request: Request):
+    """
+    Set a profile as the default (active) profile.
+    Protected: requires tuning_auth cookie.
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Unset all other defaults
+        cur.execute("UPDATE rag_profiles SET is_default = false")
+        
+        # Set this one as default
+        cur.execute("""
+            UPDATE rag_profiles
+            SET is_default = true
+            WHERE id = %s
+            RETURNING id, name, description, base_instructions, style_instructions,
+                      retrieval_hints, model_name, max_context_tokens, temperature,
+                      version, is_default, created_at, updated_at
+        """, (profile_id,))
+        
+        row = cur.fetchone()
+        
+        if not row:
+            cur.close()
+            conn.close()
+            raise HTTPException(status_code=404, detail="Profile not found")
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        logger.info(f"Activated RAG profile: {row['name']}")
+        
+        return RagProfileResponse(profile=RagProfile(
+            id=str(row['id']) if row['id'] else None,
+            name=row['name'],
+            description=row['description'],
+            base_instructions=row['base_instructions'] or "",
+            style_instructions=row['style_instructions'] or "",
+            retrieval_hints=row['retrieval_hints'] or "",
+            model_name=row['model_name'] or "gpt-4.1",
+            max_context_tokens=row['max_context_tokens'] or 8000,
+            temperature=row['temperature'] or 0.3,
+            version=row['version'] or 1,
+            is_default=row['is_default'],
+            created_at=row['created_at'],
+            updated_at=row['updated_at']
+        ))
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to activate profile: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete(
+    "/profiles/{profile_id}",
+    dependencies=[Depends(require_tuning_auth)],
+)
+async def delete_profile(profile_id: str, request: Request):
+    """
+    Delete a RAG profile (cannot delete the default profile).
+    Protected: requires tuning_auth cookie.
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Check if this is the default profile
+        cur.execute("SELECT is_default, name FROM rag_profiles WHERE id = %s", (profile_id,))
+        row = cur.fetchone()
+        
+        if not row:
+            cur.close()
+            conn.close()
+            raise HTTPException(status_code=404, detail="Profile not found")
+        
+        if row['is_default']:
+            cur.close()
+            conn.close()
+            raise HTTPException(status_code=400, detail="Cannot delete the default profile")
+        
+        cur.execute("DELETE FROM rag_profiles WHERE id = %s", (profile_id,))
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        logger.info(f"Deleted RAG profile: {row['name']}")
+        
+        return {"success": True, "message": f"Profile '{row['name']}' deleted"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete profile: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

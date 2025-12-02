@@ -2,7 +2,7 @@
 
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Settings, BarChart3, Sparkles, Search, Home, LogOut, Menu, X, Sun, Moon } from 'lucide-react';
+import { Settings, BarChart3, Sparkles, Search, Home, LogOut, Menu, X, Sun, Moon, FileText } from 'lucide-react';
 import '../../styles/tuning.css';
 
 // Theme constants - must match DarkModeToggle.tsx
@@ -113,6 +113,7 @@ export default function TuningLayout({
   const getCurrentTab = () => {
     if (!pathname) return 'overview';
     if (pathname === '/tuning' || pathname === '/tuning/') return 'overview';
+    if (pathname.includes('/tuning/profiles')) return 'profiles';
     if (pathname.includes('/tuning/models')) return 'models';
     if (pathname.includes('/tuning/search')) return 'search';
     if (pathname.includes('/tuning/instructions')) return 'instructions';
@@ -139,6 +140,7 @@ export default function TuningLayout({
 
   const navItems = [
     { id: 'overview', label: 'Overview', icon: BarChart3, href: '/tuning' },
+    { id: 'profiles', label: 'RAG Profiles', icon: FileText, href: '/tuning/profiles' },
     { id: 'models', label: 'Summarizer', icon: Sparkles, href: '/tuning/models' },
     { id: 'search', label: 'Search Config', icon: Search, href: '/tuning/search' },
     { id: 'instructions', label: 'Instructions', icon: Settings, href: '/tuning/instructions' }

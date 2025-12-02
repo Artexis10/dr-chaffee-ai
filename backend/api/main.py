@@ -37,7 +37,7 @@ from scripts.common.transcript_common import TranscriptSegment
 from scripts.common.embeddings import EmbeddingGenerator, resolve_embedding_config
 
 # Import tuning router and search config helper
-from .tuning import router as tuning_router, get_search_config_from_db, SearchConfigDB
+from .tuning import router as tuning_router, get_search_config_from_db, SearchConfigDB, get_rag_profile_from_db, RagProfile
 
 app = FastAPI(
     title="Ask Dr Chaffee API",
@@ -773,6 +773,25 @@ def _format_timestamp(seconds: float) -> str:
     return f"{total_minutes}:{secs:02d}"
 
 
+# =============================================================================
+# CORE_SYSTEM_PROMPT - Non-negotiable identity & safety rules (hardcoded)
+# =============================================================================
+CORE_SYSTEM_PROMPT = """# Emulated Dr Anthony Chaffee (AI)
+
+You are "Emulated Dr Anthony Chaffee (AI)" - an AI assistant that emulates Dr. Chaffee's communication style based on his public content.
+
+## Non-Negotiable Rules
+
+1. **AI Identity**: You are an AI emulation, NOT Dr. Chaffee himself. Never claim to be him.
+2. **Evidence-Based Only**: ONLY use information from the provided context. Never add generic medical knowledge or hallucinate facts.
+3. **No Hallucinated Citations**: Every [N] citation MUST correspond to an excerpt from the provided context. Never cite sources that weren't provided.
+4. **Evidence Hierarchy**: Prioritize controlled experimental evidence (RCTs, metabolic ward studies) over epidemiology. Mechanistic explanations (biochemistry, physiology) are foundational.
+5. **Acknowledge Gaps**: If the context doesn't cover something, explicitly say so: "I haven't specifically talked about that" or "I don't have content on that topic."
+6. **No Medical Diagnoses**: Never provide personalized medical advice or diagnosis. You share educational information only.
+7. **Separate Evidence from Speculation**: Clearly distinguish between what the evidence shows and what is speculative or theoretical.
+"""
+
+
 def _get_custom_instructions() -> str:
     """
     Load active custom instructions from database.
@@ -818,85 +837,78 @@ def _get_custom_instructions() -> str:
         return ""
 
 
-def _build_chaffee_system_prompt(style: str, include_custom: bool = True) -> str:
+def _build_chaffee_system_prompt(style: str, include_custom: bool = True) -> tuple[str, dict]:
     """
-    Build the curated Dr. Chaffee system prompt.
-    This prompt was carefully tuned for authentic voice and quality answers.
+    Build the Dr. Chaffee system prompt from DB-backed RAG profile.
+    
+    Assembly order:
+    1. CORE_SYSTEM_PROMPT (hardcoded identity & safety)
+    2. RAG Profile base_instructions (voice, approach)
+    3. RAG Profile style_instructions (what to avoid/aim for)
+    4. RAG Profile retrieval_hints (citation rules)
+    5. Custom instructions (user fine-tuning layer)
     
     Args:
         style: Answer style ('concise' or 'detailed')
         include_custom: If True, append active custom instructions from database
     
     Returns:
-        Complete system prompt (baseline + custom if enabled and available)
+        Tuple of (complete system prompt, profile metadata dict)
     """
-    baseline_prompt = """# Emulated Dr Anthony Chaffee (AI) - System Prompt
-
-You are "Emulated Dr Anthony Chaffee (AI)", speaking in Dr. Chaffee's professional but conversational style.
-
-## Speaking Style (CRITICAL)
-
-- **Professional yet approachable**: Clear and articulate, but not stiff or academic
-- **Always use first person**: "I recommend", "I've seen", "What I tell people", "I've found"
-- **Be specific, not generic**: Don't say "the carnivore diet focuses on..." - say "When you eat carnivore, you're..."
-- Natural speech patterns: "you know", "I mean", "so", "and"
-- Complete sentences but conversational flow
-- Explain things clearly without being overly formal
-- Use contractions naturally: "it's", "you're", "don't", "that's"
-- **Avoid third-person descriptions**: Don't describe the diet from outside - speak from experience
-
-## Content Approach
-
-- **ONLY use information from the provided context** - Never add generic medical knowledge
-- Get to the point but explain thoroughly
-- Use clear, straightforward language
-- Share practical examples and observations from YOUR content
-- Reference your content naturally: "As I talked about...", "I've mentioned..."
-- Be confident and knowledgeable without being preachy
-- Acknowledge complexity when relevant
-- **If something isn't in your content, say so** - Don't make up answers
-- **You advocate for carnivore/animal-based eating** - Never recommend plant foods or tea
-
-## What to AVOID
-
-- ❌ Overly casual: "Look", "Here's the deal", "So basically"
-- ❌ Academic formality: "moreover", "furthermore", "in conclusion", "it is important to note"
-- ❌ Generic descriptions: "The carnivore diet, which focuses on...", "has been associated with"
-- ❌ Third-person narration: "The diet can contribute..." - say "I've seen it help..."
-- ❌ Essay structure: No formal introductions or conclusions
-- ❌ Hedging language: "One might consider", "It could be argued", "may be beneficial"
-- ❌ Overly formal transitions: "Another significant benefit is..."
-- ❌ Generic disclaimers: "consult with a healthcare professional", "dietary balance", "individual needs may vary"
-- ❌ Hedging conclusions: "In summary", "Overall", "It's important to note"
-- ❌ Wishy-washy endings: Don't undermine the message with generic medical disclaimers
-
-## Aim For
-
-- ✅ Natural explanation: "So what happens is...", "The thing is..."
-- ✅ Professional but human: "I've found that...", "What we see is..."
-- ✅ Clear and direct: Just explain it well without being stuffy"""
-
-    # Append custom instructions if enabled
+    # Load RAG profile from database
+    profile = get_rag_profile_from_db()
+    profile_meta = {
+        'id': str(profile.id) if profile.id else None,
+        'name': profile.name,
+        'version': profile.version,
+        'model_name': profile.model_name,
+        'temperature': profile.temperature,
+    }
+    
+    # Start with core system prompt (non-negotiable)
+    prompt_parts = [CORE_SYSTEM_PROMPT]
+    
+    # Add RAG profile sections
+    if profile.base_instructions and profile.base_instructions.strip():
+        prompt_parts.append(f"\n{profile.base_instructions.strip()}")
+    
+    if profile.style_instructions and profile.style_instructions.strip():
+        prompt_parts.append(f"\n{profile.style_instructions.strip()}")
+    
+    if profile.retrieval_hints and profile.retrieval_hints.strip():
+        prompt_parts.append(f"\n{profile.retrieval_hints.strip()}")
+    
+    # Append custom instructions if enabled (fine-tuning layer)
     if include_custom:
         custom = _get_custom_instructions()
         if custom:
-            final_prompt = f"{baseline_prompt}\n\n## Additional Custom Instructions\n\n{custom}"
+            prompt_parts.append(f"\n## Additional Custom Instructions\n\n{custom}")
             logger.info(
-                "SystemPrompt: base_len=%d, custom_len=%d, custom_preview=%r",
-                len(baseline_prompt),
-                len(custom),
-                custom[:200]
+                "SystemPrompt: profile=%s v%d, custom_len=%d",
+                profile.name,
+                profile.version,
+                len(custom)
             )
-            return final_prompt
-        else:
-            logger.debug("SystemPrompt: no custom instructions active (base_len=%d)", len(baseline_prompt))
     
-    return baseline_prompt
+    final_prompt = "\n".join(prompt_parts)
+    
+    logger.info(
+        "SystemPrompt: profile_id=%s, profile_name=%s, version=%d, total_len=%d",
+        profile_meta['id'],
+        profile.name,
+        profile.version,
+        len(final_prompt)
+    )
+    
+    return final_prompt, profile_meta
 
 
 def _build_chaffee_user_prompt(query: str, excerpts: str, style: str) -> str:
     """
-    Build the curated user prompt with style-specific instructions.
+    Build the user prompt with style-specific formatting constraints.
+    
+    Note: Persona/voice/dietary stance are now in the system prompt via RAG profile.
+    This user prompt focuses on functional constraints: word count, structure, JSON format.
     """
     # Word limits optimized for quality
     if style == 'detailed':
@@ -920,7 +932,8 @@ def _build_chaffee_user_prompt(query: str, excerpts: str, style: str) -> str:
   5. BLANK LINE: Use \\n\\n between the two paragraphs if you write two"""
         paragraph_structure = "CRITICAL: Write as ONE continuous paragraph or maximum TWO paragraphs. Do NOT create 3+ paragraphs. Keep the response flowing without breaks."
 
-    return f"""You are Emulated Dr Anthony Chaffee (AI). Answer this question as if you're explaining it to someone in person - professional but natural.
+    # User prompt focuses on task structure, not persona (persona is in system prompt)
+    return f"""Answer this question using the retrieved context below.
 
 ## User Question
 {query}
@@ -929,60 +942,40 @@ def _build_chaffee_user_prompt(query: str, excerpts: str, style: str) -> str:
 
 {excerpts}
 
-## Instructions
+## Response Requirements
 
 **ANSWER STYLE: {style.upper()} ({target_words} WORDS)**
 
-- **ONLY use information from the retrieved context above** - DO NOT add generic medical knowledge or fill in gaps
-- **If the context doesn't cover something, explicitly say so** - "I haven't specifically talked about that" or "I don't have content on that specific topic"
-- **NEVER recommend non-carnivore foods** - Dr. Chaffee advocates for animal-based eating only
-- **ALWAYS speak in first person**: "I recommend", "I've seen", "What I tell people", "I've found"
-- **Be specific, not generic**: Don't describe the diet from outside - share what YOU know from the context
-- **Avoid third-person**: Don't say "The carnivore diet is..." - say "When you eat carnivore..." or "I've seen..."
-- Natural flow: Use "so", "and", "you know", "I mean" where appropriate
-- Avoid academic formality: No "moreover", "furthermore", "in conclusion", "has been associated with"
-- Avoid overly casual: No "Look", "Here's the deal", "So basically"
-- **CITATION FORMAT (CRITICAL)**: Use numbered citations like [1], [2], [3] that correspond to the excerpt numbers in the context above. Example: "As I talked about [1]" or "I've discussed this [2]". Each number should match an excerpt from the retrieved context.
-- **CRITICAL LENGTH: {target_words} words (MINIMUM {min_words} words) - This is ABSOLUTELY NON-NEGOTIABLE. COUNT YOUR WORDS BEFORE RESPONDING. If you write less than {min_words} words, START OVER and write more.**
-- **PARAGRAPH BREAKS (CRITICAL)**: ALWAYS use double line breaks (\\n\\n) between EVERY paragraph.
+### Length & Structure
+- **CRITICAL LENGTH: {target_words} words (MINIMUM {min_words} words)** - COUNT YOUR WORDS. If under {min_words}, START OVER.
 - {style_instructions}
 - **PARAGRAPH STRUCTURE**: {paragraph_structure}
-- **FLOW AND COHESION**: Topics should flow logically, not jump around. Develop each idea fully before moving on.
-- **AVOID REPETITIVE TRANSITIONS**: Don't start every paragraph with "I've found", "In my experience", "I've seen" - vary your language naturally.
-- **NO GENERIC CONCLUSIONS**: Don't end with "consult a healthcare professional" or "dietary balance" - that's not your style
-- **Be confident**: You know carnivore works - don't hedge or undermine your message at the end
-- **CRITICAL: Do not hallucinate or add information not in the context** - Stay true to what Dr. Chaffee actually says
+- **PARAGRAPH BREAKS**: ALWAYS use double line breaks (\\n\\n) between paragraphs.
+- **FLOW AND COHESION**: Topics should flow logically. Develop each idea fully before moving on.
+- **VARY TRANSITIONS**: Don't start every paragraph the same way.
 
-TONE: You're Dr. Chaffee explaining from YOUR experience and knowledge - not describing a diet from outside.
-VOICE: First person, specific, professional but natural. NOT generic encyclopedia text.
-ENDINGS: End naturally without generic disclaimers or hedging. You're confident in what you're saying.
+### Citation Format (CRITICAL)
+- Use numbered citations [1], [2], [3] matching the excerpt numbers in the context above.
+- Example: "As I talked about [1]" or "I've discussed this [2]"
+- Every [N] citation MUST correspond to a provided excerpt. Never cite unprovided sources.
 
-Output MUST be valid **JSON RESPONSE FORMAT** (CRITICAL - MUST be valid JSON):
+### JSON Output Format (REQUIRED)
 {{
-  "answer": "Markdown text. Use \\\\n\\\\n between paragraphs. MUST be {target_words} words. Use [1], [2], [3] for citations.",
+  "answer": "Markdown text with \\\\n\\\\n between paragraphs. {target_words} words. Use [1], [2], [3] citations.",
   "citations_used": [1, 2, 3],
   "confidence": 0.85,
-  "notes": "Optional brief notes: conflicts seen, gaps, or scope limits."
+  "notes": "Optional: conflicts, gaps, or scope limits."
 }}
 
-**IMPORTANT**: The citations_used array should list the excerpt numbers (1, 2, 3, etc.) that you referenced in your answer.
-
-**CRITICAL CITATION FORMAT**: 
-- **USE NUMBERED CITATIONS**: [1], [2], [3] etc. that match the excerpt numbers in the context
-- **KEEP IT CLEAN**: Just the number in brackets, nothing else
-- Example: "I've talked about this before [1] and it's something I see a lot [2]"
-
-**CONFIDENCE SCORING**:
-- Set confidence between 0.7-0.95 based on context quality
+### Confidence Scoring
 - 0.9-0.95: Excellent coverage with many relevant excerpts
-- 0.8-0.89: Good coverage with solid excerpts
+- 0.8-0.89: Good coverage with solid excerpts  
 - 0.7-0.79: Adequate coverage but some gaps
 
-Validation requirements:
-- Every [N] citation in the answer MUST correspond to an excerpt number from the context.
-- Do NOT cite excerpts that weren't provided.
-- Keep formatting clean: no stray backslashes, no code fences in answer, no HTML.
-- **MEET THE WORD COUNT**: {min_words}+ words is mandatory. Write more content, not less."""
+### Validation
+- Output MUST be valid JSON (no code fences, no HTML, no stray backslashes)
+- citations_used array lists excerpt numbers you referenced
+- MEET THE WORD COUNT: {min_words}+ words is mandatory"""
 
 
 @app.post("/answer", dependencies=[Depends(verify_internal_api_key)])
@@ -1073,7 +1066,7 @@ async def answer_question(request: AnswerRequest):
         excerpts = "\n\n".join(excerpt_parts)
         
         # Step 4: Build curated prompts (includes custom instructions from DB)
-        system_prompt = _build_chaffee_system_prompt(style, include_custom=True)
+        system_prompt, profile_meta = _build_chaffee_system_prompt(style, include_custom=True)
         user_prompt = _build_chaffee_user_prompt(request.query, excerpts, style)
         
         # Step 5: Query OpenAI
@@ -1089,14 +1082,16 @@ async def answer_question(request: AnswerRequest):
             logger.error(f"Failed to import OpenAI: {e}")
             raise HTTPException(status_code=503, detail="OpenAI library not available")
         
-        # Use SUMMARIZER_MODEL from tuning dashboard, fall back to OPENAI_MODEL for backward compatibility
-        model = os.getenv('SUMMARIZER_MODEL') or os.getenv('OPENAI_MODEL', 'gpt-4.1')
-        temperature = float(os.getenv('SUMMARIZER_TEMPERATURE', '0.3'))
+        # Use model from RAG profile, fall back to env vars for backward compatibility
+        model = profile_meta.get('model_name') or os.getenv('SUMMARIZER_MODEL') or os.getenv('OPENAI_MODEL', 'gpt-4.1')
+        temperature = profile_meta.get('temperature') or float(os.getenv('SUMMARIZER_TEMPERATURE', '0.3'))
         
-        # Log summarizer model being used
+        # Log summarizer model and profile being used
         logger.info(
-            "SummarizerCall: model=%s, query_preview=%r, clips=%d, temperature=%.2f",
+            "SummarizerCall: model=%s, profile=%s (v%d), query_preview=%r, clips=%d, temperature=%.2f",
             model,
+            profile_meta.get('name', 'unknown'),
+            profile_meta.get('version', 0),
             request.query[:100],
             len(results_for_llm),
             temperature
@@ -1175,7 +1170,14 @@ async def answer_question(request: AnswerRequest):
                     "published_at": chunk.get('published_at') or None
                 })
         
-        logger.info(f"✅ RAG answer generated: ${cost:.4f}, citations: {len(structured_citations)}")
+        logger.info(
+            "✅ RAG answer generated: ${cost:.4f}, citations: {citations}, profile: {profile} v{version}".format(
+                cost=cost,
+                citations=len(structured_citations),
+                profile=profile_meta.get('name', 'unknown'),
+                version=profile_meta.get('version', 0)
+            )
+        )
         
         return {
             "answer": parsed.get('answer', ''),
@@ -1188,7 +1190,12 @@ async def answer_question(request: AnswerRequest):
             "style": style,
             "chunks_used": len(source_chunks),
             "cost_usd": cost,
-            "used_chunk_ids": [chunks_by_index.get(idx, {}).get('id', '') for idx in citations_used if idx in chunks_by_index]
+            "used_chunk_ids": [chunks_by_index.get(idx, {}).get('id', '') for idx in citations_used if idx in chunks_by_index],
+            "rag_profile": {
+                "id": profile_meta.get('id'),
+                "name": profile_meta.get('name'),
+                "version": profile_meta.get('version')
+            }
         }
         
     except HTTPException:
