@@ -153,8 +153,10 @@ def load_embedding_config(force_refresh: bool = False) -> Dict[str, Any]:
         config['use_fallback_read'] = os.getenv('EMBEDDING_FALLBACK_READ', '').lower() in ('1', 'true', 'yes')
     
     # Answer cache feature flag (default: disabled)
-    if os.getenv('ANSWER_CACHE_ENABLED'):
-        config['answer_cache_enabled'] = os.getenv('ANSWER_CACHE_ENABLED', '').lower() in ('1', 'true', 'yes')
+    # PRECEDENCE: ANSWER_CACHE_ENABLED env var > embedding_models.json > default (false)
+    env_answer_cache = os.getenv('ANSWER_CACHE_ENABLED', '').lower()
+    if env_answer_cache:
+        config['answer_cache_enabled'] = env_answer_cache in ('1', 'true', 'yes')
     else:
         config['answer_cache_enabled'] = config.get('answer_cache_enabled', False)
     
@@ -221,9 +223,10 @@ def is_answer_cache_enabled() -> bool:
     - Cache saves are no-ops
     - No database queries to answer_cache or answer_cache_embeddings tables
     
-    Enable via:
-    - Environment variable: ANSWER_CACHE_ENABLED=true
-    - Config file: "answer_cache_enabled": true in embedding_models.json
+    Precedence (highest to lowest):
+    1. ANSWER_CACHE_ENABLED environment variable
+    2. "answer_cache_enabled" in embedding_models.json
+    3. Default: false
     """
     config = load_embedding_config()
     return config.get('answer_cache_enabled', False)

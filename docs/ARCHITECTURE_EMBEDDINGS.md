@@ -78,10 +78,16 @@ answer_cache                    answer_cache_embeddings
 
 **Feature Flag:** `ANSWER_CACHE_ENABLED` (default: `false`)
 
+**Precedence (highest to lowest):**
+1. `ANSWER_CACHE_ENABLED` environment variable
+2. `"answer_cache_enabled"` in `embedding_models.json`
+3. Default: `false`
+
 When disabled:
-- Cache lookups return `null` immediately
-- Cache saves are no-ops
+- Cache lookups return `{"cached": null}` immediately
+- Cache saves return `{"success": true, "skipped": true}`
 - No database queries to answer cache tables
+- No embedding generation for cache operations
 
 ## Configuration
 
