@@ -6,6 +6,10 @@ Allows real-time tuning of:
 - Search parameters
 - Reranking settings
 - Custom prompt instructions (layered on baseline)
+
+Performance:
+- Endpoints are cached for 5 seconds to reduce load from repeated frontend calls
+- Use ?refresh=true to bypass cache on admin endpoints
 """
 
 import os
@@ -32,7 +36,15 @@ from .model_catalog import (
     EMBEDDING_MODELS_PATH,
 )
 
+# Import caching utility
+from .utils.cache import TTLCache
+
 logger = logging.getLogger(__name__)
+
+# =============================================================================
+# Endpoint Caching (5 second TTL to reduce repeated frontend calls)
+# =============================================================================
+_tuning_cache = TTLCache(ttl_seconds=5.0)
 
 router = APIRouter(prefix="/api/tuning", tags=["tuning"])
 
@@ -201,16 +213,8 @@ async def require_tuning_auth(request: Request):
         )
 
 
-@router.get(
-    "/models",
-    response_model=List[EmbeddingModelInfo],
-    dependencies=[Depends(require_tuning_auth)],
-)
-async def list_models(request: Request):
-    """
-    List all available embedding models with their configurations.
-    Protected: requires tuning_auth cookie.
-    """
+def _build_embedding_models_list() -> List[EmbeddingModelInfo]:
+    """Build embedding models list (cached internally)."""
     config = load_embedding_models()
     models = config.get("models", {})
     active_query = config.get("active_query_model")
@@ -228,8 +232,26 @@ async def list_models(request: Request):
             is_active_query=(key == active_query),
             is_active_ingestion=(key in active_ingestion)
         ))
-    
     return result
+
+
+@router.get(
+    "/models",
+    response_model=List[EmbeddingModelInfo],
+    dependencies=[Depends(require_tuning_auth)],
+)
+async def list_models(request: Request, refresh: bool = False):
+    """
+    List all available embedding models with their configurations.
+    Protected: requires tuning_auth cookie.
+    
+    Args:
+        refresh: If true, bypass cache and fetch fresh data
+    """
+    if refresh:
+        _tuning_cache.invalidate("embedding_models")
+    
+    return _tuning_cache.get_or_compute("embedding_models", _build_embedding_models_list)
 
 
 class ModelCapabilities(BaseModel):
@@ -249,18 +271,8 @@ class RagModelInfo(BaseModel):
     capabilities: ModelCapabilities
 
 
-@router.get(
-    "/models/rag",
-    response_model=List[RagModelInfo],
-    dependencies=[Depends(require_tuning_auth)],
-)
-async def list_rag_models(request: Request):
-    """
-    List all available RAG/answer models from the catalog.
-    Returns models sorted with recommended models first.
-    Includes tags and capabilities for each model.
-    Protected: requires tuning_auth cookie.
-    """
+def _build_rag_models_list() -> List[RagModelInfo]:
+    """Build RAG models list (cached internally)."""
     models = get_rag_models_list(sort_recommended_first=True)
     result = []
     for m in models:
@@ -276,16 +288,46 @@ async def list_rag_models(request: Request):
 
 
 @router.get(
+    "/models/rag",
+    response_model=List[RagModelInfo],
+    dependencies=[Depends(require_tuning_auth)],
+)
+async def list_rag_models(request: Request, refresh: bool = False):
+    """
+    List all available RAG/answer models from the catalog.
+    Returns models sorted with recommended models first.
+    Includes tags and capabilities for each model.
+    Protected: requires tuning_auth cookie.
+    
+    Args:
+        refresh: If true, bypass cache and fetch fresh data
+    """
+    if refresh:
+        _tuning_cache.invalidate("rag_models")
+    
+    return _tuning_cache.get_or_compute("rag_models", _build_rag_models_list)
+
+
+@router.get(
     "/models/embeddings",
     dependencies=[Depends(require_tuning_auth)],
 )
-async def list_embedding_models_catalog(request: Request):
+async def list_embedding_models_catalog(request: Request, refresh: bool = False):
     """
     List all available embedding models from the catalog.
     Returns models sorted with production/recommended models first.
     Protected: requires tuning_auth cookie.
+    
+    Args:
+        refresh: If true, bypass cache and fetch fresh data
     """
-    return get_embedding_models_list(sort_recommended_first=True)
+    if refresh:
+        _tuning_cache.invalidate("embedding_models_catalog")
+    
+    return _tuning_cache.get_or_compute(
+        "embedding_models_catalog", 
+        lambda: get_embedding_models_list(sort_recommended_first=True)
+    )
 
 
 @router.get(
@@ -570,12 +612,8 @@ async def update_summarizer_config(config: SummarizerConfig, request: Request):
     }
 
 
-@router.get("/summarizer/models")
-async def list_summarizer_models():
-    """
-    List available summarizer models with cost and quality info.
-    These models are used for answer generation only - they do not affect search or embeddings.
-    """
+def _build_summarizer_models() -> dict:
+    """Build summarizer models dict (cached internally)."""
     models = {
         "gpt-4.1": {
             "name": "GPT-4.1",
@@ -680,6 +718,21 @@ async def list_summarizer_models():
         "models": models,
         "note": "Only models in this list are allowed for security and cost control"
     }
+
+
+@router.get("/summarizer/models")
+async def list_summarizer_models(refresh: bool = False):
+    """
+    List available summarizer models with cost and quality info.
+    These models are used for answer generation only - they do not affect search or embeddings.
+    
+    Args:
+        refresh: If true, bypass cache and fetch fresh data
+    """
+    if refresh:
+        _tuning_cache.invalidate("summarizer_models")
+    
+    return _tuning_cache.get_or_compute("summarizer_models", _build_summarizer_models)
 
 
 @router.post(
@@ -1715,16 +1768,8 @@ def get_rag_profile_from_db() -> RagProfile:
         return DEFAULT_RAG_PROFILE
 
 
-@router.get(
-    "/profiles",
-    response_model=List[RagProfile],
-    dependencies=[Depends(require_tuning_auth)],
-)
-async def list_rag_profiles(request: Request):
-    """
-    List all RAG profiles.
-    Protected: requires tuning_auth cookie.
-    """
+def _fetch_rag_profiles() -> List[RagProfile]:
+    """Fetch RAG profiles from database (cached internally)."""
     try:
         conn = get_db_connection()
         cur = conn.cursor()
@@ -1750,15 +1795,33 @@ async def list_rag_profiles(request: Request):
         cur.close()
         conn.close()
         
-        profiles = [_row_to_rag_profile(row) for row in results]
-        return profiles
+        return [_row_to_rag_profile(row) for row in results]
         
     except psycopg2.errors.UndefinedTable:
         logger.warning("rag_profiles table does not exist")
         return [DEFAULT_RAG_PROFILE]
     except Exception as e:
         logger.error(f"Failed to list RAG profiles: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise
+
+
+@router.get(
+    "/profiles",
+    response_model=List[RagProfile],
+    dependencies=[Depends(require_tuning_auth)],
+)
+async def list_rag_profiles(request: Request, refresh: bool = False):
+    """
+    List all RAG profiles.
+    Protected: requires tuning_auth cookie.
+    
+    Args:
+        refresh: If true, bypass cache and fetch fresh data
+    """
+    if refresh:
+        _tuning_cache.invalidate("rag_profiles")
+    
+    return _tuning_cache.get_or_compute("rag_profiles", _fetch_rag_profiles)
 
 
 @router.get(

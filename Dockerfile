@@ -106,8 +106,8 @@ COPY backend/ .
 COPY backend/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-# Create directories for temporary files
-RUN mkdir -p /tmp/whisper_cache /tmp/audio_downloads
+# Create directories for temporary files and HuggingFace cache
+RUN mkdir -p /tmp/whisper_cache /tmp/audio_downloads /app/.cache/huggingface
 
 # Set environment variables
 ENV PYTHONPATH=/app
@@ -115,6 +115,16 @@ ENV WHISPER_CACHE_DIR=/tmp/whisper_cache
 ENV TEMP_AUDIO_DIR=/tmp/audio_downloads
 ENV YT_DLP_PATH=yt-dlp
 ENV FFMPEG_PATH=ffmpeg
+
+# HuggingFace cache directory - persist models between restarts
+# Mount this as a volume to avoid re-downloading on each deploy:
+#   docker run -v hf_cache:/app/.cache/huggingface ...
+ENV HF_HOME=/app/.cache/huggingface
+ENV TRANSFORMERS_CACHE=/app/.cache/huggingface
+ENV SENTENCE_TRANSFORMERS_HOME=/app/.cache/huggingface
+
+# Declare volume for HuggingFace cache persistence
+VOLUME /app/.cache/huggingface
 
 # Health check - Query /health endpoint
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \

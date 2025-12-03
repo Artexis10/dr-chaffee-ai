@@ -19,6 +19,14 @@ from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime
 import uuid
 
+# Import utilities
+from .utils.dsn_mask import mask_dsn_password
+from .utils.request_id import RequestIDMiddleware, get_request_id, setup_request_id_logging
+from .utils.cache import TTLCache, get_endpoint_cache
+
+# Setup request ID logging
+setup_request_id_logging()
+
 logger = logging.getLogger(__name__)
 
 from dataclasses import dataclass
@@ -89,6 +97,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Request ID middleware for log correlation
+app.add_middleware(RequestIDMiddleware)
+
 # Startup event to warm up embedding model (optional on low-memory environments)
 @app.on_event("startup")
 async def startup_event():
@@ -100,6 +111,12 @@ async def startup_event():
     Also runs DB embedding consistency check to prevent dimension mismatches.
     """
     import os
+    
+    # Log database connection (with masked password)
+    db_url = os.getenv('DATABASE_URL', '')
+    if db_url:
+        masked_url = mask_dsn_password(db_url)
+        logger.info(f"📦 Database: {masked_url}")
     
     # Log resolved embedding configuration
     config = resolve_embedding_config()
@@ -769,14 +786,11 @@ async def semantic_search(request: SearchRequest):
         model_config = config['models'][model_key]
         
         # Generate query embedding with the correct model
+        # Use the singleton embedding generator (initialized at startup)
+        # The EmbeddingGenerator class uses a shared model cache internally,
+        # so even if we create a new instance, it reuses the loaded model.
+        generator = get_embedding_generator()
         logger.info(f"Generating query embedding with {model_config['provider']} / {model_config['model_name']}...")
-        
-        # Create a generator for this specific model
-        from scripts.common.embeddings import EmbeddingGenerator
-        generator = EmbeddingGenerator(
-            embedding_provider=model_config['provider'],
-            model_name=model_config['model_name']
-        )
         
         embeddings = generator.generate_embeddings([request.query])
         logger.info(f"Generated {len(embeddings)} embeddings")
