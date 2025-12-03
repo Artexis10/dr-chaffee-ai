@@ -72,7 +72,7 @@ def upgrade() -> None:
     op.create_index(
         'idx_ai_requests_created_date',
         'ai_requests',
-        [sa.text("DATE(created_at)")],
+        ['created_at'],
     )
     
     # 2. Create feedback_events table - unified feedback for all contexts
@@ -122,7 +122,7 @@ def upgrade() -> None:
     op.create_index(
         'idx_feedback_events_created_date',
         'feedback_events',
-        [sa.text("DATE(created_at)")],
+        ['created_at'],
     )
     
     print("[OK] Created ai_requests table for AI call logging")
