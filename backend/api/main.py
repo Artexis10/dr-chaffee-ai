@@ -61,6 +61,9 @@ from .routers.auth_discord import router as discord_auth_router
 # Import admin summaries router
 from .routers.admin_summaries import router as admin_summaries_router
 
+# Import feedback router and AI request logging
+from .feedback import router as feedback_router, log_ai_request
+
 # Import request logging for daily summaries
 from .daily_summaries import log_rag_request
 
@@ -103,6 +106,9 @@ app.include_router(discord_auth_router)
 
 # Include admin summaries API
 app.include_router(admin_summaries_router)
+
+# Include feedback API
+app.include_router(feedback_router)
 
 # CORS middleware
 app.add_middleware(
@@ -1529,6 +1535,29 @@ async def answer_question(request: AnswerRequest):
             rag_profile_name=profile_meta.get('name'),
         )
         
+        # Log AI request for feedback system (returns ai_request_id)
+        ai_request_id = log_ai_request(
+            request_type='qa',
+            input_text=request.query,
+            output_text=parsed.get('answer', ''),
+            model_name=model,
+            rag_profile_id=str(profile_meta.get('id')) if profile_meta.get('id') else None,
+            custom_instruction_id=resolved_instructions.instruction_id,
+            request_id=get_request_id(),
+            session_id=get_session_id(),
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost_usd=cost,
+            latency_ms=t_total_ms,
+            success=True,
+            metadata={
+                'style': style,
+                'citations_count': len(structured_citations),
+                'chunks_used': len(source_chunks),
+                'confidence': parsed.get('confidence', 0.8),
+            }
+        )
+        
         return {
             "answer": parsed.get('answer', ''),
             "answer_md": parsed.get('answer', ''),  # Alias for frontend compatibility
@@ -1545,7 +1574,8 @@ async def answer_question(request: AnswerRequest):
                 "id": profile_meta.get('id'),
                 "name": profile_meta.get('name'),
                 "version": profile_meta.get('version')
-            }
+            },
+            "ai_request_id": ai_request_id,  # For feedback system
         }
         
     except HTTPException:

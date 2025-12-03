@@ -8,6 +8,7 @@ import { Footer } from '../components/Footer';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { DarkModeToggle } from '../components/DarkModeToggle';
 import { DisclaimerBanner } from '../components/DisclaimerBanner';
+import { GlobalFeedbackModal } from '../components/GlobalFeedbackModal';
 import { SearchResult, VideoGroup } from '../types';
 import { analytics, setupAnalyticsListeners, trackEvent } from '../utils/analytics';
 import { apiFetch } from '../utils/api';
@@ -38,6 +39,7 @@ export default function Home() {
   const [answerError, setAnswerError] = useState('');
   const [answerCancelled, setAnswerCancelled] = useState(false);
   const [answerStyle, setAnswerStyle] = useState<'concise' | 'detailed'>('concise');
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const copyNotificationTimeout = useRef<NodeJS.Timeout | null>(null);
 
@@ -730,6 +732,16 @@ export default function Home() {
               Tuning Dashboard
             </Link>
             <button 
+              onClick={() => setShowFeedbackModal(true)}
+              className="nav-link"
+              title="Send feedback"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Feedback
+            </button>
+            <button 
               onClick={() => {
                 localStorage.removeItem('auth_token');
                 window.location.href = '/';
@@ -865,6 +877,7 @@ export default function Home() {
                   performAnswerWithRetry(query, 5, newStyle);
                 }
               }}
+              aiRequestId={answerData?.ai_request_id}
             />
           </Suspense>
         </ErrorBoundary>
@@ -905,6 +918,12 @@ export default function Home() {
         )}
         
         <DarkModeToggle />
+
+        {/* Global Feedback Modal */}
+        <GlobalFeedbackModal
+          isOpen={showFeedbackModal}
+          onClose={() => setShowFeedbackModal(false)}
+        />
 
         <style jsx>{`
           /* Main container - centered layout with consistent padding */

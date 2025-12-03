@@ -7,6 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { apiFetch } from '@/utils/api';
+import { FeedbackStrip } from './FeedbackStrip';
 
 interface Citation {
   index: number;
@@ -26,6 +27,7 @@ interface AnswerData {
   used_chunk_ids: string[];
   cached?: boolean;
   cache_date?: string;
+  ai_request_id?: string | null;  // For feedback system
 }
 
 interface AnswerCardProps {
@@ -37,9 +39,10 @@ interface AnswerCardProps {
   onCancel?: () => void;
   answerStyle?: 'concise' | 'detailed';
   onStyleChange?: (style: 'concise' | 'detailed') => void;
+  aiRequestId?: string | null;  // For feedback system
 }
 
-export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onCancel, answerStyle = 'concise', onStyleChange }: AnswerCardProps) {
+export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onCancel, answerStyle = 'concise', onStyleChange, aiRequestId }: AnswerCardProps) {
   const [showSources, setShowSources] = useState(false);
   const [loadingTime, setLoadingTime] = useState(0);
   const [stats, setStats] = useState({ segments: 0, videos: 0 });
@@ -765,6 +768,9 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
           </div>
         )}
       </div>
+
+      {/* Feedback Strip - appears after citations */}
+      <FeedbackStrip aiRequestId={aiRequestId || answer?.ai_request_id || null} />
 
       <style jsx>{`
         .modern-answer-card {
