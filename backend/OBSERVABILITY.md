@@ -124,3 +124,103 @@ Database connection strings are automatically masked in logs:
 Before: postgresql://user:secret123@host:5432/db
 After:  postgresql://user:***@host:5432/db
 ```
+
+## Daily Summaries
+
+Daily summaries provide LLM-generated usage digests for admin review. They aggregate RAG request data and produce actionable insights about user queries, system performance, and areas for improvement.
+
+### What They Contain
+
+Each daily summary includes:
+
+- **Usage Statistics**: Query counts, answer/search breakdown, distinct sessions, token usage, cost, latency
+- **Top Themes**: Common topics users asked about
+- **What Worked Well**: Areas where RAG answers were strong
+- **Areas for Improvement**: Gaps or confusing responses
+- **Error Analysis**: Recurring failure patterns
+- **Recommendations**: Concrete suggestions for tuning
+
+**Note**: Summaries do not contain PII. Query text is truncated and aggregated.
+
+### Database Tables
+
+| Table | Purpose |
+|-------|---------|
+| `rag_requests` | Lightweight request log for aggregation |
+| `daily_summaries` | Stored LLM-generated summaries |
+
+### Triggering Generation
+
+#### Via API (Admin Only)
+
+```bash
+# Generate for yesterday (default)
+curl -X POST http://localhost:8000/api/admin/daily-summaries/generate \
+  -H "Content-Type: application/json" \
+  -d '{}'
+
+# Generate for specific date
+curl -X POST http://localhost:8000/api/admin/daily-summaries/generate \
+  -H "Content-Type: application/json" \
+  -d '{"summary_date": "2025-12-02"}'
+
+# Force regenerate
+curl -X POST http://localhost:8000/api/admin/daily-summaries/generate \
+  -H "Content-Type: application/json" \
+  -d '{"summary_date": "2025-12-02", "force_regenerate": true}'
+```
+
+#### Via CLI Script
+
+```bash
+# Generate for yesterday
+python -m scripts.generate_daily_summary
+
+# Generate for specific date
+python -m scripts.generate_daily_summary --date 2025-12-02
+
+# Force regenerate
+python -m scripts.generate_daily_summary --date 2025-12-02 --force
+
+# Dry run (show stats without generating)
+python -m scripts.generate_daily_summary --dry-run
+```
+
+#### Via Cron (Recommended)
+
+Add to crontab or Coolify scheduled task:
+
+```bash
+# Run daily at 2 AM
+0 2 * * * cd /app && python -m scripts.generate_daily_summary >> /var/log/daily-summary.log 2>&1
+```
+
+### Viewing Summaries
+
+#### Via Frontend
+
+Navigate to `/tuning/summaries` in the tuning dashboard (requires admin auth).
+
+#### Via API
+
+```bash
+# List recent summaries
+curl http://localhost:8000/api/admin/daily-summaries?limit=7
+
+# Get specific summary
+curl http://localhost:8000/api/admin/daily-summaries/2025-12-02
+```
+
+### How They Help RAG Tuning
+
+1. **Identify Knowledge Gaps**: See which queries lack good answers
+2. **Monitor Quality**: Track success rates and error patterns
+3. **Optimize Costs**: Review token usage and cost trends
+4. **Guide Custom Instructions**: Summaries suggest specific tuning actions
+5. **Track Improvements**: Compare summaries over time to measure impact
+
+### Cost
+
+Daily summary generation uses OpenAI (gpt-4o-mini by default):
+- Typical cost: $0.001-0.005 per summary
+- Monthly cost for daily generation: ~$0.03-0.15

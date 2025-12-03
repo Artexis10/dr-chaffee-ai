@@ -153,6 +153,9 @@ export default function OverviewPage() {
             <Link href="/tuning/instructions" className="tuning-btn tuning-btn-secondary">
               Custom Instructions
             </Link>
+            <Link href="/tuning/summaries" className="tuning-btn tuning-btn-secondary">
+              Daily Summaries
+            </Link>
           </div>
         </div>
       </div>

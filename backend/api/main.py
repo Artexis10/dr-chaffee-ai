@@ -58,6 +58,12 @@ from .tuning import router as tuning_router, get_search_config_from_db, SearchCo
 # Import Discord auth router
 from .routers.auth_discord import router as discord_auth_router
 
+# Import admin summaries router
+from .routers.admin_summaries import router as admin_summaries_router
+
+# Import request logging for daily summaries
+from .daily_summaries import log_rag_request
+
 # Import model catalog helpers
 from .model_catalog import (
     get_rag_model,
@@ -94,6 +100,9 @@ app.include_router(tuning_router)
 
 # Include Discord auth API
 app.include_router(discord_auth_router)
+
+# Include admin summaries API
+app.include_router(admin_summaries_router)
 
 # CORS middleware
 app.add_middleware(
@@ -890,6 +899,17 @@ async def semantic_search(request: SearchRequest):
             f"embed_ms={t_embed_ms:.1f} search_ms={t_search_ms:.1f} total_ms={t_total_ms:.1f}"
         )
         
+        # Log search request for daily summaries (fire-and-forget)
+        log_rag_request(
+            request_type='search',
+            query_text=request.query,
+            request_id=get_request_id(),
+            session_id=get_session_id(),
+            results_count=len(search_results),
+            latency_ms=t_total_ms,
+            success=True,
+        )
+        
         return SearchResponse(
             results=search_results,
             query=request.query,
@@ -900,6 +920,18 @@ async def semantic_search(request: SearchRequest):
     except Exception as e:
         t_total_ms = (time.perf_counter() - t_start) * 1000
         logger.error(f"{log_prefix()} SearchFailed: error={str(e)} total_ms={t_total_ms:.1f}", exc_info=True)
+        
+        # Log failed search for daily summaries
+        log_rag_request(
+            request_type='search',
+            query_text=request.query,
+            request_id=get_request_id(),
+            session_id=get_session_id(),
+            latency_ms=t_total_ms,
+            success=False,
+            error_message=str(e)[:500],
+        )
+        
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
 @app.post("/embed", dependencies=[Depends(verify_internal_api_key)])
@@ -1480,6 +1512,23 @@ async def answer_question(request: AnswerRequest):
             f"llm_ms={t_llm_ms:.1f} total_ms={t_total_ms:.1f} profile={profile_meta.get('name', 'unknown')}"
         )
         
+        # Log request for daily summaries (fire-and-forget)
+        log_rag_request(
+            request_type='answer',
+            query_text=request.query,
+            request_id=get_request_id(),
+            session_id=get_session_id(),
+            style=style,
+            results_count=len(structured_citations),
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost_usd=cost,
+            latency_ms=t_total_ms,
+            success=True,
+            rag_profile_id=profile_meta.get('id'),
+            rag_profile_name=profile_meta.get('name'),
+        )
+        
         return {
             "answer": parsed.get('answer', ''),
             "answer_md": parsed.get('answer', ''),  # Alias for frontend compatibility
@@ -1504,6 +1553,19 @@ async def answer_question(request: AnswerRequest):
     except Exception as e:
         t_total_ms = (time.perf_counter() - t_start) * 1000
         logger.error(f"{log_prefix()} AnswerFailed: error={str(e)} total_ms={t_total_ms:.1f}", exc_info=True)
+        
+        # Log failed request for daily summaries
+        log_rag_request(
+            request_type='answer',
+            query_text=request.query,
+            request_id=get_request_id(),
+            session_id=get_session_id(),
+            style=style if 'style' in dir() else None,
+            latency_ms=t_total_ms,
+            success=False,
+            error_message=str(e)[:500],
+        )
+        
         raise HTTPException(status_code=500, detail=f"Answer generation failed: {str(e)}")
 
 @app.get("/answer", dependencies=[Depends(verify_internal_api_key)])
