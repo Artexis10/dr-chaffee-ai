@@ -139,6 +139,10 @@ def upgrade() -> None:
     lists = max(10, min(100, int(math.sqrt(embedding_count)))) if embedding_count > 0 else 50
     print(f"   Embedding count: {embedding_count:,}, lists={lists}")
     
+    # Set maintenance_work_mem for index creation
+    conn.execute(text("SET maintenance_work_mem = '512MB'"))
+    print("   Set maintenance_work_mem = 512MB")
+    
     conn.execute(text(f"""
         CREATE INDEX IF NOT EXISTS idx_{TABLE_NAME}_ivfflat
         ON {TABLE_NAME} USING ivfflat (embedding vector_cosine_ops)
