@@ -69,7 +69,7 @@ def upgrade() -> None:
     op.create_index(
         'idx_rag_requests_created_date',
         'rag_requests',
-        [sa.text("DATE(created_at)")],
+        ['created_at'],
     )
     
     # 2. Create daily_summaries table
