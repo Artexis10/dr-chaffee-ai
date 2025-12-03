@@ -55,7 +55,7 @@ def upgrade() -> None:
         sa.Column('error_message', sa.Text(), nullable=True),
         
         # RAG profile used (if any)
-        sa.Column('rag_profile_id', sa.Integer(), nullable=True),
+        sa.Column('rag_profile_id', sa.String(36), nullable=True),
         sa.Column('rag_profile_name', sa.String(100), nullable=True),
         
         # Multi-tenant support (nullable for now)
