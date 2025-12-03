@@ -1,9 +1,17 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Calendar, RefreshCw, AlertCircle, FileText, TrendingUp, Clock, DollarSign, Users, CheckCircle, XCircle } from 'lucide-react';
+import { Calendar, RefreshCw, AlertCircle, FileText, TrendingUp, Clock, DollarSign, Users, CheckCircle, XCircle, ThumbsUp, ThumbsDown, MessageSquare } from 'lucide-react';
 import '../tuning-pages.css';
 import { apiFetch } from '@/utils/api';
+
+interface FeedbackSummary {
+  total: number;
+  positive: number;
+  negative: number;
+  by_model?: Record<string, { positive: number; negative: number }>;
+  top_tags?: Array<{ tag: string; count: number }>;
+}
 
 interface SummaryStats {
   queries: number;
@@ -17,6 +25,7 @@ interface SummaryStats {
   success_rate: number;
   success_count: number;
   error_count: number;
+  feedback_summary?: FeedbackSummary;
 }
 
 interface SummaryListItem {
@@ -242,6 +251,78 @@ export default function SummariesPage() {
                   <div style={{ fontSize: '0.7rem', opacity: 0.7 }}>Success</div>
                 </div>
               </div>
+
+              {/* Feedback Summary */}
+              {selectedSummary.stats.feedback_summary && (
+                <div style={{ 
+                  background: 'var(--bg-card-elevated)', 
+                  borderRadius: '0.5rem', 
+                  padding: '1rem',
+                  marginBottom: '1rem'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                    <MessageSquare style={{ width: 16, height: 16, opacity: 0.7 }} />
+                    <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>User Feedback</span>
+                  </div>
+                  
+                  <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+                    <span style={{ fontSize: '0.875rem' }}>
+                      {selectedSummary.stats.feedback_summary.total} total
+                    </span>
+                    <span style={{ fontSize: '0.875rem', color: '#22c55e', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                      <ThumbsUp style={{ width: 14, height: 14 }} />
+                      {selectedSummary.stats.feedback_summary.positive}
+                    </span>
+                    <span style={{ fontSize: '0.875rem', color: '#ef4444', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                      <ThumbsDown style={{ width: 14, height: 14 }} />
+                      {selectedSummary.stats.feedback_summary.negative}
+                    </span>
+                  </div>
+
+                  {/* Per-model breakdown */}
+                  {selectedSummary.stats.feedback_summary.by_model && 
+                   Object.keys(selectedSummary.stats.feedback_summary.by_model).length > 0 && (
+                    <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-subtle)' }}>
+                      <div style={{ fontSize: '0.75rem', opacity: 0.7, marginBottom: '0.5rem' }}>By Model</div>
+                      {Object.entries(selectedSummary.stats.feedback_summary.by_model).map(([model, counts]) => (
+                        <div key={model} style={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          fontSize: '0.8rem',
+                          padding: '0.25rem 0'
+                        }}>
+                          <span style={{ opacity: 0.8 }}>{model}</span>
+                          <span>
+                            <span style={{ color: '#22c55e' }}>👍 {counts.positive}</span>
+                            {' / '}
+                            <span style={{ color: '#ef4444' }}>👎 {counts.negative}</span>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Top tags */}
+                  {selectedSummary.stats.feedback_summary.top_tags && 
+                   selectedSummary.stats.feedback_summary.top_tags.length > 0 && (
+                    <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-subtle)' }}>
+                      <div style={{ fontSize: '0.75rem', opacity: 0.7, marginBottom: '0.5rem' }}>Top Issues</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        {selectedSummary.stats.feedback_summary.top_tags.map((t) => (
+                          <span key={t.tag} style={{ 
+                            fontSize: '0.75rem', 
+                            padding: '0.25rem 0.5rem', 
+                            background: 'var(--bg-body)', 
+                            borderRadius: '0.25rem' 
+                          }}>
+                            {t.tag} ({t.count})
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Summary Text */}
               <div style={{ 

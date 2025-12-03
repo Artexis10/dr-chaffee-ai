@@ -187,14 +187,14 @@ def get_ai_request_metadata(ai_request_id: str) -> Optional[dict]:
     """
     Fetch metadata from an ai_request for attaching to feedback.
     
-    Returns dict with model_name, rag_profile_id, custom_instruction_id, search_config_id.
+    Returns dict with model_name, rag_profile_id, custom_instruction_id, search_config_id, request_type.
     """
     try:
         conn = get_db_connection()
         try:
             with conn.cursor() as cur:
                 cur.execute("""
-                    SELECT model_name, rag_profile_id, custom_instruction_id, search_config_id
+                    SELECT model_name, rag_profile_id, custom_instruction_id, search_config_id, request_type
                     FROM ai_requests
                     WHERE id = %s
                 """, [ai_request_id])
@@ -242,6 +242,7 @@ async def create_feedback(feedback: FeedbackCreate, request: Request):
                             "rag_profile_id": ai_metadata.get("rag_profile_id"),
                             "custom_instruction_id": ai_metadata.get("custom_instruction_id"),
                             "search_config_id": ai_metadata.get("search_config_id"),
+                            "request_type": ai_metadata.get("request_type"),
                         })
                 
                 # Get session ID from request context
@@ -292,6 +293,7 @@ async def list_feedback(
     rating: Optional[int] = Query(None, description="Filter by rating"),
     model_name: Optional[str] = Query(None, description="Filter by model name (in metadata)"),
     rag_profile_id: Optional[str] = Query(None, description="Filter by RAG profile ID"),
+    custom_instruction_id: Optional[str] = Query(None, description="Filter by custom instruction ID"),
     from_date: Optional[str] = Query(None, description="Filter from date (YYYY-MM-DD)"),
     to_date: Optional[str] = Query(None, description="Filter to date (YYYY-MM-DD)"),
     page: int = Query(1, ge=1, description="Page number"),
@@ -327,6 +329,10 @@ async def list_feedback(
                 if rag_profile_id:
                     conditions.append("f.metadata->>'rag_profile_id' = %s")
                     params.append(rag_profile_id)
+                
+                if custom_instruction_id:
+                    conditions.append("f.metadata->>'custom_instruction_id' = %s")
+                    params.append(custom_instruction_id)
                 
                 if from_date:
                     conditions.append("DATE(f.created_at) >= %s")

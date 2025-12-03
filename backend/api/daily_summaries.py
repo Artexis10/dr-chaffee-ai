@@ -18,6 +18,25 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class FeedbackSummary:
+    """Aggregated feedback statistics for a single day."""
+    total: int
+    positive: int
+    negative: int
+    by_model: Dict[str, Dict[str, int]]  # model_name -> {positive, negative}
+    top_tags: List[Dict[str, Any]]  # [{tag, count}, ...]
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "total": self.total,
+            "positive": self.positive,
+            "negative": self.negative,
+            "by_model": self.by_model,
+            "top_tags": self.top_tags,
+        }
+
+
+@dataclass
 class DailyStats:
     """Aggregated statistics for a single day."""
     summary_date: date
@@ -33,6 +52,7 @@ class DailyStats:
     error_count: int
     top_queries: List[str]
     error_messages: List[str]
+    feedback_summary: Optional[FeedbackSummary] = None
 
     @property
     def success_rate(self) -> float:
@@ -40,7 +60,7 @@ class DailyStats:
         return self.success_count / total if total > 0 else 1.0
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        result = {
             "queries": self.total_queries,
             "answers": self.total_answers,
             "searches": self.total_searches,
@@ -55,6 +75,9 @@ class DailyStats:
             "success_count": self.success_count,
             "error_count": self.error_count,
         }
+        if self.feedback_summary:
+            result["feedback_summary"] = self.feedback_summary.to_dict()
+        return result
 
 
 def get_db_connection():
@@ -63,6 +86,82 @@ def get_db_connection():
         os.getenv('DATABASE_URL'),
         cursor_factory=RealDictCursor
     )
+
+
+def aggregate_feedback_stats(summary_date: date) -> Optional[FeedbackSummary]:
+    """
+    Aggregate feedback statistics for a given date.
+    
+    Args:
+        summary_date: The date to aggregate feedback for
+        
+    Returns:
+        FeedbackSummary object or None if no feedback exists
+    """
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            # Get overall counts
+            cur.execute("""
+                SELECT
+                    COUNT(*) as total,
+                    COUNT(*) FILTER (WHERE rating > 0) as positive,
+                    COUNT(*) FILTER (WHERE rating < 0) as negative
+                FROM feedback_events
+                WHERE DATE(created_at) = %s
+            """, [summary_date])
+            
+            totals = cur.fetchone()
+            if not totals or totals['total'] == 0:
+                return None
+            
+            # Get per-model breakdown (from metadata)
+            cur.execute("""
+                SELECT
+                    metadata->>'model_name' as model_name,
+                    COUNT(*) FILTER (WHERE rating > 0) as positive,
+                    COUNT(*) FILTER (WHERE rating < 0) as negative
+                FROM feedback_events
+                WHERE DATE(created_at) = %s
+                AND metadata->>'model_name' IS NOT NULL
+                GROUP BY metadata->>'model_name'
+                ORDER BY COUNT(*) DESC
+                LIMIT 10
+            """, [summary_date])
+            
+            by_model = {}
+            for row in cur.fetchall():
+                if row['model_name']:
+                    by_model[row['model_name']] = {
+                        'positive': row['positive'] or 0,
+                        'negative': row['negative'] or 0,
+                    }
+            
+            # Get top tags
+            cur.execute("""
+                SELECT tag, COUNT(*) as count
+                FROM feedback_events, jsonb_array_elements_text(tags) as tag
+                WHERE DATE(created_at) = %s
+                AND tags IS NOT NULL
+                GROUP BY tag
+                ORDER BY count DESC
+                LIMIT 10
+            """, [summary_date])
+            
+            top_tags = [{'tag': row['tag'], 'count': row['count']} for row in cur.fetchall()]
+            
+            return FeedbackSummary(
+                total=totals['total'] or 0,
+                positive=totals['positive'] or 0,
+                negative=totals['negative'] or 0,
+                by_model=by_model,
+                top_tags=top_tags,
+            )
+    except Exception as e:
+        logger.warning(f"Failed to aggregate feedback stats: {e}")
+        return None
+    finally:
+        conn.close()
 
 
 def aggregate_daily_stats(summary_date: date, tenant_id: Optional[str] = None) -> DailyStats:
@@ -127,6 +226,9 @@ def aggregate_daily_stats(summary_date: date, tenant_id: Optional[str] = None) -
             """, params)
             error_messages = [r['error_message'] for r in cur.fetchall()]
 
+            # Aggregate feedback stats for the same date
+            feedback_summary = aggregate_feedback_stats(summary_date)
+            
             return DailyStats(
                 summary_date=summary_date,
                 total_queries=row['total_queries'] or 0,
@@ -141,6 +243,7 @@ def aggregate_daily_stats(summary_date: date, tenant_id: Optional[str] = None) -
                 error_count=row['error_count'] or 0,
                 top_queries=top_queries,
                 error_messages=error_messages,
+                feedback_summary=feedback_summary,
             )
     finally:
         conn.close()
@@ -158,6 +261,18 @@ def build_summary_prompt(stats: DailyStats) -> str:
     """
     top_queries_str = "\n".join(f"  - {q}" for q in stats.top_queries[:10]) if stats.top_queries else "  (no queries recorded)"
     errors_str = "\n".join(f"  - {e}" for e in stats.error_messages[:5]) if stats.error_messages else "  (no errors)"
+    
+    # Build feedback section
+    feedback_str = "  (no feedback recorded)"
+    if stats.feedback_summary:
+        fs = stats.feedback_summary
+        feedback_str = f"  - Total: {fs.total} (👍 {fs.positive} / 👎 {fs.negative})"
+        if fs.by_model:
+            for model, counts in fs.by_model.items():
+                feedback_str += f"\n  - {model}: 👍 {counts['positive']} / 👎 {counts['negative']}"
+        if fs.top_tags:
+            tags_str = ", ".join(f"{t['tag']} ({t['count']})" for t in fs.top_tags[:5])
+            feedback_str += f"\n  - Top issues: {tags_str}"
 
     return f"""You are summarizing the last 24 hours of user interactions with Dr. Chaffee AI, a medical/nutrition RAG system.
 
@@ -176,6 +291,9 @@ def build_summary_prompt(stats: DailyStats) -> str:
 ## Top Queries
 {top_queries_str}
 
+## User Feedback
+{feedback_str}
+
 ## Errors (if any)
 {errors_str}
 
@@ -185,13 +303,15 @@ Based on this data, produce a concise daily digest with the following sections:
 
 1. **Top Themes**: What topics did users ask about most? Identify 3-5 key themes.
 
-2. **What Worked Well**: Where did the RAG answers seem strong? (high success rate, relevant queries, etc.)
+2. **What Worked Well**: Where did the RAG answers seem strong? (high success rate, relevant queries, positive feedback)
 
-3. **Areas for Improvement**: Where might answers be weak or confusing? Any patterns suggesting gaps in the knowledge base?
+3. **Areas for Improvement**: Where might answers be weak or confusing? Consider negative feedback tags and patterns.
 
 4. **Error Analysis**: If there were errors, what patterns do you see? Any recurring failure modes?
 
-5. **Recommendations**: 2-3 concrete suggestions for improving RAG profiles, search config, or custom instructions.
+5. **Feedback Insights**: What does user feedback tell us? Any patterns in negative ratings or common issues?
+
+6. **Recommendations**: 2-3 concrete suggestions for improving RAG profiles, search config, or custom instructions.
 
 Keep the summary concise but specific (400-600 words). Focus on actionable insights.
 If there were no queries, simply note that it was a quiet day with no user activity."""

@@ -53,6 +53,7 @@ export default function FeedbackPage() {
   // Filters
   const [targetType, setTargetType] = useState<string>('');
   const [rating, setRating] = useState<string>('');
+  const [modelFilter, setModelFilter] = useState<string>('');
   const [fromDate, setFromDate] = useState<string>('');
   const [toDate, setToDate] = useState<string>('');
   
@@ -69,6 +70,7 @@ export default function FeedbackPage() {
       
       if (targetType) params.set('target_type', targetType);
       if (rating) params.set('rating', rating);
+      if (modelFilter) params.set('model_name', modelFilter);
       if (fromDate) params.set('from_date', fromDate);
       if (toDate) params.set('to_date', toDate);
       
@@ -90,7 +92,7 @@ export default function FeedbackPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, targetType, rating, fromDate, toDate]);
+  }, [page, targetType, rating, modelFilter, fromDate, toDate]);
 
   const loadStats = useCallback(async () => {
     try {
@@ -193,7 +195,7 @@ export default function FeedbackPage() {
           <Filter style={{ width: 16, height: 16 }} />
           <span className="tuning-label" style={{ marginBottom: 0 }}>Filters</span>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
           <div>
             <label className="tuning-hint" style={{ display: 'block', marginBottom: 4 }}>Type</label>
             <select 
@@ -215,9 +217,20 @@ export default function FeedbackPage() {
               className="tuning-input"
             >
               <option value="">All ratings</option>
-              <option value="1">Positive</option>
-              <option value="-1">Negative</option>
+              <option value="1">Positive (👍)</option>
+              <option value="-1">Negative (👎)</option>
+              <option value="-2">Broken (🛠)</option>
             </select>
+          </div>
+          <div>
+            <label className="tuning-hint" style={{ display: 'block', marginBottom: 4 }}>Model</label>
+            <input 
+              type="text" 
+              placeholder="e.g. gpt-4o-mini"
+              value={modelFilter}
+              onChange={(e) => { setModelFilter(e.target.value); setPage(1); }}
+              className="tuning-input"
+            />
           </div>
           <div>
             <label className="tuning-hint" style={{ display: 'block', marginBottom: 4 }}>From</label>
@@ -331,13 +344,39 @@ export default function FeedbackPage() {
                                   <p>{item.output_text_snippet}</p>
                                 </div>
                               )}
-                              {item.model_name && (
-                                <div className="detail-section">
-                                  <label>Model:</label>
-                                  <p>{item.model_name}</p>
-                                </div>
-                              )}
+                              <div className="detail-grid">
+                                {(item.model_name || item.metadata?.model_name) && (
+                                  <div className="detail-section">
+                                    <label>Model:</label>
+                                    <p>{item.model_name || item.metadata?.model_name}</p>
+                                  </div>
+                                )}
+                                {item.metadata?.rag_profile_id && (
+                                  <div className="detail-section">
+                                    <label>RAG Profile:</label>
+                                    <p>{item.metadata.rag_profile_id}</p>
+                                  </div>
+                                )}
+                                {item.metadata?.custom_instruction_id && (
+                                  <div className="detail-section">
+                                    <label>Custom Instructions:</label>
+                                    <p>{item.metadata.custom_instruction_id}</p>
+                                  </div>
+                                )}
+                                {item.metadata?.search_config_id && (
+                                  <div className="detail-section">
+                                    <label>Search Config:</label>
+                                    <p>{item.metadata.search_config_id}</p>
+                                  </div>
+                                )}
+                              </div>
                             </>
+                          )}
+                          {item.target_type === 'tuning_internal' && item.target_id && (
+                            <div className="detail-section">
+                              <label>Config ID:</label>
+                              <p>{item.target_id}</p>
+                            </div>
                           )}
                           {item.comment && (
                             <div className="detail-section">
@@ -528,8 +567,19 @@ export default function FeedbackPage() {
           margin-left: 16px;
         }
 
+        .detail-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+          gap: 12px;
+          margin-bottom: 12px;
+        }
+
         .detail-section {
           margin-bottom: 12px;
+        }
+
+        .detail-grid .detail-section {
+          margin-bottom: 0;
         }
 
         .detail-section:last-child {

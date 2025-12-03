@@ -192,6 +192,124 @@ class TestFeedbackAPI:
         assert "123e4567" in response.feedback_id
 
 
+class TestMetadataEnrichment:
+    """Tests for metadata enrichment on answer feedback."""
+
+    def test_get_ai_request_metadata_returns_all_fields(self):
+        """Test that get_ai_request_metadata returns all expected fields."""
+        from unittest.mock import patch, MagicMock
+        
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        
+        # Mock the database result
+        mock_cursor.fetchone.return_value = {
+            "model_name": "gpt-4o-mini",
+            "rag_profile_id": "profile_1",
+            "custom_instruction_id": "instr_1",
+            "search_config_id": "search_1",
+            "request_type": "qa",
+        }
+        
+        with patch("backend.api.feedback.get_db_connection", return_value=mock_conn):
+            from backend.api.feedback import get_ai_request_metadata
+            
+            result = get_ai_request_metadata("test-uuid")
+            
+            assert result is not None
+            assert result["model_name"] == "gpt-4o-mini"
+            assert result["rag_profile_id"] == "profile_1"
+            assert result["custom_instruction_id"] == "instr_1"
+            assert result["search_config_id"] == "search_1"
+            assert result["request_type"] == "qa"
+
+
+class TestDailySummaryFeedback:
+    """Tests for feedback integration in daily summaries."""
+
+    def test_feedback_summary_dataclass(self):
+        """Test FeedbackSummary dataclass."""
+        from backend.api.daily_summaries import FeedbackSummary
+        
+        summary = FeedbackSummary(
+            total=42,
+            positive=30,
+            negative=12,
+            by_model={
+                "gpt-4o-mini": {"positive": 18, "negative": 4},
+                "gpt-4o": {"positive": 12, "negative": 8},
+            },
+            top_tags=[
+                {"tag": "wrong_facts", "count": 5},
+                {"tag": "missed_context", "count": 3},
+            ],
+        )
+        
+        assert summary.total == 42
+        assert summary.positive == 30
+        assert summary.negative == 12
+        assert len(summary.by_model) == 2
+        assert len(summary.top_tags) == 2
+
+    def test_feedback_summary_to_dict(self):
+        """Test FeedbackSummary.to_dict() method."""
+        from backend.api.daily_summaries import FeedbackSummary
+        
+        summary = FeedbackSummary(
+            total=10,
+            positive=7,
+            negative=3,
+            by_model={"gpt-4o-mini": {"positive": 7, "negative": 3}},
+            top_tags=[{"tag": "helpful", "count": 5}],
+        )
+        
+        result = summary.to_dict()
+        
+        assert result["total"] == 10
+        assert result["positive"] == 7
+        assert result["negative"] == 3
+        assert "by_model" in result
+        assert "top_tags" in result
+
+    def test_daily_stats_includes_feedback_summary(self):
+        """Test that DailyStats can include feedback_summary."""
+        from backend.api.daily_summaries import DailyStats, FeedbackSummary
+        from datetime import date
+        
+        feedback = FeedbackSummary(
+            total=5,
+            positive=4,
+            negative=1,
+            by_model={},
+            top_tags=[],
+        )
+        
+        stats = DailyStats(
+            summary_date=date.today(),
+            total_queries=100,
+            total_answers=80,
+            total_searches=20,
+            distinct_sessions=50,
+            total_input_tokens=10000,
+            total_output_tokens=20000,
+            total_cost_usd=0.5,
+            avg_latency_ms=1500.0,
+            success_count=95,
+            error_count=5,
+            top_queries=["query1", "query2"],
+            error_messages=[],
+            feedback_summary=feedback,
+        )
+        
+        result = stats.to_dict()
+        
+        assert "feedback_summary" in result
+        assert result["feedback_summary"]["total"] == 5
+        assert result["feedback_summary"]["positive"] == 4
+
+
 class TestFeedbackIntegration:
     """Integration tests for feedback system (require database)."""
 

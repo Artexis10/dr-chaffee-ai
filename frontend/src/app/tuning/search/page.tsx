@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Save, Loader2, AlertTriangle, CheckCircle, AlertCircle, Info, RefreshCw } from 'lucide-react';
+import { TuningFeedbackControl } from '@/components/TuningFeedbackControl';
 import '../tuning-pages.css';
 import { useSearchConfig, invalidateTuningCache, type SearchConfig, type SearchConfigResponse } from '@/hooks/useTuningData';
 import { apiFetch } from '@/utils/api';
@@ -337,6 +338,12 @@ export default function SearchPage() {
             </div>
           )}
         </div>
+
+        {/* Feedback for search config */}
+        <TuningFeedbackControl 
+          targetId="search_config:current" 
+          label="Rate current search config"
+        />
       </div>
     </div>
   );

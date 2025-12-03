@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { FileText, Save, Check, X, Plus, Trash2, Edit2, AlertCircle, Zap, DollarSign, Sparkles, RefreshCw } from 'lucide-react';
+import { TuningFeedbackControl } from '@/components/TuningFeedbackControl';
 import '../tuning-pages.css';
 import type { RAGModelInfo, RagProfile } from '@/types/models';
 import { FALLBACK_RAG_MODELS } from '@/types/models';
@@ -489,6 +490,15 @@ export default function ProfilesPage() {
                   )}
                 </div>
               </div>
+
+              {/* Feedback control */}
+              {profile.id && (
+                <TuningFeedbackControl 
+                  targetId={`profile:${profile.id}`} 
+                  label="Rate this profile"
+                  compact
+                />
+              )}
 
               {/* Preview of instructions */}
               <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border-subtle)' }}>
