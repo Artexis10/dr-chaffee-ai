@@ -20,9 +20,16 @@ from datetime import datetime
 import uuid
 
 # Import utilities
+import time
 from .utils.dsn_mask import mask_dsn_password
-from .utils.request_id import RequestIDMiddleware, get_request_id, setup_request_id_logging
+from .utils.request_id import RequestIDMiddleware, get_request_id, get_session_id, log_prefix, setup_request_id_logging
 from .utils.cache import TTLCache, get_endpoint_cache
+from .utils.metadata_cache import (
+    get_cached_embedding_stats,
+    get_cached_search_config,
+    invalidate_search_config,
+    get_cached_embedding_catalog,
+)
 
 # Setup request ID logging
 setup_request_id_logging()
@@ -737,28 +744,30 @@ async def semantic_search(request: SearchRequest):
     """
     Semantic search with optional reranking
     
-    1. Load search config from database (or use defaults)
-    2. Detect available embeddings in database
+    1. Load search config from database (or use defaults) - CACHED
+    2. Detect available embeddings in database - CACHED
     3. Generate query embedding with matching model
     4. Search database using vector similarity
     5. Optionally rerank results for better quality
+    
+    Logs include request_id/session_id and latency metrics.
     """
-    import logging
-    logger = logging.getLogger(__name__)
+    # Start timing
+    t_start = time.perf_counter()
     
     try:
-        # Load search config from database
-        db_config = get_search_config_from_db()
+        # Load search config from cache (60s TTL)
+        db_config = get_cached_search_config()
         
         # Use request values if provided, otherwise use database config
         top_k = request.top_k if request.top_k is not None else db_config.top_k
         min_similarity = request.min_similarity if request.min_similarity is not None else db_config.min_similarity
         use_rerank = request.rerank if request.rerank is not None else db_config.enable_reranker
         
-        logger.info(f"Search request: {request.query} (top_k={top_k}, min_sim={min_similarity}, rerank={use_rerank})")
+        logger.info(f"{log_prefix()} Search: query={request.query[:50]!r} top_k={top_k} min_sim={min_similarity:.2f} rerank={use_rerank}")
         
-        # First, detect what embeddings are available in the database
-        available_models = get_available_embedding_models()
+        # Get embedding stats from cache (60s TTL)
+        available_models = get_cached_embedding_stats()
         if not available_models:
             raise HTTPException(
                 status_code=503, 
@@ -770,11 +779,8 @@ async def semantic_search(request: SearchRequest):
         model_key = db_model['model_key']
         expected_dim = db_model['dimensions']
         
-        logger.info(f"Database has {db_model['count']} embeddings with model '{model_key}' ({expected_dim} dims)")
-        
-        # Load config to get model details
-        from .model_catalog import get_embedding_model_catalog
-        config = get_embedding_model_catalog()
+        # Load embedding catalog from cache (300s TTL)
+        config = get_cached_embedding_catalog()
         
         # Check if model exists in config
         if model_key not in config['models']:
@@ -785,15 +791,11 @@ async def semantic_search(request: SearchRequest):
         
         model_config = config['models'][model_key]
         
-        # Generate query embedding with the correct model
-        # Use the singleton embedding generator (initialized at startup)
-        # The EmbeddingGenerator class uses a shared model cache internally,
-        # so even if we create a new instance, it reuses the loaded model.
+        # Generate query embedding with the singleton generator
+        t_embed_start = time.perf_counter()
         generator = get_embedding_generator()
-        logger.info(f"Generating query embedding with {model_config['provider']} / {model_config['model_name']}...")
-        
         embeddings = generator.generate_embeddings([request.query])
-        logger.info(f"Generated {len(embeddings)} embeddings")
+        t_embed_ms = (time.perf_counter() - t_embed_start) * 1000
         
         if not embeddings or len(embeddings) == 0:
             raise HTTPException(status_code=500, detail="Failed to generate query embedding")
@@ -811,11 +813,10 @@ async def semantic_search(request: SearchRequest):
         # Convert embedding to list
         embedding_list = query_embedding.tolist() if hasattr(query_embedding, 'tolist') else query_embedding
         
-        # Connect to database
+        # Connect to database and execute vector search
+        t_search_start = time.perf_counter()
         conn = get_db_connection()
         cur = conn.cursor()
-        
-        logger.info(f"Searching with model: {model_key} ({expected_dim} dims)")
         
         # Use legacy embedding column (segments.embedding)
         search_query = """
@@ -850,6 +851,7 @@ async def semantic_search(request: SearchRequest):
         results = cur.fetchall()
         cur.close()
         conn.close()
+        t_search_ms = (time.perf_counter() - t_search_start) * 1000
         
         # Optional reranking
         if use_rerank and len(results) > 0:
@@ -881,6 +883,13 @@ async def semantic_search(request: SearchRequest):
             for r in results
         ]
         
+        # Log latency metrics
+        t_total_ms = (time.perf_counter() - t_start) * 1000
+        logger.info(
+            f"{log_prefix()} SearchComplete: results={len(search_results)} model={model_key} "
+            f"embed_ms={t_embed_ms:.1f} search_ms={t_search_ms:.1f} total_ms={t_total_ms:.1f}"
+        )
+        
         return SearchResponse(
             results=search_results,
             query=request.query,
@@ -889,7 +898,8 @@ async def semantic_search(request: SearchRequest):
         )
         
     except Exception as e:
-        logger.error(f"Search failed: {str(e)}", exc_info=True)
+        t_total_ms = (time.perf_counter() - t_start) * 1000
+        logger.error(f"{log_prefix()} SearchFailed: error={str(e)} total_ms={t_total_ms:.1f}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
 @app.post("/embed", dependencies=[Depends(verify_internal_api_key)])
@@ -1178,14 +1188,22 @@ def _build_chaffee_user_prompt(query: str, excerpts: str, style: str) -> str:
 @app.post("/answer", dependencies=[Depends(verify_internal_api_key)])
 @app.post("/api/answer", dependencies=[Depends(verify_internal_api_key)])
 async def answer_question(request: AnswerRequest):
-    """Generate AI-powered answer using RAG with OpenAI and curated Chaffee persona"""
-    import logging
+    """
+    Generate AI-powered answer using RAG with OpenAI and curated Chaffee persona.
+    
+    Logs include request_id/session_id and latency metrics for:
+    - Search step (embedding + vector search)
+    - LLM call (OpenAI summarization)
+    - Total request duration
+    """
     import json
-    logger = logging.getLogger(__name__)
+    
+    # Start timing
+    t_start = time.perf_counter()
     
     try:
-        # Load search config from database (tuning dashboard settings)
-        search_cfg = get_search_config_from_db()
+        # Load search config from cache (60s TTL)
+        search_cfg = get_cached_search_config()
         
         # Get parameters - use request values if provided, otherwise use DB config
         style = request.style or 'concise'
@@ -1196,16 +1214,10 @@ async def answer_question(request: AnswerRequest):
         min_similarity = search_cfg.min_similarity
         max_tokens = 3500 if style == 'detailed' else 1400
         
-        # Log search config being used
         logger.info(
-            "SearchConfig: initial=%d, min_relevance=%.3f, clips_in_answer=%d, reranker=%s",
-            initial_top_k,
-            min_similarity,
-            clips_for_answer,
-            search_cfg.enable_reranker
+            f"{log_prefix()} Answer: query={request.query[:50]!r} style={style} "
+            f"top_k={initial_top_k} clips={clips_for_answer} rerank={search_cfg.enable_reranker}"
         )
-        
-        logger.info(f"Answer request: {request.query[:100]} (style={style})")
         
         # Step 1: Get relevant segments using semantic search
         # Pass the full config to semantic_search so it uses DB settings
@@ -1220,19 +1232,10 @@ async def answer_question(request: AnswerRequest):
         if not search_response.results:
             raise HTTPException(status_code=404, detail="No relevant information found")
         
-        # Log search pipeline counts
-        total_candidates = len(search_response.results)
-        
         # Step 2: Limit results to clips_for_answer (return_top_k from tuning dashboard)
         # This is the key setting: "Number of clips to use in answer"
+        total_candidates = len(search_response.results)
         results_for_llm = search_response.results[:clips_for_answer]
-        
-        logger.info(
-            "SearchQuery: %r | candidates=%d, used_in_answer=%d",
-            request.query[:50],
-            total_candidates,
-            len(results_for_llm)
-        )
         
         # Step 3: Build RAG context in the curated format
         # Format: numbered excerpts [1], [2], etc. with video info
@@ -1391,6 +1394,8 @@ async def answer_question(request: AnswerRequest):
                 len(system_prompt),
             )
         
+        # Time the LLM call
+        t_llm_start = time.perf_counter()
         response = client.chat.completions.create(
             model=model,
             messages=[
@@ -1401,6 +1406,7 @@ async def answer_question(request: AnswerRequest):
             temperature=temperature,  # Configurable via tuning dashboard
             response_format={"type": "json_object"}  # Ensure JSON output
         )
+        t_llm_ms = (time.perf_counter() - t_llm_start) * 1000
         
         content = response.choices[0].message.content
         
@@ -1410,7 +1416,10 @@ async def answer_question(request: AnswerRequest):
         # gpt-4o-mini: $0.15/1M input, $0.60/1M output
         cost = (input_tokens * 0.00015 + output_tokens * 0.0006) / 1000
         
-        logger.info(f"Token usage - Input: {input_tokens}, Output: {output_tokens}, Cost: ${cost:.4f}")
+        logger.info(
+            f"{log_prefix()} LLMComplete: model={model} in_tokens={input_tokens} out_tokens={output_tokens} "
+            f"cost=${cost:.4f} llm_ms={t_llm_ms:.1f}"
+        )
         
         # Parse JSON response
         try:
@@ -1464,13 +1473,11 @@ async def answer_question(request: AnswerRequest):
                     "published_at": chunk.get('published_at') or None
                 })
         
+        # Log total latency metrics
+        t_total_ms = (time.perf_counter() - t_start) * 1000
         logger.info(
-            "✅ RAG answer generated: ${cost:.4f}, citations: {citations}, profile: {profile} v{version}".format(
-                cost=cost,
-                citations=len(structured_citations),
-                profile=profile_meta.get('name', 'unknown'),
-                version=profile_meta.get('version', 0)
-            )
+            f"{log_prefix()} AnswerComplete: citations={len(structured_citations)} cost=${cost:.4f} "
+            f"llm_ms={t_llm_ms:.1f} total_ms={t_total_ms:.1f} profile={profile_meta.get('name', 'unknown')}"
         )
         
         return {
@@ -1495,7 +1502,8 @@ async def answer_question(request: AnswerRequest):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Answer generation failed: {str(e)}", exc_info=True)
+        t_total_ms = (time.perf_counter() - t_start) * 1000
+        logger.error(f"{log_prefix()} AnswerFailed: error={str(e)} total_ms={t_total_ms:.1f}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Answer generation failed: {str(e)}")
 
 @app.get("/answer", dependencies=[Depends(verify_internal_api_key)])

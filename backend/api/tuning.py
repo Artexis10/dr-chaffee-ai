@@ -1508,13 +1508,20 @@ def get_search_config_with_status() -> tuple[SearchConfigDB, Optional[str], Opti
     response_model=SearchConfigResponse,
     dependencies=[Depends(require_tuning_auth)],
 )
-async def get_search_config(request: Request):
+async def get_search_config(request: Request, refresh: bool = False):
     """
     Get current search configuration from database.
     Protected: requires tuning_auth cookie.
     
+    Args:
+        refresh: If true, bypass cache and fetch fresh data from database
+    
     Returns config with optional error info if table is missing.
     """
+    if refresh:
+        from .utils.metadata_cache import invalidate_search_config
+        invalidate_search_config()
+    
     config, error, error_code = get_search_config_with_status()
     return SearchConfigResponse(config=config, error=error, error_code=error_code)
 
@@ -1551,6 +1558,10 @@ async def update_search_config(config: SearchConfigDB, request: Request):
         conn.commit()
         cur.close()
         conn.close()
+        
+        # Invalidate search config cache so RAG pipeline gets fresh values
+        from .utils.metadata_cache import invalidate_search_config
+        invalidate_search_config()
         
         logger.info(f"Search config updated: top_k={config.top_k}, min_similarity={config.min_similarity}")
         

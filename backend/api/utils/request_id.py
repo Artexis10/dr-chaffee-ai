@@ -3,12 +3,24 @@ Request ID Middleware
 
 Adds unique request IDs to all requests for log correlation.
 Also extracts session ID from headers if provided by frontend.
+
+Usage:
+    # In middleware setup:
+    app.add_middleware(RequestIDMiddleware)
+    
+    # In handlers:
+    from api.utils.request_id import get_request_id, get_session_id, log_prefix
+    logger.info(f"{log_prefix()} Processing request")
+    
+    # Or use structured logging:
+    from api.utils.request_id import log_context
+    logger.info("Processing request", extra=log_context())
 """
 
 import uuid
 import logging
 import contextvars
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -29,6 +41,37 @@ def get_request_id() -> str:
 def get_session_id() -> str:
     """Get current session ID from context (if provided by frontend)."""
     return session_id_var.get()
+
+
+def log_prefix() -> str:
+    """
+    Get a formatted log prefix with request_id and session_id.
+    
+    Returns:
+        String like "[req=abc123 sess=xyz789]" or "[req=abc123]" if no session
+    """
+    req_id = get_request_id() or '-'
+    sess_id = get_session_id()
+    
+    if sess_id:
+        return f"[req={req_id} sess={sess_id}]"
+    return f"[req={req_id}]"
+
+
+def log_context() -> Dict[str, Any]:
+    """
+    Get a dict with request_id and session_id for structured logging.
+    
+    Usage:
+        logger.info("Message", extra=log_context())
+        
+    Returns:
+        Dict with 'request_id' and 'session_id' keys
+    """
+    return {
+        'request_id': get_request_id() or '-',
+        'session_id': get_session_id() or '-'
+    }
 
 
 class RequestIDMiddleware(BaseHTTPMiddleware):
