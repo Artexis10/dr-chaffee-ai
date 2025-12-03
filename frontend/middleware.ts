@@ -11,6 +11,7 @@ import { verifySessionTokenEdge } from './src/utils/authTokenEdge';
  * Public routes:
  * - /api/* - API routes (protected at API level)
  * - /tuning/auth - Tuning login page
+ * - /auth/discord/* - Discord OAuth flow pages (not-in-server, insufficient-role, error)
  * - / - Home page (shows PasswordGate component)
  */
 export async function middleware(request: NextRequest) {
@@ -27,14 +28,15 @@ export async function middleware(request: NextRequest) {
     }
   }
   
-  // Protect main app routes (all routes except /tuning/*, /tuning/auth, API routes, and home)
-  // Allow access to: /, /api/*, /tuning/auth
+  // Protect main app routes (all routes except /tuning/*, /tuning/auth, API routes, Discord auth, and home)
+  // Allow access to: /, /api/*, /tuning/auth, /auth/discord/*
   const isApiRoute = pathname.startsWith('/api/');
   const isTuningAuth = pathname === '/tuning/auth';
   const isTuningRoute = pathname.startsWith('/tuning');
   const isHomePage = pathname === '/';
+  const isDiscordAuthRoute = pathname.startsWith('/auth/discord');
   
-  if (!isApiRoute && !isTuningAuth && !isTuningRoute && !isHomePage) {
+  if (!isApiRoute && !isTuningAuth && !isTuningRoute && !isHomePage && !isDiscordAuthRoute) {
     // Check if user has main app auth token
     const authTokenCookie = request.cookies.get('auth_token');
     const token = authTokenCookie?.value;

@@ -52,6 +52,7 @@ asyncio-throttle==1.0.2
 apscheduler==3.10.4
 aiohttp==3.9.1
 aiohttp-socks==0.8.4
+httpx>=0.25.0  # Async HTTP client for Discord OAuth
 
 # Optional development tools
 black==23.9.1

@@ -40,6 +40,9 @@ from scripts.common.embeddings import EmbeddingGenerator, resolve_embedding_conf
 # Import tuning router and search config helper
 from .tuning import router as tuning_router, get_search_config_from_db, SearchConfigDB, get_rag_profile_from_db, RagProfile
 
+# Import Discord auth router
+from .routers.auth_discord import router as discord_auth_router
+
 # Import model catalog helpers
 from .model_catalog import (
     get_rag_model,
@@ -73,6 +76,9 @@ app = FastAPI(
 
 # Include tuning API
 app.include_router(tuning_router)
+
+# Include Discord auth API
+app.include_router(discord_auth_router)
 
 # CORS middleware
 app.add_middleware(
