@@ -21,6 +21,7 @@ import uuid
 
 logger = logging.getLogger(__name__)
 
+from dataclasses import dataclass
 from pydantic import BaseModel
 from sqlalchemy import create_engine, text
 from sqlalchemy.pool import StaticPool
@@ -927,24 +928,38 @@ You are "Emulated Dr Anthony Chaffee (AI)" - an AI assistant that emulates Dr. C
 """
 
 
-def _get_custom_instructions() -> str:
+@dataclass
+class ResolvedCustomInstructions:
+    """Resolved custom instructions for the summariser."""
+    instruction_id: Optional[str]
+    name: Optional[str]
+    text: str
+    length: int
+
+
+def resolve_custom_instructions() -> ResolvedCustomInstructions:
     """
-    Load active custom instructions from database.
+    Resolve which custom instructions to apply for the summariser.
+    
+    Rules:
+    - Uses the same "active" instruction selection logic as the tuning page.
+    - If nothing is configured, returns empty ResolvedCustomInstructions.
+    - Custom instructions are NOT per-model; they are global.
     
     Returns:
-        Custom instructions text or empty string if not found/configured.
+        ResolvedCustomInstructions with instruction_id, name, text, and length.
     """
     database_url = os.getenv('DATABASE_URL')
     if not database_url:
         logger.debug("CustomInstructions: DATABASE_URL not set, skipping")
-        return ""
+        return ResolvedCustomInstructions(instruction_id=None, name=None, text="", length=0)
     
     try:
         conn = psycopg2.connect(database_url, cursor_factory=RealDictCursor)
         cur = conn.cursor()
         
         cur.execute("""
-            SELECT instructions
+            SELECT id, name, instructions
             FROM custom_instructions
             WHERE is_active = true
             LIMIT 1
@@ -956,23 +971,23 @@ def _get_custom_instructions() -> str:
         
         if result and result['instructions'] and result['instructions'].strip():
             instructions = result['instructions'].strip()
-            logger.debug(
-                "CustomInstructions: loaded active instructions (len=%d, preview=%r)",
-                len(instructions),
-                instructions[:100]
+            return ResolvedCustomInstructions(
+                instruction_id=str(result['id']),
+                name=result['name'],
+                text=instructions,
+                length=len(instructions)
             )
-            return instructions
         
         logger.debug("CustomInstructions: no active instruction set found")
-        return ""
+        return ResolvedCustomInstructions(instruction_id=None, name=None, text="", length=0)
         
     except Exception as e:
         # Table might not exist yet (pre-migration) - graceful degradation
         logger.debug(f"CustomInstructions: could not load from DB: {e}")
-        return ""
+        return ResolvedCustomInstructions(instruction_id=None, name=None, text="", length=0)
 
 
-def _build_chaffee_system_prompt(style: str, include_custom: bool = True) -> tuple[str, dict]:
+def _build_chaffee_system_prompt(style: str, include_custom: bool = True) -> tuple[str, dict, ResolvedCustomInstructions]:
     """
     Build the Dr. Chaffee system prompt from DB-backed RAG profile.
     
@@ -988,17 +1003,35 @@ def _build_chaffee_system_prompt(style: str, include_custom: bool = True) -> tup
         include_custom: If True, append active custom instructions from database
     
     Returns:
-        Tuple of (complete system prompt, profile metadata dict)
+        Tuple of (complete system prompt, profile metadata dict, resolved custom instructions)
     """
     # Load RAG profile from database
     profile = get_rag_profile_from_db()
+    
+    # Determine profile source for logging
+    profile_source = "database" if profile.id else "fallback"
+    auto_select = getattr(profile, 'auto_select_model', False)
+    
     profile_meta = {
         'id': str(profile.id) if profile.id else None,
         'name': profile.name,
         'version': profile.version,
         'model_name': profile.model_name,
         'temperature': profile.temperature,
+        'auto_select_model': auto_select,
     }
+    
+    # Log RAG profile resolution
+    logger.info(
+        "RAGProfileResolved: profile_id=%s, profile_name=%s, profile_version=%s, "
+        "source=%s, auto_select=%s, summarizer_model=%s",
+        profile_meta['id'] or "none",
+        profile.name,
+        profile.version,
+        profile_source,
+        auto_select,
+        profile.model_name,
+    )
     
     # Start with core system prompt (non-negotiable)
     prompt_parts = [CORE_SYSTEM_PROMPT]
@@ -1013,29 +1046,38 @@ def _build_chaffee_system_prompt(style: str, include_custom: bool = True) -> tup
     if profile.retrieval_hints and profile.retrieval_hints.strip():
         prompt_parts.append(f"\n{profile.retrieval_hints.strip()}")
     
-    # Append custom instructions if enabled (fine-tuning layer)
+    # Resolve custom instructions
+    resolved_instructions = ResolvedCustomInstructions(instruction_id=None, name=None, text="", length=0)
+    
     if include_custom:
-        custom = _get_custom_instructions()
-        if custom:
-            prompt_parts.append(f"\n## Additional Custom Instructions\n\n{custom}")
-            logger.info(
-                "SystemPrompt: profile=%s v%d, custom_len=%d",
-                profile.name,
-                profile.version,
-                len(custom)
-            )
+        resolved_instructions = resolve_custom_instructions()
+        
+        # Log custom instructions resolution
+        logger.info(
+            "CustomInstructionsResolved: instruction_id=%s, name=%s, chars=%d",
+            resolved_instructions.instruction_id or "none",
+            resolved_instructions.name or "none",
+            resolved_instructions.length,
+        )
+        
+        if resolved_instructions.text:
+            prompt_parts.append(f"\n## Additional Custom Instructions\n\n{resolved_instructions.text}")
     
     final_prompt = "\n".join(prompt_parts)
     
+    # Log final system prompt composition
     logger.info(
-        "SystemPrompt: profile_id=%s, profile_name=%s, version=%d, total_len=%d",
-        profile_meta['id'],
+        "SystemPrompt: profile_id=%s, profile_name=%s, version=%s, "
+        "instruction_id=%s, instructions_len=%d, total_len=%d",
+        profile_meta['id'] or "none",
         profile.name,
         profile.version,
-        len(final_prompt)
+        resolved_instructions.instruction_id or "none",
+        resolved_instructions.length,
+        len(final_prompt),
     )
     
-    return final_prompt, profile_meta
+    return final_prompt, profile_meta, resolved_instructions
 
 
 def _build_chaffee_user_prompt(query: str, excerpts: str, style: str) -> str:
@@ -1201,7 +1243,7 @@ async def answer_question(request: AnswerRequest):
         excerpts = "\n\n".join(excerpt_parts)
         
         # Step 4: Build curated prompts (includes custom instructions from DB)
-        system_prompt, profile_meta = _build_chaffee_system_prompt(style, include_custom=True)
+        system_prompt, profile_meta, resolved_instructions = _build_chaffee_system_prompt(style, include_custom=True)
         user_prompt = _build_chaffee_user_prompt(request.query, excerpts, style)
         
         # Step 5: Query OpenAI
@@ -1307,16 +1349,27 @@ async def answer_question(request: AnswerRequest):
         
         # Log summarizer model and profile being used
         logger.info(
-            "SummarizerCall: model=%s, source=%s, profile_id=%s, profile_version=%s, auto_select=%s, temperature=%.2f, est_tokens=%d, clips=%d",
+            "SummarizerCall: model=%s, source=%s, profile_id=%s, profile_version=%s, "
+            "instruction_id=%s, auto_select=%s, temperature=%.2f, est_tokens=%d, clips=%d",
             model,
             model_source,
-            profile_meta.get('id'),
+            profile_meta.get('id') or "none",
             profile_meta.get('version', 0),
+            resolved_instructions.instruction_id or "none",
             auto_select,
             temperature,
             estimated_context_tokens,
             len(results_for_llm)
         )
+        
+        # Optional debug preview of system prompt (controlled by env var)
+        if os.getenv('LOG_SUMMARIZER_PREVIEW', 'false').lower() in ('1', 'true', 'yes'):
+            preview = system_prompt[:1500].replace("\n", "\\n")
+            logger.debug(
+                "SummarizerPayloadPreview: system_prompt_preview=\"%s\" (len=%d)",
+                preview,
+                len(system_prompt),
+            )
         
         response = client.chat.completions.create(
             model=model,
