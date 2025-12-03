@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { Settings, BarChart3, Sparkles, Search, Home, LogOut, Menu, X, Sun, Moon, FileText } from 'lucide-react';
 import '../../styles/tuning.css';
 import { useTuningAuth } from '../../hooks/useTuningData';
+import { apiFetch } from '../../utils/api';
 
 // Theme constants - must match DarkModeToggle.tsx
 const THEME_KEY = 'askdrchaffee.theme';
@@ -103,7 +104,7 @@ export default function TuningLayout({
 
   const handleLogout = async () => {
     try {
-      await fetch('/api/tuning/auth/logout', { method: 'POST', credentials: 'include' });
+      await apiFetch('/api/tuning/auth/logout', { method: 'POST' });
     } catch (e) {
       // Ignore errors
     }

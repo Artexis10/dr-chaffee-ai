@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Database, TrendingUp, AlertCircle, CheckCircle } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Database, TrendingUp, AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import './tuning-pages.css';
+import { apiFetch } from '@/utils/api';
 
 interface Stats {
   total_videos: number;
@@ -19,13 +20,10 @@ export default function OverviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadStats();
-  }, []);
-
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
+    setLoading(true);
     try {
-      const res = await fetch('/api/stats');
+      const res = await apiFetch('/api/stats');
       if (!res.ok) {
         throw new Error(`Failed to load stats: ${res.status}`);
       }
@@ -38,7 +36,11 @@ export default function OverviewPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadStats();
+  }, [loadStats]);
 
   if (loading) {
     return (
@@ -66,8 +68,18 @@ export default function OverviewPage() {
     <div className="tuning-page">
       {/* Header */}
       <div className="tuning-header">
-        <h1 className="tuning-title">Dashboard Overview</h1>
-        <p className="tuning-text-muted">Real-time statistics and embedding coverage</p>
+        <div>
+          <h1 className="tuning-title">Dashboard Overview</h1>
+          <p className="tuning-text-muted">Real-time statistics and embedding coverage</p>
+        </div>
+        <button 
+          onClick={() => loadStats()} 
+          className="tuning-btn tuning-btn-secondary"
+          title="Refresh stats"
+          disabled={loading}
+        >
+          <RefreshCw style={{ width: 16, height: 16 }} />
+        </button>
       </div>
 
       {/* Stats Grid */}

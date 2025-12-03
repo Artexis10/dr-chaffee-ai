@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import { apiFetch } from '@/utils/api';
 
 interface PasswordGateProps {
   children: React.ReactNode;
@@ -34,8 +35,8 @@ export function PasswordGate({ children }: PasswordGateProps) {
     
     // Check if password is required and if Discord is enabled
     Promise.all([
-      fetch('/api/auth/check').then(res => res.json()),
-      fetch('/api/auth/discord/status').then(res => res.json()).catch(() => ({ enabled: false }))
+      apiFetch('/api/auth/check').then(res => res.json()),
+      apiFetch('/api/auth/discord/status').then(res => res.json()).catch(() => ({ enabled: false }))
     ])
       .then(([authData, discordData]) => {
         setRequiresPassword(authData.requiresPassword);
@@ -44,7 +45,7 @@ export function PasswordGate({ children }: PasswordGateProps) {
         // If already have token and password is required, verify it
         if (authToken && authData.requiresPassword) {
           // Verify token
-          fetch('/api/auth/verify', {
+          apiFetch('/api/auth/verify', {
             headers: { 'Authorization': `Bearer ${authToken}` }
           })
             .then(res => res.json())
@@ -75,9 +76,8 @@ export function PasswordGate({ children }: PasswordGateProps) {
     setError('');
 
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await apiFetch('/api/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password })
       });
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FileText, Save, Check, X, Plus, Trash2, Edit2, AlertCircle, Zap, DollarSign, Sparkles } from 'lucide-react';
+import { FileText, Save, Check, X, Plus, Trash2, Edit2, AlertCircle, Zap, DollarSign, Sparkles, RefreshCw } from 'lucide-react';
 import '../tuning-pages.css';
 import type { RAGModelInfo, RagProfile } from '@/types/models';
 import { FALLBACK_RAG_MODELS } from '@/types/models';
@@ -172,10 +172,20 @@ export default function ProfilesPage() {
           <p className="tuning-text-muted">Configure AI persona, voice, and retrieval behavior</p>
         </div>
         {!editMode && (
-          <button onClick={startNewProfile} className="tuning-btn tuning-btn-primary">
-            <Plus style={{ width: 16, height: 16 }} />
-            New Profile
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button 
+              onClick={() => refreshProfiles()} 
+              className="tuning-btn tuning-btn-secondary"
+              title="Refresh profiles"
+              disabled={loading}
+            >
+              <RefreshCw style={{ width: 16, height: 16 }} />
+            </button>
+            <button onClick={startNewProfile} className="tuning-btn tuning-btn-primary">
+              <Plus style={{ width: 16, height: 16 }} />
+              New Profile
+            </button>
+          </div>
         )}
       </div>
 

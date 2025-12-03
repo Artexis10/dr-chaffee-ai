@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { apiFetch } from '@/utils/api';
 
 interface Citation {
   index: number;
@@ -47,7 +48,7 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
   
   // Fetch stats on mount
   useEffect(() => {
-    fetch('/api/stats')
+    apiFetch('/api/stats')
       .then(res => res.json())
       .then(data => {
         if (data.segments && data.videos) {

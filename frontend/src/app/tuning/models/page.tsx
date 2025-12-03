@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Sparkles, AlertCircle, CheckCircle, Loader2, Info, Check, X } from 'lucide-react';
+import { Sparkles, AlertCircle, CheckCircle, Loader2, Info, Check, X, RefreshCw } from 'lucide-react';
 import '../tuning-pages.css';
 import { useSummarizerModels, type SummarizerModel } from '@/hooks/useTuningData';
 import { apiFetch } from '@/utils/api';
 
 export default function ModelsPage() {
-  const { data: modelsData, loading, error: loadError } = useSummarizerModels();
+  const { data: modelsData, loading, error: loadError, refresh: refreshModels } = useSummarizerModels();
   const [currentModel, setCurrentModel] = useState<string>('');
   const [settingActive, setSettingActive] = useState<string | null>(null);
   const [message, setMessage] = useState('');
@@ -96,8 +96,18 @@ export default function ModelsPage() {
     <div className="tuning-page">
       {/* Header */}
       <div className="tuning-header">
-        <h1 className="tuning-title">Summarizer Model</h1>
-        <p className="tuning-text-muted">Choose the AI model used for generating answers</p>
+        <div>
+          <h1 className="tuning-title">Summarizer Model</h1>
+          <p className="tuning-text-muted">Choose the AI model used for generating answers</p>
+        </div>
+        <button 
+          onClick={() => refreshModels()} 
+          className="tuning-btn tuning-btn-secondary"
+          title="Refresh models"
+          disabled={loading}
+        >
+          <RefreshCw style={{ width: 16, height: 16 }} />
+        </button>
       </div>
 
       {/* Info Banner */}

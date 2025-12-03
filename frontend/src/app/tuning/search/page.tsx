@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Save, Loader2, AlertTriangle, CheckCircle, AlertCircle, Info } from 'lucide-react';
+import { Save, Loader2, AlertTriangle, CheckCircle, AlertCircle, Info, RefreshCw } from 'lucide-react';
 import '../tuning-pages.css';
 import { useSearchConfig, invalidateTuningCache, type SearchConfig, type SearchConfigResponse } from '@/hooks/useTuningData';
 import { apiFetch } from '@/utils/api';
@@ -15,7 +15,7 @@ const DEFAULT_CONFIG: SearchConfig = {
 };
 
 export default function SearchPage() {
-  const { data: configData, loading, error: loadError } = useSearchConfig();
+  const { data: configData, loading, error: loadError, refresh: refreshConfig } = useSearchConfig();
   const [config, setConfig] = useState<SearchConfig>(DEFAULT_CONFIG);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -163,8 +163,18 @@ export default function SearchPage() {
     <div className="tuning-page">
       {/* Header */}
       <div className="tuning-header">
-        <h1 className="tuning-title">Search Configuration</h1>
-        <p className="tuning-text-muted">Tune search parameters and test queries</p>
+        <div>
+          <h1 className="tuning-title">Search Configuration</h1>
+          <p className="tuning-text-muted">Tune search parameters and test queries</p>
+        </div>
+        <button 
+          onClick={() => refreshConfig()} 
+          className="tuning-btn tuning-btn-secondary"
+          title="Refresh configuration"
+          disabled={loading}
+        >
+          <RefreshCw style={{ width: 16, height: 16 }} />
+        </button>
       </div>
 
       {/* Info Banner for migration status */}

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import '../tuning-pages.css';
+import { apiFetch } from '@/utils/api';
 
 // Theme constants - must match DarkModeToggle.tsx
 const THEME_KEY = 'askdrchaffee.theme';
@@ -53,10 +54,8 @@ export default function TuningAuth() {
     try {
       console.log('[Tuning Auth Page] Submitting password...');
       // Validate password on backend (never expose password in frontend)
-      const response = await fetch('/api/tuning/auth/verify', {
+      const response = await apiFetch('/api/tuning/auth/verify', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',  // CRITICAL: Required to receive and store httpOnly cookies
         body: JSON.stringify({ password })
       });
 
