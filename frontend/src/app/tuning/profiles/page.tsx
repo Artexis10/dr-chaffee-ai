@@ -5,6 +5,8 @@ import { FileText, Save, Check, X, Plus, Trash2, Edit2, AlertCircle, Zap, Dollar
 import '../tuning-pages.css';
 import type { RAGModelInfo, RagProfile } from '@/types/models';
 import { FALLBACK_RAG_MODELS } from '@/types/models';
+import { useRagModels, useProfiles, invalidateTuningCache } from '@/hooks/useTuningData';
+import { apiFetch } from '@/utils/api';
 
 // Tag badge colors
 const TAG_COLORS: Record<string, string> = {
@@ -20,9 +22,10 @@ const TAG_COLORS: Record<string, string> = {
 };
 
 export default function ProfilesPage() {
-  const [profiles, setProfiles] = useState<RagProfile[]>([]);
-  const [ragModels, setRagModels] = useState<RAGModelInfo[]>(FALLBACK_RAG_MODELS);
-  const [loading, setLoading] = useState(true);
+  // Use cached hooks for data fetching
+  const { data: ragModels, loading: ragModelsLoading } = useRagModels();
+  const { data: profiles, loading: profilesLoading, error: profilesError, refresh: refreshProfiles } = useProfiles();
+  
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -40,43 +43,14 @@ export default function ProfilesPage() {
     is_default: false,
   });
 
+  // Sync error from hook
   useEffect(() => {
-    loadProfiles();
-    loadRagModels();
-  }, []);
-
-  const loadRagModels = async () => {
-    try {
-      const res = await fetch('/api/tuning/models/rag', { credentials: 'include' });
-      if (!res.ok) {
-        console.warn('Failed to load RAG models from API, using fallback');
-        return;
-      }
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
-        setRagModels(data);
-      }
-    } catch (err) {
-      console.warn('Failed to load RAG models:', err);
-      // Keep using fallback models
+    if (profilesError) {
+      setError(profilesError);
     }
-  };
+  }, [profilesError]);
 
-  const loadProfiles = async () => {
-    try {
-      setLoading(true);
-      const res = await fetch('/api/tuning/profiles', { credentials: 'include' });
-      if (!res.ok) throw new Error('Failed to load profiles');
-      const data = await res.json();
-      setProfiles(data);
-      setError(null);
-    } catch (err) {
-      console.error('Failed to load profiles:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load profiles');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const loading = profilesLoading || ragModelsLoading;
 
   const showMessage = (msg: string, isError = false) => {
     if (isError) {
@@ -100,10 +74,8 @@ export default function ProfilesPage() {
         : '/api/tuning/profiles';
       const method = formData.id ? 'PUT' : 'POST';
 
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(formData),
       });
 
@@ -114,7 +86,8 @@ export default function ProfilesPage() {
 
       showMessage('Profile saved successfully!');
       setEditMode(false);
-      loadProfiles();
+      invalidateTuningCache('profiles');
+      refreshProfiles();
     } catch (err) {
       showMessage(err instanceof Error ? err.message : 'Failed to save', true);
     } finally {
@@ -125,13 +98,13 @@ export default function ProfilesPage() {
   const activateProfile = async (id: string) => {
     try {
       setSaving(true);
-      const res = await fetch(`/api/tuning/profiles/${id}/activate`, {
+      const res = await apiFetch(`/api/tuning/profiles/${id}/activate`, {
         method: 'POST',
-        credentials: 'include',
       });
       if (!res.ok) throw new Error('Failed to activate profile');
       showMessage('Profile activated!');
-      loadProfiles();
+      invalidateTuningCache('profiles');
+      refreshProfiles();
     } catch (err) {
       showMessage(err instanceof Error ? err.message : 'Failed to activate', true);
     } finally {
@@ -144,16 +117,16 @@ export default function ProfilesPage() {
     
     try {
       setSaving(true);
-      const res = await fetch(`/api/tuning/profiles/${id}`, {
+      const res = await apiFetch(`/api/tuning/profiles/${id}`, {
         method: 'DELETE',
-        credentials: 'include',
       });
       if (!res.ok) {
         const errData = await res.json();
         throw new Error(errData.detail || 'Failed to delete');
       }
       showMessage('Profile deleted');
-      loadProfiles();
+      invalidateTuningCache('profiles');
+      refreshProfiles();
     } catch (err) {
       showMessage(err instanceof Error ? err.message : 'Failed to delete', true);
     } finally {
@@ -263,7 +236,7 @@ export default function ProfilesPage() {
                   className="tuning-select"
                   disabled={formData.auto_select_model}
                 >
-                  {ragModels.map((m) => (
+                  {(ragModels || []).map((m) => (
                     <option key={m.key} value={m.key}>
                       {m.label}{m.recommended ? ' ★' : ''}
                     </option>
@@ -271,7 +244,7 @@ export default function ProfilesPage() {
                 </select>
                 {/* Model tags */}
                 {(() => {
-                  const selectedModel = ragModels.find(m => m.key === formData.model_name);
+                  const selectedModel = (ragModels || []).find(m => m.key === formData.model_name);
                   if (selectedModel && selectedModel.tags && selectedModel.tags.length > 0) {
                     return (
                       <div style={{ display: 'flex', gap: '4px', marginTop: '6px', flexWrap: 'wrap' }}>
@@ -314,7 +287,7 @@ export default function ProfilesPage() {
                 />
                 {/* Context warning */}
                 {(() => {
-                  const selectedModel = ragModels.find(m => m.key === formData.model_name);
+                  const selectedModel = (ragModels || []).find(m => m.key === formData.model_name);
                   if (selectedModel && selectedModel.capabilities && formData.max_context_tokens > selectedModel.capabilities.max_context * 0.8) {
                     return (
                       <div style={{ color: '#d97706', fontSize: '12px', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -423,7 +396,7 @@ export default function ProfilesPage() {
               <button
                 onClick={() => {
                   setEditMode(false);
-                  loadProfiles();
+                  refreshProfiles();
                 }}
                 className="tuning-btn tuning-btn-secondary"
               >
@@ -436,7 +409,7 @@ export default function ProfilesPage() {
       ) : (
         /* List Mode */
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {profiles.map((profile) => (
+          {(profiles || []).map((profile) => (
             <div
               key={profile.id || profile.name}
               className="tuning-card"
@@ -568,7 +541,7 @@ export default function ProfilesPage() {
             </div>
           ))}
 
-          {profiles.length === 0 && (
+          {(profiles || []).length === 0 && (
             <div className="tuning-card tuning-centered">
               <FileText style={{ width: 48, height: 48, opacity: 0.3 }} />
               <p className="tuning-text-muted" style={{ marginTop: '1rem' }}>No profiles found. Create one to get started.</p>

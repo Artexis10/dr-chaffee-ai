@@ -4,6 +4,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Settings, BarChart3, Sparkles, Search, Home, LogOut, Menu, X, Sun, Moon, FileText } from 'lucide-react';
 import '../../styles/tuning.css';
+import { useTuningAuth } from '../../hooks/useTuningData';
 
 // Theme constants - must match DarkModeToggle.tsx
 const THEME_KEY = 'askdrchaffee.theme';
@@ -15,42 +16,20 @@ export default function TuningLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [themeMounted, setThemeMounted] = useState(false);
+  
+  // Skip auth check on auth page
+  const isAuthPage = pathname === '/tuning/auth';
+  const { isAuthenticated, loading: isLoading } = useTuningAuth();
 
+  // Redirect to auth if not authenticated
   useEffect(() => {
-    const checkAuth = async () => {
-      if (pathname === '/tuning/auth') {
-        setIsLoading(false);
-        return;
-      }
-      
-      try {
-        const res = await fetch('/api/tuning/models', {
-          method: 'GET',
-          credentials: 'include',
-        });
-        
-        if (res.ok) {
-          setIsAuthenticated(true);
-        } else {
-          setIsAuthenticated(false);
-          router.replace('/tuning/auth');
-        }
-      } catch (error) {
-        console.error('[Tuning Layout] Auth check failed:', error);
-        setIsAuthenticated(false);
-        router.replace('/tuning/auth');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    checkAuth();
-  }, [pathname, router]);
+    if (!isAuthPage && !isLoading && !isAuthenticated) {
+      router.replace('/tuning/auth');
+    }
+  }, [isAuthPage, isLoading, isAuthenticated, router]);
 
   // Close mobile menu on route change
   useEffect(() => {

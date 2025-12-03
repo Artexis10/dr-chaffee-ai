@@ -3,30 +3,20 @@
 import { useState, useEffect } from 'react';
 import { Save, Loader2, AlertTriangle, CheckCircle, AlertCircle, Info } from 'lucide-react';
 import '../tuning-pages.css';
+import { useSearchConfig, invalidateTuningCache, type SearchConfig, type SearchConfigResponse } from '@/hooks/useTuningData';
+import { apiFetch } from '@/utils/api';
 
-interface SearchConfig {
-  top_k: number;
-  min_similarity: number;
-  enable_reranker: boolean;
-  rerank_top_k: number;
-  return_top_k: number;
-}
-
-interface SearchConfigResponse {
-  config: SearchConfig | null;
-  error: string | null;
-  error_code: string | null;
-}
+const DEFAULT_CONFIG: SearchConfig = {
+  top_k: 100,
+  min_similarity: 0.3,
+  enable_reranker: false,
+  rerank_top_k: 200,
+  return_top_k: 20,
+};
 
 export default function SearchPage() {
-  const [config, setConfig] = useState<SearchConfig>({
-    top_k: 100,
-    min_similarity: 0.3,
-    enable_reranker: false,
-    rerank_top_k: 200,
-    return_top_k: 20,
-  });
-  const [loading, setLoading] = useState(true);
+  const { data: configData, loading, error: loadError } = useSearchConfig();
+  const [config, setConfig] = useState<SearchConfig>(DEFAULT_CONFIG);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'success' | 'error' | 'warning' | 'info'>('success');
@@ -35,51 +25,35 @@ export default function SearchPage() {
   const [testResults, setTestResults] = useState<any>(null);
   const [testing, setTesting] = useState(false);
 
+  // Sync config from hook
   useEffect(() => {
-    loadConfig();
-  }, []);
-
-  const loadConfig = async () => {
-    setLoading(true);
-    setDbError(null);
-    try {
-      const res = await fetch('/api/tuning/search-config');
-      if (res.ok) {
-        const data: SearchConfigResponse = await res.json();
-        if (data.config) {
-          setConfig(data.config);
-        }
-        if (data.error) {
-          setDbError(data.error);
-          if (data.error_code === 'MIGRATION_REQUIRED') {
-            // Don't show as error - just info that we're using defaults
-            setMessage('Using default search settings. Database storage is not configured.');
-            setMessageType('info');
-          }
-        }
-      } else if (res.status === 401) {
-        setMessage('Please authenticate to access search configuration');
-        setMessageType('error');
-      } else {
-        console.warn('Failed to load config from backend, using defaults');
+    if (configData?.config) {
+      setConfig(configData.config);
+    }
+    if (configData?.error) {
+      setDbError(configData.error);
+      if (configData.error_code === 'MIGRATION_REQUIRED') {
+        setMessage('Using default search settings. Database storage is not configured.');
+        setMessageType('info');
       }
-    } catch (error) {
-      console.warn('Failed to load config from backend:', error);
+    }
+  }, [configData]);
+
+  // Show error from hook
+  useEffect(() => {
+    if (loadError) {
       setMessage('Could not connect to backend. Using default values.');
       setMessageType('error');
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [loadError]);
 
   const handleSave = async () => {
     setSaving(true);
     setMessage('');
     
     try {
-      const res = await fetch('/api/tuning/search-config', {
+      const res = await apiFetch('/api/tuning/search-config', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config)
       });
       
@@ -102,6 +76,7 @@ export default function SearchPage() {
           setDbError(null);
           setMessageType('success');
           setMessage('Configuration saved successfully');
+          invalidateTuningCache('search-config');
           setTimeout(() => setMessage(''), 3000);
         }
       } else if (res.status === 401) {
@@ -129,9 +104,8 @@ export default function SearchPage() {
     setTesting(true);
     try {
       setMessage('');
-      const res = await fetch('/api/search', {
+      const res = await apiFetch('/api/search', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: testQuery,
           top_k: config.top_k,

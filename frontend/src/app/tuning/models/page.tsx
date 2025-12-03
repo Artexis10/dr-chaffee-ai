@@ -1,64 +1,41 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Sparkles, AlertCircle, CheckCircle, Loader2, Info, Check, X } from 'lucide-react';
 import '../tuning-pages.css';
-
-interface SummarizerModel {
-  key: string;
-  name: string;
-  provider: string;
-  quality_tier: string;
-  cost_input: string;
-  cost_output: string;
-  speed: string;
-  recommended: boolean;
-  pros: string[];
-  cons: string[];
-  description: string;
-}
-
-interface SummarizerModelsResponse {
-  current_model: string;
-  models: Record<string, Omit<SummarizerModel, 'key'>>;
-}
+import { useSummarizerModels, type SummarizerModel } from '@/hooks/useTuningData';
+import { apiFetch } from '@/utils/api';
 
 export default function ModelsPage() {
-  const [models, setModels] = useState<SummarizerModel[]>([]);
+  const { data: modelsData, loading, error: loadError } = useSummarizerModels();
   const [currentModel, setCurrentModel] = useState<string>('');
-  const [loading, setLoading] = useState(true);
   const [settingActive, setSettingActive] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info');
 
-  useEffect(() => {
-    loadModels();
-  }, []);
+  // Convert models object to array with keys
+  const models = useMemo<SummarizerModel[]>(() => {
+    if (!modelsData?.models) return [];
+    return Object.entries(modelsData.models).map(([key, model]) => ({
+      key,
+      ...model
+    }));
+  }, [modelsData]);
 
-  const loadModels = async () => {
-    try {
-      const res = await fetch('/api/tuning/summarizer/models');
-      if (!res.ok) {
-        throw new Error(`Failed to load models: ${res.status}`);
-      }
-      const data: SummarizerModelsResponse = await res.json();
-      
-      // Convert models object to array with keys
-      const modelArray: SummarizerModel[] = Object.entries(data.models).map(([key, model]) => ({
-        key,
-        ...model
-      }));
-      
-      setModels(modelArray);
-      setCurrentModel(data.current_model);
-    } catch (error) {
-      console.error('Failed to load models:', error);
+  // Set current model from API data
+  useEffect(() => {
+    if (modelsData?.current_model) {
+      setCurrentModel(modelsData.current_model);
+    }
+  }, [modelsData]);
+
+  // Show error from hook
+  useEffect(() => {
+    if (loadError) {
       setMessage('Failed to load summarizer models. Please try again.');
       setMessageType('error');
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [loadError]);
 
   const handleSetActive = async (modelKey: string) => {
     if (modelKey === currentModel) return;
@@ -67,9 +44,8 @@ export default function ModelsPage() {
       setSettingActive(modelKey);
       setMessage('');
       
-      const res = await fetch('/api/tuning/summarizer/config', {
+      const res = await apiFetch('/api/tuning/summarizer/config', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           model: modelKey,
           temperature: 0.1,

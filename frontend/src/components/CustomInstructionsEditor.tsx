@@ -2,17 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { FileText, Save, Eye, History, Check, X, Plus, Trash2, RefreshCw, Edit2, Copy } from 'lucide-react';
-
-interface CustomInstruction {
-  id?: number;
-  name: string;
-  instructions: string;
-  description?: string;
-  is_active: boolean;
-  created_at?: string;
-  updated_at?: string;
-  version?: number;
-}
+import { useInstructions, invalidateTuningCache, type CustomInstruction } from '@/hooks/useTuningData';
+import { apiFetch } from '@/utils/api';
 
 interface InstructionPreview {
   baseline_prompt: string;
@@ -31,7 +22,7 @@ interface InstructionHistory {
 }
 
 export default function CustomInstructionsEditor() {
-  const [instructions, setInstructions] = useState<CustomInstruction[]>([]);
+  const { data: instructions, loading: instructionsLoading, refresh: refreshInstructions } = useInstructions();
   const [activeInstruction, setActiveInstruction] = useState<CustomInstruction | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [preview, setPreview] = useState<InstructionPreview | null>(null);
@@ -49,31 +40,20 @@ export default function CustomInstructionsEditor() {
     is_active: false,
   });
 
+  // Sync active instruction from hook data
   useEffect(() => {
-    loadInstructions();
-  }, []);
-
-  const loadInstructions = async () => {
-    try {
-      const res = await fetch('/api/tuning/instructions');
-      const data = await res.json();
-      setInstructions(data);
-      
-      // Find active instruction
-      const active = data.find((i: CustomInstruction) => i.is_active);
+    if (instructions) {
+      const active = instructions.find((i) => i.is_active);
       if (active) {
         setActiveInstruction(active);
         setFormData(active);
       }
-    } catch (error) {
-      showMessage('Failed to load instructions', 'error');
-      console.error(error);
     }
-  };
+  }, [instructions]);
 
   const loadHistory = async (instructionId: number) => {
     try {
-      const res = await fetch(`/api/tuning/instructions/${instructionId}/history`);
+      const res = await apiFetch(`/api/tuning/instructions/${instructionId}/history`);
       const data = await res.json();
       setHistory(data);
       setShowHistory(true);
@@ -86,9 +66,8 @@ export default function CustomInstructionsEditor() {
   const generatePreview = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/tuning/instructions/preview', {
+      const res = await apiFetch('/api/tuning/instructions/preview', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
       const data = await res.json();
@@ -111,9 +90,8 @@ export default function CustomInstructionsEditor() {
       
       const method = formData.id ? 'PUT' : 'POST';
       
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
       
@@ -125,7 +103,8 @@ export default function CustomInstructionsEditor() {
       const data = await res.json();
       showMessage('Instructions saved successfully!', 'success');
       setEditMode(false);
-      loadInstructions();
+      invalidateTuningCache('instructions');
+      refreshInstructions();
     } catch (error: any) {
       showMessage(error.message || 'Failed to save instructions', 'error');
       console.error(error);
@@ -137,12 +116,13 @@ export default function CustomInstructionsEditor() {
   const activateInstructions = async (id: number) => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/tuning/instructions/${id}/activate`, {
+      const res = await apiFetch(`/api/tuning/instructions/${id}/activate`, {
         method: 'POST',
       });
       const data = await res.json();
       showMessage(data.message, 'success');
-      loadInstructions();
+      invalidateTuningCache('instructions');
+      refreshInstructions();
     } catch (error) {
       showMessage('Failed to activate instructions', 'error');
       console.error(error);
@@ -158,12 +138,13 @@ export default function CustomInstructionsEditor() {
     
     try {
       setLoading(true);
-      const res = await fetch(`/api/tuning/instructions/${id}`, {
+      const res = await apiFetch(`/api/tuning/instructions/${id}`, {
         method: 'DELETE',
       });
       const data = await res.json();
       showMessage(data.message, 'success');
-      loadInstructions();
+      invalidateTuningCache('instructions');
+      refreshInstructions();
     } catch (error) {
       showMessage('Failed to delete instructions', 'error');
       console.error(error);
@@ -179,12 +160,13 @@ export default function CustomInstructionsEditor() {
     
     try {
       setLoading(true);
-      const res = await fetch(`/api/tuning/instructions/${instructionId}/rollback/${version}`, {
+      const res = await apiFetch(`/api/tuning/instructions/${instructionId}/rollback/${version}`, {
         method: 'POST',
       });
       const data = await res.json();
       showMessage(data.message, 'success');
-      loadInstructions();
+      invalidateTuningCache('instructions');
+      refreshInstructions();
       setShowHistory(false);
     } catch (error) {
       showMessage('Failed to rollback', 'error');
@@ -452,7 +434,7 @@ export default function CustomInstructionsEditor() {
               onClick={() => {
                 setEditMode(false);
                 setPreview(null);
-                loadInstructions();
+                refreshInstructions();
               }}
               style={{
                 display: 'flex',
@@ -508,7 +490,7 @@ export default function CustomInstructionsEditor() {
       ) : (
         /* List Mode - Card Grid */
         <div className="ci-card-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
-          {instructions.map((instruction) => (
+          {(instructions || []).map((instruction) => (
             <div
               key={instruction.id}
               className={instruction.is_active ? 'ci-active-card' : ''}

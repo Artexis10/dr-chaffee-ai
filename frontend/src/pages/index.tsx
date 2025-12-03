@@ -10,6 +10,7 @@ import { DarkModeToggle } from '../components/DarkModeToggle';
 import { DisclaimerBanner } from '../components/DisclaimerBanner';
 import { SearchResult, VideoGroup } from '../types';
 import { analytics, setupAnalyticsListeners, trackEvent } from '../utils/analytics';
+import { apiFetch } from '../utils/api';
 import Link from 'next/link';
 
 // Lazy load components that aren't needed for initial render
@@ -230,11 +231,8 @@ export default function Home() {
         
         console.log(`[Answer Request] Timeout set to ${timeoutMs}ms (${Math.round(timeoutMs/1000)}s) for ${currentStyle} style`);
         
-        const response = await fetch(`/api/answer`, {
+        const response = await apiFetch(`/api/answer`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
           body: JSON.stringify({
             query: query.trim(),
             style: currentStyle,
