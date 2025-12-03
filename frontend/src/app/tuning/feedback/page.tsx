@@ -8,6 +8,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { RefreshCw, Filter, ChevronDown, ChevronUp, ThumbsUp, ThumbsDown, AlertCircle, MessageSquare } from 'lucide-react';
 import '../tuning-pages.css';
 import { apiFetch } from '@/utils/api';
@@ -56,10 +57,33 @@ export default function FeedbackPage() {
   const [modelFilter, setModelFilter] = useState<string>('');
   const [fromDate, setFromDate] = useState<string>('');
   const [toDate, setToDate] = useState<string>('');
+  const [filtersInitialized, setFiltersInitialized] = useState(false);
   
+  const searchParams = useSearchParams();
   const pageSize = 20;
 
+  // Initialize filters from URL query params on mount
+  useEffect(() => {
+    if (!searchParams) {
+      setFiltersInitialized(true);
+      return;
+    }
+    
+    const urlFromDate = searchParams.get('from_date');
+    const urlToDate = searchParams.get('to_date');
+    const urlModel = searchParams.get('model_name');
+    const urlType = searchParams.get('target_type');
+    
+    if (urlFromDate) setFromDate(urlFromDate);
+    if (urlToDate) setToDate(urlToDate);
+    if (urlModel) setModelFilter(urlModel);
+    if (urlType) setTargetType(urlType);
+    
+    setFiltersInitialized(true);
+  }, [searchParams]);
+
   const loadFeedback = useCallback(async () => {
+    if (!filtersInitialized) return;
     setLoading(true);
     setError(null);
     
@@ -92,7 +116,7 @@ export default function FeedbackPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, targetType, rating, modelFilter, fromDate, toDate]);
+  }, [page, targetType, rating, modelFilter, fromDate, toDate, filtersInitialized]);
 
   const loadStats = useCallback(async () => {
     try {
@@ -348,7 +372,13 @@ export default function FeedbackPage() {
                                 {(item.model_name || item.metadata?.model_name) && (
                                   <div className="detail-section">
                                     <label>Model:</label>
-                                    <p>{item.model_name || item.metadata?.model_name}</p>
+                                    <button 
+                                      className="clickable-filter"
+                                      onClick={() => { setModelFilter(item.model_name || item.metadata?.model_name || ''); setPage(1); }}
+                                      title="Filter by this model"
+                                    >
+                                      {item.model_name || item.metadata?.model_name}
+                                    </button>
                                   </div>
                                 )}
                                 {item.metadata?.rag_profile_id && (
@@ -616,6 +646,24 @@ export default function FeedbackPage() {
         .detail-section code {
           font-size: 11px;
           color: var(--text-muted, #737373);
+        }
+
+        .clickable-filter {
+          background: none;
+          border: none;
+          padding: 0;
+          margin: 0;
+          font-size: 13px;
+          color: var(--text-accent, #60a5fa);
+          cursor: pointer;
+          text-decoration: underline;
+          text-decoration-style: dotted;
+          text-underline-offset: 2px;
+        }
+
+        .clickable-filter:hover {
+          color: var(--text-accent-hover, #93c5fd);
+          text-decoration-style: solid;
         }
 
         @media (max-width: 768px) {

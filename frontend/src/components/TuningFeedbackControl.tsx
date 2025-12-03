@@ -18,17 +18,21 @@ interface TuningFeedbackControlProps {
   compact?: boolean;
 }
 
+type RatingType = 'positive' | 'negative' | 'broken';
+
 export function TuningFeedbackControl({ 
   targetId, 
   label = 'Rate this config',
   compact = false 
 }: TuningFeedbackControlProps) {
-  const [submitted, setSubmitted] = useState<'positive' | 'negative' | 'broken' | null>(null);
+  const [submitted, setSubmitted] = useState<RatingType | null>(null);
+  const [selected, setSelected] = useState<RatingType | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const submitFeedback = async (rating: number, ratingType: 'positive' | 'negative' | 'broken') => {
+  const submitFeedback = async (rating: number, ratingType: RatingType) => {
     if (submitting) return;
     
+    setSelected(ratingType);
     setSubmitting(true);
     try {
       const response = await apiFetch('/api/feedback', {
@@ -46,9 +50,12 @@ export function TuningFeedbackControl({
 
       if (response.ok) {
         setSubmitted(ratingType);
+      } else {
+        setSelected(null);
       }
     } catch (err) {
       console.error('Tuning feedback error:', err);
+      setSelected(null);
     } finally {
       setSubmitting(false);
     }
@@ -82,7 +89,7 @@ export function TuningFeedbackControl({
       {!compact && <span className="feedback-label">{label}</span>}
       <div className="feedback-buttons">
         <button
-          className="feedback-btn good"
+          className={`feedback-btn good ${selected === 'positive' ? 'selected' : ''}`}
           onClick={() => submitFeedback(1, 'positive')}
           disabled={submitting}
           title="Good"
@@ -91,7 +98,7 @@ export function TuningFeedbackControl({
           {!compact && <span>Good</span>}
         </button>
         <button
-          className="feedback-btn bad"
+          className={`feedback-btn bad ${selected === 'negative' ? 'selected' : ''}`}
           onClick={() => submitFeedback(-1, 'negative')}
           disabled={submitting}
           title="Needs work"
@@ -100,7 +107,7 @@ export function TuningFeedbackControl({
           {!compact && <span>Needs work</span>}
         </button>
         <button
-          className="feedback-btn broken"
+          className={`feedback-btn broken ${selected === 'broken' ? 'selected' : ''}`}
           onClick={() => submitFeedback(-2, 'broken')}
           disabled={submitting}
           title="Broken"
@@ -151,27 +158,49 @@ export function TuningFeedbackControl({
           color: var(--text-light, #a3a3a3);
         }
 
-        .feedback-btn.good:hover:not(:disabled) {
+        .feedback-btn.good:hover:not(:disabled),
+        .feedback-btn.good.selected {
           background: rgba(34, 197, 94, 0.1);
-          border-color: rgba(34, 197, 94, 0.3);
+          border-color: rgba(34, 197, 94, 0.4);
           color: #22c55e;
         }
 
-        .feedback-btn.bad:hover:not(:disabled) {
+        .feedback-btn.good.selected {
+          background: rgba(34, 197, 94, 0.15);
+          border-color: rgba(34, 197, 94, 0.5);
+        }
+
+        .feedback-btn.bad:hover:not(:disabled),
+        .feedback-btn.bad.selected {
           background: rgba(239, 68, 68, 0.1);
-          border-color: rgba(239, 68, 68, 0.3);
+          border-color: rgba(239, 68, 68, 0.4);
           color: #ef4444;
         }
 
-        .feedback-btn.broken:hover:not(:disabled) {
+        .feedback-btn.bad.selected {
+          background: rgba(239, 68, 68, 0.15);
+          border-color: rgba(239, 68, 68, 0.5);
+        }
+
+        .feedback-btn.broken:hover:not(:disabled),
+        .feedback-btn.broken.selected {
           background: rgba(251, 191, 36, 0.1);
-          border-color: rgba(251, 191, 36, 0.3);
+          border-color: rgba(251, 191, 36, 0.4);
           color: #fbbf24;
+        }
+
+        .feedback-btn.broken.selected {
+          background: rgba(251, 191, 36, 0.15);
+          border-color: rgba(251, 191, 36, 0.5);
         }
 
         .feedback-btn:disabled {
           opacity: 0.5;
           cursor: not-allowed;
+        }
+
+        .feedback-btn.selected:disabled {
+          opacity: 1;
         }
       `}</style>
     </div>

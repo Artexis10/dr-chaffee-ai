@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Calendar, RefreshCw, AlertCircle, FileText, TrendingUp, Clock, DollarSign, Users, CheckCircle, XCircle, ThumbsUp, ThumbsDown, MessageSquare } from 'lucide-react';
+import { Calendar, RefreshCw, AlertCircle, FileText, TrendingUp, Clock, DollarSign, Users, CheckCircle, XCircle, ThumbsUp, ThumbsDown, MessageSquare, ExternalLink } from 'lucide-react';
+import Link from 'next/link';
 import '../tuning-pages.css';
 import { apiFetch } from '@/utils/api';
 
@@ -342,12 +343,23 @@ export default function SummariesPage() {
                 </div>
               </div>
 
-              {/* Metadata */}
-              <div style={{ marginTop: '1rem', fontSize: '0.75rem', opacity: 0.6 }}>
-                Generated: {new Date(selectedSummary.created_at).toLocaleString()}
-                {selectedSummary.updated_at && selectedSummary.updated_at !== selectedSummary.created_at && (
-                  <> · Updated: {new Date(selectedSummary.updated_at).toLocaleString()}</>
-                )}
+              {/* Metadata & Actions */}
+              <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>
+                  Generated: {new Date(selectedSummary.created_at).toLocaleString()}
+                  {selectedSummary.updated_at && selectedSummary.updated_at !== selectedSummary.created_at && (
+                    <> · Updated: {new Date(selectedSummary.updated_at).toLocaleString()}</>
+                  )}
+                </div>
+                <Link
+                  href={`/tuning/feedback?from_date=${selectedSummary.summary_date}&to_date=${selectedSummary.summary_date}`}
+                  className="tuning-btn tuning-btn-secondary"
+                  style={{ padding: '0.4rem 0.75rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                >
+                  <MessageSquare style={{ width: 12, height: 12 }} />
+                  View feedback for this day
+                  <ExternalLink style={{ width: 10, height: 10, opacity: 0.6 }} />
+                </Link>
               </div>
             </>
           ) : (
