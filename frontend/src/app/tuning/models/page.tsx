@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { Sparkles, AlertCircle, CheckCircle, Loader2, Info, Check, X, RefreshCw } from 'lucide-react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { Sparkles, AlertCircle, CheckCircle, Loader2, Info, Check, X, RefreshCw, Cpu } from 'lucide-react';
 import '../tuning-pages.css';
 import { useSummarizerModels, type SummarizerModel } from '@/hooks/useTuningData';
 import { apiFetch } from '@/utils/api';
@@ -12,6 +12,24 @@ export default function ModelsPage() {
   const [settingActive, setSettingActive] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Inline refresh with loading state and confirmation
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    setMessage('');
+    try {
+      await refreshModels();
+      setMessage('Configuration refreshed from server.');
+      setMessageType('success');
+      setTimeout(() => setMessage(''), 3000);
+    } catch (err) {
+      setMessage('Couldn\'t refresh. Please try again.');
+      setMessageType('error');
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [refreshModels]);
 
   // Convert models object to array with keys
   const models = useMemo<SummarizerModel[]>(() => {
@@ -101,12 +119,13 @@ export default function ModelsPage() {
           <p className="tuning-text-muted">Choose the AI model used for generating answers</p>
         </div>
         <button 
-          onClick={() => refreshModels()} 
+          onClick={handleRefresh} 
           className="tuning-btn tuning-btn-secondary"
-          title="Refresh models"
-          disabled={loading}
+          title="Refresh from server"
+          disabled={loading || isRefreshing}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
         >
-          <RefreshCw style={{ width: 16, height: 16 }} />
+          <RefreshCw style={{ width: 16, height: 16, animation: isRefreshing ? 'spin 1s linear infinite' : 'none' }} />
         </button>
       </div>
 
@@ -133,31 +152,45 @@ export default function ModelsPage() {
         </div>
       )}
 
-      {/* Active Model Info */}
-      {activeModel && (
-        <div className="tuning-stat-card" style={{ marginBottom: '2rem' }}>
-          <div className="tuning-stat-header">
-            <Sparkles style={{ width: 20, height: 20 }} />
-            <span>Active Summarizer</span>
-          </div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.5rem' }}>{activeModel.name}</div>
-          <p style={{ fontSize: '0.875rem', opacity: 0.8, marginBottom: '1rem' }}>{activeModel.description}</p>
-          <div className="tuning-active-model-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '1rem' }}>
-            <div>
-              <p style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.25rem' }}>Provider</p>
-              <p style={{ fontWeight: 600 }}>{activeModel.provider}</p>
-            </div>
-            <div>
-              <p style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.25rem' }}>Quality</p>
-              <p style={{ fontWeight: 600 }}>{activeModel.quality_tier}</p>
-            </div>
-            <div>
-              <p style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.25rem' }}>Speed</p>
-              <p style={{ fontWeight: 600, textTransform: 'capitalize' }}>{activeModel.speed}</p>
-            </div>
-          </div>
+      {/* Active Model Info - Always visible at top */}
+      <div className="tuning-stat-card" style={{ marginBottom: '2rem' }}>
+        <div className="tuning-stat-header">
+          <Cpu style={{ width: 20, height: 20 }} />
+          <span>Active Summarizer Model</span>
         </div>
-      )}
+        {loading ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', opacity: 0.7 }}>
+            <Loader2 style={{ width: 16, height: 16 }} className="tuning-spinner" />
+            <span>Loading summarizer config...</span>
+          </div>
+        ) : activeModel ? (
+          <>
+            <div style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.5rem' }}>
+              {activeModel.name}
+              <span style={{ fontSize: '0.875rem', fontWeight: 400, opacity: 0.7, marginLeft: '0.75rem' }}>
+                ({currentModel})
+              </span>
+            </div>
+            <p style={{ fontSize: '0.875rem', opacity: 0.8, marginBottom: '1rem' }}>{activeModel.description}</p>
+            <div className="tuning-active-model-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '1rem' }}>
+              <div>
+                <p style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.25rem' }}>Provider</p>
+                <p style={{ fontWeight: 600 }}>{activeModel.provider}</p>
+              </div>
+              <div>
+                <p style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.25rem' }}>Quality</p>
+                <p style={{ fontWeight: 600 }}>{activeModel.quality_tier}</p>
+              </div>
+              <div>
+                <p style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.25rem' }}>Speed</p>
+                <p style={{ fontWeight: 600, textTransform: 'capitalize' }}>{activeModel.speed}</p>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div style={{ opacity: 0.7 }}>No model configured</div>
+        )}
+      </div>
 
       {/* Models Grid */}
       <div className="tuning-model-grid">

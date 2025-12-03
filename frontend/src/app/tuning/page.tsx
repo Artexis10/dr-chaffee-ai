@@ -19,6 +19,8 @@ export default function OverviewPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const loadStats = useCallback(async () => {
     setLoading(true);
@@ -73,14 +75,32 @@ export default function OverviewPage() {
           <p className="tuning-text-muted">Real-time statistics and embedding coverage</p>
         </div>
         <button 
-          onClick={() => loadStats()} 
+          onClick={async () => {
+            setIsRefreshing(true);
+            try {
+              await loadStats();
+              setSuccessMessage('Stats refreshed from server.');
+              setTimeout(() => setSuccessMessage(null), 3000);
+            } finally {
+              setIsRefreshing(false);
+            }
+          }} 
           className="tuning-btn tuning-btn-secondary"
-          title="Refresh stats"
-          disabled={loading}
+          title="Refresh from server"
+          disabled={loading || isRefreshing}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
         >
-          <RefreshCw style={{ width: 16, height: 16 }} />
+          <RefreshCw style={{ width: 16, height: 16, animation: isRefreshing ? 'spin 1s linear infinite' : 'none' }} />
         </button>
       </div>
+
+      {/* Success Message */}
+      {successMessage && (
+        <div className="tuning-alert tuning-alert-success" style={{ marginBottom: '1.5rem' }}>
+          <CheckCircle style={{ width: 20, height: 20 }} />
+          {successMessage}
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="tuning-stats-grid">

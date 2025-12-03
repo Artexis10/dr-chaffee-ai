@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Save, Loader2, AlertTriangle, CheckCircle, AlertCircle, Info, RefreshCw } from 'lucide-react';
 import { TuningFeedbackControl } from '@/components/TuningFeedbackControl';
 import '../tuning-pages.css';
@@ -25,6 +25,24 @@ export default function SearchPage() {
   const [testQuery, setTestQuery] = useState('');
   const [testResults, setTestResults] = useState<any>(null);
   const [testing, setTesting] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Inline refresh with loading state and confirmation
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    setMessage('');
+    try {
+      await refreshConfig();
+      setMessage('Configuration refreshed from server.');
+      setMessageType('success');
+      setTimeout(() => setMessage(''), 3000);
+    } catch (err) {
+      setMessage('Couldn\'t refresh. Please try again.');
+      setMessageType('error');
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [refreshConfig]);
 
   // Sync config from hook
   useEffect(() => {
@@ -169,12 +187,13 @@ export default function SearchPage() {
           <p className="tuning-text-muted">Tune search parameters and test queries</p>
         </div>
         <button 
-          onClick={() => refreshConfig()} 
+          onClick={handleRefresh} 
           className="tuning-btn tuning-btn-secondary"
-          title="Refresh configuration"
-          disabled={loading}
+          title="Refresh from server"
+          disabled={loading || isRefreshing}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
         >
-          <RefreshCw style={{ width: 16, height: 16 }} />
+          <RefreshCw style={{ width: 16, height: 16, animation: isRefreshing ? 'spin 1s linear infinite' : 'none' }} />
         </button>
       </div>
 
@@ -339,7 +358,14 @@ export default function SearchPage() {
           )}
         </div>
 
-        {/* Feedback for search config */}
+      </div>
+
+      {/* Feedback for search config - placed below the main content */}
+      <div className="tuning-card" style={{ marginTop: '1.5rem' }}>
+        <h3 className="tuning-card-title" style={{ marginBottom: '0.75rem' }}>Rate Search Quality</h3>
+        <p className="tuning-text-muted" style={{ fontSize: '0.875rem', marginBottom: '1rem' }}>
+          Help improve search by rating the current configuration.
+        </p>
         <TuningFeedbackControl 
           targetId="search_config:current" 
           label="Rate current search config"

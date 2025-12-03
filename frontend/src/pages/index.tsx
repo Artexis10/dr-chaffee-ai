@@ -952,6 +952,8 @@ export default function Home() {
           .header-top-bar {
             display: flex;
             justify-content: flex-end;
+            align-items: center;
+            gap: 0.25rem;
             max-width: 1200px;
             margin: 0 auto var(--space-4) auto;
           }
@@ -967,7 +969,17 @@ export default function Home() {
             font-size: 0.875rem;
             font-weight: 500;
             cursor: pointer;
-            transition: color 0.2s ease, text-decoration 0.2s ease;
+            transition: color 0.2s ease, background-color 0.2s ease;
+            color: var(--color-text-light);
+            text-decoration: none;
+            border-radius: 0.375rem;
+          }
+          
+          .nav-link:hover,
+          .nav-link:focus-visible {
+            background: var(--color-card);
+            color: var(--color-text);
+            text-decoration: none;
           }
           
           .nav-link svg {

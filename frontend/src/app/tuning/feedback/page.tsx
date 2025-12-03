@@ -7,7 +7,7 @@
  * Protected by tuning auth (admin only).
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { RefreshCw, Filter, ChevronDown, ChevronUp, ThumbsUp, ThumbsDown, AlertCircle, MessageSquare } from 'lucide-react';
 import '../tuning-pages.css';
@@ -50,6 +50,7 @@ export default function FeedbackPage() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Filters
   const [targetType, setTargetType] = useState<string>('');
@@ -103,6 +104,13 @@ export default function FeedbackPage() {
       if (!res.ok) {
         if (res.status === 401) {
           throw new Error('Authentication required');
+        }
+        // Treat 404 as empty feedback (table might not exist yet)
+        if (res.status === 404) {
+          setItems([]);
+          setTotal(0);
+          setError(null);
+          return;
         }
         throw new Error('Failed to load feedback');
       }
@@ -174,12 +182,20 @@ export default function FeedbackPage() {
           <p className="tuning-text-muted">Review user feedback and ratings</p>
         </div>
         <button 
-          onClick={() => { loadFeedback(); loadStats(); }} 
+          onClick={async () => {
+            setIsRefreshing(true);
+            try {
+              await Promise.all([loadFeedback(), loadStats()]);
+            } finally {
+              setIsRefreshing(false);
+            }
+          }} 
           className="tuning-btn tuning-btn-secondary"
-          title="Refresh"
-          disabled={loading}
+          title="Refresh from server"
+          disabled={loading || isRefreshing}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
         >
-          <RefreshCw style={{ width: 16, height: 16 }} />
+          <RefreshCw style={{ width: 16, height: 16, animation: isRefreshing ? 'spin 1s linear infinite' : 'none' }} />
         </button>
       </div>
 
@@ -277,8 +293,8 @@ export default function FeedbackPage() {
         </div>
       </div>
 
-      {/* Error */}
-      {error && (
+      {/* Error - only show for real errors, not empty state */}
+      {error && error !== 'Failed to load feedback' && (
         <div className="tuning-alert tuning-alert-error" style={{ marginBottom: 24 }}>
           <AlertCircle style={{ width: 20, height: 20 }} />
           {error}
@@ -292,10 +308,14 @@ export default function FeedbackPage() {
         </div>
       )}
 
-      {/* Feedback List */}
+      {/* Feedback List - Empty state */}
       {!loading && items.length === 0 && (
         <div className="tuning-card" style={{ textAlign: 'center', padding: 48 }}>
-          <p className="tuning-text-muted">No feedback found</p>
+          <MessageSquare style={{ width: 48, height: 48, opacity: 0.3, marginBottom: 16 }} />
+          <p className="tuning-text-muted" style={{ marginBottom: 8 }}>No feedback yet</p>
+          <p className="tuning-text-muted" style={{ fontSize: '0.8rem', opacity: 0.7 }}>
+            Feedback from users will appear here once they start rating answers.
+          </p>
         </div>
       )}
 

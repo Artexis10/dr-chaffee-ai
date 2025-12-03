@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Calendar, RefreshCw, AlertCircle, FileText, TrendingUp, Clock, DollarSign, Users, CheckCircle, XCircle, ThumbsUp, ThumbsDown, MessageSquare, ExternalLink } from 'lucide-react';
+import { Calendar, RefreshCw, AlertCircle, FileText, TrendingUp, Clock, DollarSign, Users, CheckCircle, XCircle, ThumbsUp, ThumbsDown, MessageSquare, ExternalLink, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import '../tuning-pages.css';
 import { apiFetch } from '@/utils/api';
@@ -48,6 +48,8 @@ export default function SummariesPage() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const loadSummaries = useCallback(async () => {
     setLoading(true);
@@ -57,6 +59,12 @@ export default function SummariesPage() {
       if (!res.ok) {
         if (res.status === 401) {
           throw new Error('Authentication required. Please log in to the tuning dashboard.');
+        }
+        // Treat 404 as empty summaries (table might not exist yet)
+        if (res.status === 404) {
+          setSummaries([]);
+          setError(null);
+          return;
         }
         throw new Error(`Failed to load summaries: ${res.status}`);
       }
@@ -148,22 +156,49 @@ export default function SummariesPage() {
             className="tuning-btn tuning-btn-primary"
             disabled={generating}
             title="Generate summary for yesterday"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
           >
-            {generating ? 'Generating...' : 'Generate Yesterday'}
+            {generating ? (
+              <>
+                <Loader2 style={{ width: 16, height: 16 }} className="tuning-spinner" />
+                Generating...
+              </>
+            ) : 'Generate Yesterday'}
           </button>
           <button 
-            onClick={() => loadSummaries()} 
+            onClick={async () => {
+              setIsRefreshing(true);
+              setError(null);
+              try {
+                await loadSummaries();
+                setSuccessMessage('Summaries refreshed from server.');
+                setTimeout(() => setSuccessMessage(null), 3000);
+              } catch (err) {
+                setError('Couldn\'t refresh. Please try again.');
+              } finally {
+                setIsRefreshing(false);
+              }
+            }} 
             className="tuning-btn tuning-btn-secondary"
-            title="Refresh list"
-            disabled={loading}
+            title="Refresh from server"
+            disabled={loading || isRefreshing}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
           >
-            <RefreshCw style={{ width: 16, height: 16 }} />
+            <RefreshCw style={{ width: 16, height: 16, animation: isRefreshing ? 'spin 1s linear infinite' : 'none' }} />
           </button>
         </div>
       </div>
 
-      {/* Error Alert */}
-      {error && (
+      {/* Success Message */}
+      {successMessage && (
+        <div className="tuning-alert tuning-alert-success">
+          <CheckCircle style={{ width: 20, height: 20 }} />
+          {successMessage}
+        </div>
+      )}
+
+      {/* Error Alert - only show for real errors */}
+      {error && !error.includes('404') && (
         <div className="tuning-alert tuning-alert-error">
           <AlertCircle style={{ width: 20, height: 20 }} />
           {error}

@@ -683,48 +683,130 @@ export default function CustomInstructionsEditor() {
         </div>
       )}
 
-      {/* History Modal */}
+      {/* History Modal - Cleaned up styling */}
       {showHistory && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold flex items-center gap-2">
-                <History className="w-5 h-5 text-blue-400" />
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0, 0, 0, 0.6)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 50,
+          padding: '1rem'
+        }}>
+          <div style={{
+            background: 'var(--bg-card, #1a1a1a)',
+            border: '1px solid var(--border-subtle, #333)',
+            borderRadius: '0.75rem',
+            padding: '1.5rem',
+            maxWidth: '600px',
+            width: '100%',
+            maxHeight: '80vh',
+            overflowY: 'auto'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+              <h3 style={{ fontSize: '1.125rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)' }}>
+                <History style={{ width: 20, height: 20, color: 'var(--text-muted)' }} />
                 Version History
               </h3>
               <button
                 onClick={() => setShowHistory(false)}
-                className="text-slate-400 hover:text-white"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  padding: '0.5rem',
+                  borderRadius: '0.375rem',
+                  cursor: 'pointer',
+                  color: 'var(--text-muted)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
               >
-                <X className="w-6 h-6" />
+                <X style={{ width: 20, height: 20 }} />
               </button>
             </div>
             
-            <div className="space-y-3">
-              {history.map((h) => (
-                <div key={h.id} className="border border-slate-600 rounded-lg p-4 bg-slate-900/50">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-sm">
-                      <span className="font-semibold">Version {h.version}</span>
-                      <span className="text-slate-400 ml-2">
-                        {new Date(h.changed_at).toLocaleString()}
-                      </span>
+            {history.length === 0 ? (
+              <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem 0' }}>
+                No version history available.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {history.map((h, index) => (
+                  <div key={h.id} style={{
+                    border: '1px solid var(--border-subtle, #333)',
+                    borderRadius: '0.5rem',
+                    padding: '1rem',
+                    background: 'var(--bg-card-elevated, #0f0f0f)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <span style={{
+                          background: index === 0 ? 'var(--accent, #3b82f6)' : 'var(--bg-card, #262626)',
+                          color: index === 0 ? 'white' : 'var(--text-muted)',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          padding: '0.25rem 0.5rem',
+                          borderRadius: '0.25rem'
+                        }}>
+                          v{h.version}
+                        </span>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                          {new Date(h.changed_at).toLocaleDateString('en-US', { 
+                            month: 'short', 
+                            day: 'numeric', 
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => rollbackToVersion(h.instruction_id, h.version)}
+                        disabled={loading}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          fontSize: '0.75rem',
+                          fontWeight: 500,
+                          background: 'var(--accent, #3b82f6)',
+                          color: 'white',
+                          padding: '0.35rem 0.75rem',
+                          borderRadius: '0.375rem',
+                          border: 'none',
+                          cursor: loading ? 'not-allowed' : 'pointer',
+                          opacity: loading ? 0.5 : 1,
+                          transition: 'opacity 0.15s'
+                        }}
+                      >
+                        <RefreshCw style={{ width: 12, height: 12 }} />
+                        Restore
+                      </button>
                     </div>
-                    <button
-                      onClick={() => rollbackToVersion(h.instruction_id, h.version)}
-                      disabled={loading}
-                      className="flex items-center gap-1 text-xs bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 text-white px-3 py-1 rounded transition-colors"
-                    >
-                      <RefreshCw className="w-3 h-3" />
-                      Rollback
-                    </button>
+                    <p style={{
+                      fontSize: '0.8rem',
+                      color: 'var(--text-muted)',
+                      background: 'var(--bg-body, #0a0a0a)',
+                      borderRadius: '0.375rem',
+                      padding: '0.75rem',
+                      margin: 0,
+                      maxHeight: '80px',
+                      overflowY: 'auto',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      lineHeight: 1.5
+                    }}>
+                      {h.instructions.length > 160 
+                        ? `${h.instructions.substring(0, 160)}...` 
+                        : h.instructions || '(Empty instructions)'}
+                    </p>
                   </div>
-                  <pre className="text-xs text-slate-300 bg-slate-950 rounded p-3 max-h-32 overflow-y-auto whitespace-pre-wrap">
-                    {h.instructions}
-                  </pre>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
