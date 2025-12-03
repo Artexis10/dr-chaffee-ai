@@ -139,12 +139,23 @@ def upgrade() -> None:
     lists = max(10, min(100, int(math.sqrt(embedding_count)))) if embedding_count > 0 else 50
     print(f"   Embedding count: {embedding_count:,}, lists={lists}")
     
-    conn.execute(text(f"""
-        CREATE INDEX IF NOT EXISTS idx_{TABLE_NAME}_ivfflat
-        ON {TABLE_NAME} USING ivfflat (embedding vector_cosine_ops)
-        WITH (lists = {lists})
-    """))
-    print(f"   ✅ IVFFlat index created")
+    # Temporarily increase maintenance_work_mem for index creation
+    try:
+        conn.execute(text("SET maintenance_work_mem = '256MB'"))
+        print("   Set maintenance_work_mem = 256MB for index creation")
+    except Exception as e:
+        print(f"   ⚠️  Could not increase maintenance_work_mem: {e}")
+    
+    try:
+        conn.execute(text(f"""
+            CREATE INDEX IF NOT EXISTS idx_{TABLE_NAME}_ivfflat
+            ON {TABLE_NAME} USING ivfflat (embedding vector_cosine_ops)
+            WITH (lists = {lists})
+        """))
+        print(f"   ✅ IVFFlat index created")
+    except Exception as e:
+        print(f"   ⚠️  IVFFlat index creation skipped (can be added later): {e}")
+        print("   The table is functional without the index, just slower for large queries.")
     
     # 5. Create compatibility view
     print("\n📋 Creating compatibility view...")

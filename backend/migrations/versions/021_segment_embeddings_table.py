@@ -172,12 +172,35 @@ def upgrade() -> None:
     lists = max(10, min(1000, int(math.sqrt(embedding_count)))) if embedding_count > 0 else 100
     print(f"   Embedding count: {embedding_count:,}, lists={lists}")
     
-    conn.execute(text(f"""
-        CREATE INDEX IF NOT EXISTS idx_{TABLE_NAME}_ivfflat
-        ON {TABLE_NAME} USING ivfflat (embedding vector_cosine_ops)
-        WITH (lists = {lists})
-    """))
-    print(f"   ✅ IVFFlat index created")
+    # Temporarily increase maintenance_work_mem for index creation
+    # IVFFlat with 500k+ vectors needs ~160MB, managed Postgres often has 64MB default
+    try:
+        conn.execute(text("SET maintenance_work_mem = '256MB'"))
+        print("   Set maintenance_work_mem = 256MB for index creation")
+    except Exception as e:
+        print(f"   ⚠️  Could not increase maintenance_work_mem: {e}")
+    
+    try:
+        conn.execute(text(f"""
+            CREATE INDEX IF NOT EXISTS idx_{TABLE_NAME}_ivfflat
+            ON {TABLE_NAME} USING ivfflat (embedding vector_cosine_ops)
+            WITH (lists = {lists})
+        """))
+        print(f"   ✅ IVFFlat index created")
+    except Exception as e:
+        # If index creation fails due to memory, try with fewer lists
+        print(f"   ⚠️  Index creation failed: {e}")
+        print("   Retrying with fewer lists (100)...")
+        try:
+            conn.execute(text(f"""
+                CREATE INDEX IF NOT EXISTS idx_{TABLE_NAME}_ivfflat
+                ON {TABLE_NAME} USING ivfflat (embedding vector_cosine_ops)
+                WITH (lists = 100)
+            """))
+            print(f"   ✅ IVFFlat index created with lists=100 (reduced for memory constraints)")
+        except Exception as e2:
+            print(f"   ⚠️  IVFFlat index creation skipped (can be added later): {e2}")
+            print("   The table is functional without the index, just slower for large queries.")
     
     # 5. Create compatibility view for existing code
     print("\n📋 Creating compatibility view...")
