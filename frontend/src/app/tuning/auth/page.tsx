@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import '../tuning-pages.css';
 import { apiFetch } from '@/utils/api';
@@ -10,7 +9,6 @@ import { apiFetch } from '@/utils/api';
 const THEME_KEY = 'askdrchaffee.theme';
 
 export default function TuningAuth() {
-  const router = useRouter();
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -70,8 +68,8 @@ export default function TuningAuth() {
           console.log('[Tuning Auth Page] Main app token stored in localStorage');
         }
         console.log('[Tuning Auth Page] Authentication successful, redirecting...');
-        router.push('/tuning');
-        router.refresh();
+        // Use window.location for full page navigation to ensure cookie is sent
+        window.location.href = '/tuning';
       } else if (response.status === 401) {
         setError('Incorrect password');
         setPassword('');

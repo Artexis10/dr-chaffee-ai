@@ -243,20 +243,34 @@ export function useInstructions(): UseTuningDataResult<CustomInstruction[]> {
 
 /**
  * Check if user is authenticated for tuning dashboard.
- * Uses /api/tuning/models as auth check endpoint.
+ * 
+ * Uses dedicated /api/tuning/auth/status endpoint which:
+ * - Checks the tuning_auth cookie locally (no backend call)
+ * - Returns { hasAccess: boolean }
+ * 
+ * The refresh() function can be called after login to re-check auth status.
  */
-export function useTuningAuth(): { isAuthenticated: boolean; loading: boolean } {
+export function useTuningAuth(): { 
+  isAuthenticated: boolean; 
+  loading: boolean; 
+  refresh: () => void;
+} {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let mounted = true;
 
     const checkAuth = async () => {
       try {
-        const res = await apiFetch('/api/tuning/models');
-        if (mounted) {
-          setIsAuthenticated(res.ok);
+        // Use dedicated status endpoint - fast local check, no backend call
+        const res = await apiFetch('/api/tuning/auth/status');
+        if (mounted && res.ok) {
+          const data = await res.json();
+          setIsAuthenticated(data.hasAccess === true);
+        } else if (mounted) {
+          setIsAuthenticated(false);
         }
       } catch {
         if (mounted) {
@@ -273,9 +287,15 @@ export function useTuningAuth(): { isAuthenticated: boolean; loading: boolean } 
     return () => {
       mounted = false;
     };
+  }, [refreshKey]);
+
+  // Trigger a re-check of auth status (call after login)
+  const refresh = useCallback(() => {
+    setLoading(true);
+    setRefreshKey(k => k + 1);
   }, []);
 
-  return { isAuthenticated, loading };
+  return { isAuthenticated, loading, refresh };
 }
 
 // =============================================================================
