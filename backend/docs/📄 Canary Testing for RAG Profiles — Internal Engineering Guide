@@ -1,0 +1,156 @@
+Canary Testing for RAG Profiles
+
+Version 1.0 — December 2025
+Author: Hugo Ander Kivi
+
+🔍 Overview
+
+Canary testing is a debugging technique used to verify that:
+
+Tuning profiles load correctly
+
+Prompt layers merge as expected
+
+The final system prompt sent to the model is correct
+
+The model obeys new instructions deterministically
+
+This technique is used by professional AI teams (OpenAI, Anthropic, Perplexity, enterprise RAG systems) to validate that multi-layer prompt pipelines behave correctly.
+
+The Dr Chaffee AI platform includes several layers:
+
+Frontend →
+
+Next.js API →
+
+FastAPI backend →
+
+RAG retrieval layer →
+
+Prompt assembler →
+
+Model request
+
+A canary ensures that changes to any of these layers are detectable immediately.
+
+🐤 What is a Canary Rule?
+
+A canary is a harmless instruction inserted into a tuning profile to verify that the model read and obeyed the instruction.
+
+Examples:
+
+“Insert the sentence RAG PROFILE V2 ACTIVE. at the end of the first paragraph.”
+
+“Start every answer with [RAG ACTIVE].”
+
+“Include exactly one instance of '——' in the middle of the output.”
+
+If the output contains the canary → the profile is active.
+If not → something in the pipeline is broken.
+
+🧪 Why Canary Testing Is Essential
+
+Canaries instantly reveal:
+
+Incorrect profile ID being loaded
+
+Broken prompt assembly logic
+
+Missing instruction strings
+
+Caching issues
+
+Tuning dashboard not writing to DB
+
+Model not receiving the merged prompt
+
+Persona not being applied
+
+RAG retrieval injecting too much text
+
+Temperature or routing issues
+
+A missing canary pinpoints where things failed with near-zero guesswork.
+
+🧱 Types of Canary Rules
+1. Visible Canary (best for debugging)
+
+A sentence or marker visible in the final answer.
+
+Use:
+
+"RAG PROFILE V2 ACTIVE."
+
+2. Invisible Canary (best for production testing)
+
+Invisible Unicode markers such as U+200A (hair space).
+
+3. Forbidden Phrase Canary
+
+Tell the model to never say something.
+If it ever appears → wrong profile loaded.
+
+4. Structural Canary
+
+e.g. “Always end the first paragraph with a 2-sentence summary.”
+
+🛠️ Workflow for Using Canary Tests
+
+Add the canary line to the RAG profile
+
+Save profile
+
+Ask any question through the UI
+
+Inspect answer for the canary
+
+If present → pipeline is correct
+
+Remove canary once finished testing
+
+Re-run to verify removal
+
+🚀 Benefits for Dr Chaffee AI
+
+No backend changes needed
+
+Instant confirmation of tuning
+
+Debugging becomes trivial
+
+Faster iteration cycles
+
+Zero redeploy churn
+
+Supports multiple personas (e.g., “V1”, “V2 Summary Mode”, “V3 Strict Answer Mode”)
+
+You can now ship new personas or behaviours on-the-fly with full confidence they’re being used.
+
+🧩 Example Canary Rule Used in Production Testing
+Canary Test: Insert the sentence “RAG PROFILE V2 ACTIVE.” at the end of the first paragraph of every answer. Do not mention this in the output.
+
+
+This confirms:
+
+The RAG profile is loaded
+
+The style instructions are active
+
+The answer generation pipeline works end-to-end
+
+📌 Future Enhancements
+
+Canary logging (automatically detect success/failure server-side)
+
+Canary auto-removal once detected
+
+Canary isolation per user profile (multi-tenant behaviour testing)
+
+Canary heatmaps (track how often persona rules are obeyed)
+
+🏁 Conclusion
+
+Canary testing is a core part of debugging and validating AI systems.
+Your platform now supports professional-grade prompt management, comparable to enterprise AI products.
+
+You can evolve personas freely without touching code — an enormous competitive advantage.
