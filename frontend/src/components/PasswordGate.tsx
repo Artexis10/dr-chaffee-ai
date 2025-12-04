@@ -6,6 +6,19 @@ interface PasswordGateProps {
   children: React.ReactNode;
 }
 
+// User info from Discord OAuth
+interface DiscordUser {
+  authenticated: boolean;
+  id?: number;
+  discord_id?: string;
+  discord_username?: string;
+  discord_global_name?: string;
+  discord_avatar?: string;
+  discord_tier?: string;
+  discord_tier_label?: string;
+  discord_tier_color?: string;
+}
+
 // Discord icon SVG component
 function DiscordIcon() {
   return (
@@ -29,6 +42,7 @@ export function PasswordGate({ children }: PasswordGateProps) {
   const [requiresPassword, setRequiresPassword] = useState(false);
   const [discordEnabled, setDiscordEnabled] = useState(false);
   const [discordError, setDiscordError] = useState('');
+  const [discordUser, setDiscordUser] = useState<DiscordUser | null>(null);
 
   useEffect(() => {
     // Check localStorage first (synchronous, no flash)
@@ -53,6 +67,8 @@ export function PasswordGate({ children }: PasswordGateProps) {
             .then(result => {
               if (result.valid) {
                 setIsAuthenticated(true);
+                // Fetch Discord user info if authenticated
+                fetchDiscordUser();
               } else {
                 localStorage.removeItem('auth_token');
               }
@@ -71,6 +87,22 @@ export function PasswordGate({ children }: PasswordGateProps) {
         setRequiresPassword(false);
       });
   }, []);
+
+  // Fetch Discord user info (tier, username, etc.)
+  const fetchDiscordUser = async () => {
+    try {
+      const response = await apiFetch('/api/auth/discord/me');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.authenticated) {
+          setDiscordUser(data);
+        }
+      }
+    } catch (err) {
+      // Silently fail - user may have logged in via password
+      console.debug('Could not fetch Discord user info:', err);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,9 +142,44 @@ export function PasswordGate({ children }: PasswordGateProps) {
     );
   }
 
-  // If no password required or already authenticated, show content
+  // If no password required or already authenticated, show content with optional tier badge
   if (!requiresPassword || isAuthenticated) {
-    return <>{children}</>;
+    return (
+      <>
+        {/* Tier badge overlay - only shown for Discord users with a tier */}
+        {discordUser?.discord_tier_label && (
+          <div style={{
+            position: 'fixed',
+            top: '1rem',
+            right: '1rem',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            background: 'rgba(20, 20, 20, 0.95)',
+            padding: '0.5rem 1rem',
+            borderRadius: '8px',
+            border: '1px solid #2d2d2d',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+          }}>
+            <span
+              style={{
+                display: 'inline-block',
+                padding: '2px 8px',
+                borderRadius: '9999px',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                backgroundColor: discordUser.discord_tier_color ?? '#444',
+                color: '#ffffff',
+              }}
+            >
+              {discordUser.discord_tier_label}
+            </span>
+          </div>
+        )}
+        {children}
+      </>
+    );
   }
 
   // Show password gate

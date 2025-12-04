@@ -1,0 +1,30 @@
+{
+  "roles": {
+    "1011035139658231949": {
+      "tier": "paragon_of_virtue",
+      "name": "Paragon of Virtue",
+      "color": "#C27C0E"
+    },
+    "1010355733675642921": {
+      "tier": "exclusive",
+      "name": "Exclusive",
+      "color": "#F1C40F"
+    },
+    "1010355382146826260": {
+      "tier": "vip",
+      "name": "VIP",
+      "color": "#95A5A6"
+    },
+    "1005862311027814521": {
+      "tier": "all_access",
+      "name": "All Access",
+      "color": "#3498DB"
+    }
+  },
+  "tiers_priority": [
+    "paragon_of_virtue",
+    "exclusive",
+    "vip",
+    "all_access"
+  ]
+}

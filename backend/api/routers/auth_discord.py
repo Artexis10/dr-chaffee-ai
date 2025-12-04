@@ -32,6 +32,12 @@ from ..services.discord_client import (
     get_guild_member,
     user_has_allowed_role,
 )
+from ..services.discord_roles_loader import (
+    resolve_user_tier,
+    get_tier_label,
+    get_tier_color,
+    get_all_tiers,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -105,9 +111,18 @@ def upsert_discord_user(
     discriminator: Optional[str],
     global_name: Optional[str],
     avatar: Optional[str],
+    discord_tier: Optional[str] = None,
 ) -> int:
     """
     Create or update a user record based on Discord ID.
+    
+    Args:
+        discord_id: Discord user ID
+        username: Discord username
+        discriminator: Discord discriminator (legacy, may be None)
+        global_name: Discord display name
+        avatar: Discord avatar hash
+        discord_tier: Resolved membership tier from Discord roles
     
     Returns:
         User ID from database
@@ -124,24 +139,58 @@ def upsert_discord_user(
                 discord_discriminator, 
                 discord_global_name,
                 discord_avatar,
+                discord_tier,
                 last_login_at,
                 updated_at
             )
-            VALUES (%s, %s, %s, %s, %s, NOW(), NOW())
+            VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW())
             ON CONFLICT (discord_id) DO UPDATE SET
                 discord_username = EXCLUDED.discord_username,
                 discord_discriminator = EXCLUDED.discord_discriminator,
                 discord_global_name = EXCLUDED.discord_global_name,
                 discord_avatar = EXCLUDED.discord_avatar,
+                discord_tier = EXCLUDED.discord_tier,
                 last_login_at = NOW(),
                 updated_at = NOW()
             RETURNING id
-        """, (discord_id, username, discriminator, global_name, avatar))
+        """, (discord_id, username, discriminator, global_name, avatar, discord_tier))
         
         result = cur.fetchone()
         conn.commit()
         
         return result['id']
+        
+    finally:
+        conn.close()
+
+
+def get_user_by_discord_id(discord_id: str) -> Optional[dict]:
+    """
+    Fetch a user record by Discord ID.
+    
+    Returns:
+        User dict with id, discord_id, discord_username, discord_global_name,
+        discord_avatar, discord_tier, or None if not found.
+    """
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT 
+                id,
+                discord_id,
+                discord_username,
+                discord_global_name,
+                discord_avatar,
+                discord_tier,
+                created_at,
+                last_login_at
+            FROM users
+            WHERE discord_id = %s
+        """, (discord_id,))
+        
+        result = cur.fetchone()
+        return dict(result) if result else None
         
     finally:
         conn.close()
@@ -286,8 +335,9 @@ async def discord_callback(
         return redirect
     
     # Check role requirements
+    member_roles = member.get('roles', [])
     if not user_has_allowed_role(member, config.allowed_role_ids):
-        logger.info(f"User {discord_id} lacks required roles. Has: {member.get('roles', [])}, needs one of: {config.allowed_role_ids}")
+        logger.info(f"User {discord_id} lacks required roles. Has: {member_roles}, needs one of: {config.allowed_role_ids}")
         # Clear state cookie and redirect to insufficient-role page
         redirect = RedirectResponse(
             url=f"{frontend_url}/auth/discord/insufficient-role",
@@ -295,6 +345,13 @@ async def discord_callback(
         )
         redirect.delete_cookie(STATE_COOKIE_NAME, path="/")
         return redirect
+    
+    # Resolve user's tier from their Discord roles
+    user_tier = resolve_user_tier(member_roles)
+    if user_tier:
+        logger.info(f"User {discord_id} resolved to tier: {user_tier}")
+    else:
+        logger.info(f"User {discord_id} has no matching tier (roles: {member_roles})")
     
     # All checks passed - upsert user in database
     try:
@@ -304,8 +361,9 @@ async def discord_callback(
             discriminator=discriminator,
             global_name=global_name,
             avatar=avatar,
+            discord_tier=user_tier,
         )
-        logger.info(f"User upserted: id={user_id}, discord_id={discord_id}")
+        logger.info(f"User upserted: id={user_id}, discord_id={discord_id}, tier={user_tier}")
     except Exception as e:
         logger.error(f"Failed to upsert user: {e}")
         return RedirectResponse(
@@ -340,6 +398,17 @@ async def discord_callback(
         path="/",
     )
     
+    # Set discord_user_id cookie for /me endpoint to fetch user data
+    redirect.set_cookie(
+        key="discord_user_id",
+        value=discord_id,
+        max_age=max_age,
+        httponly=True,  # Not needed by frontend JS
+        secure=is_production,
+        samesite="lax",
+        path="/",
+    )
+    
     # Delete state cookie
     redirect.delete_cookie(STATE_COOKIE_NAME, path="/")
     
@@ -366,3 +435,136 @@ async def discord_auth_status():
         "guild_id": config.guild_id if is_configured else None,
         "role_count": len(config.allowed_role_ids) if is_configured else 0,
     }
+
+
+@router.get("/me")
+async def get_current_user(request: Request):
+    """
+    Get current authenticated user's information.
+    
+    Requires valid auth_token cookie (set by Discord OAuth callback).
+    
+    Returns:
+        User info including discord_tier and discord_tier_label.
+    """
+    # Get auth token from cookie
+    auth_token = request.cookies.get("auth_token")
+    if not auth_token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Verify token signature and expiry
+    import hmac
+    import hashlib
+    import base64
+    import json
+    import time
+    
+    secret = os.getenv("APP_SESSION_SECRET", "")
+    if not secret:
+        if os.getenv("NODE_ENV") != "production":
+            secret = "dev-only-secret-do-not-use-in-production"
+        else:
+            raise HTTPException(status_code=500, detail="APP_SESSION_SECRET not configured")
+    
+    try:
+        parts = auth_token.split(".")
+        if len(parts) != 2:
+            raise HTTPException(status_code=401, detail="Invalid token format")
+        
+        payload_b64, signature_b64 = parts
+        
+        # Verify signature
+        expected_sig = hmac.new(
+            secret.encode(),
+            payload_b64.encode(),
+            hashlib.sha256
+        ).digest()
+        expected_sig_b64 = base64.urlsafe_b64encode(expected_sig).decode().rstrip('=')
+        
+        if not hmac.compare_digest(signature_b64, expected_sig_b64):
+            raise HTTPException(status_code=401, detail="Invalid token signature")
+        
+        # Decode and check expiry
+        # Add padding if needed
+        padding = 4 - len(payload_b64) % 4
+        if padding != 4:
+            payload_b64 += '=' * padding
+        
+        payload = json.loads(base64.urlsafe_b64decode(payload_b64))
+        if payload.get("exp", 0) < time.time():
+            raise HTTPException(status_code=401, detail="Token expired")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Token verification failed: {e}")
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    # Token is valid, but we need to get user info
+    # Since the token doesn't contain user ID, we need to get it from a cookie or session
+    # For now, we'll use a discord_user_id cookie that's set alongside auth_token
+    discord_id = request.cookies.get("discord_user_id")
+    if not discord_id:
+        # Fallback: return minimal info indicating authenticated but no user data
+        return {
+            "authenticated": True,
+            "discord_id": None,
+            "discord_username": None,
+            "discord_global_name": None,
+            "discord_avatar": None,
+            "discord_tier": None,
+            "discord_tier_label": None,
+            "discord_tier_color": None,
+        }
+    
+    # Fetch user from database
+    user = get_user_by_discord_id(discord_id)
+    if not user:
+        return {
+            "authenticated": True,
+            "discord_id": discord_id,
+            "discord_username": None,
+            "discord_global_name": None,
+            "discord_avatar": None,
+            "discord_tier": None,
+            "discord_tier_label": None,
+            "discord_tier_color": None,
+        }
+    
+    tier = user.get("discord_tier")
+    tier_label = get_tier_label(tier) if tier else None
+    tier_color = get_tier_color(tier) if tier else None
+    
+    return {
+        "authenticated": True,
+        "id": user.get("id"),
+        "discord_id": user.get("discord_id"),
+        "discord_username": user.get("discord_username"),
+        "discord_global_name": user.get("discord_global_name"),
+        "discord_avatar": user.get("discord_avatar"),
+        "discord_tier": tier,
+        "discord_tier_label": tier_label,
+        "discord_tier_color": tier_color,
+    }
+
+
+@router.get("/tiers")
+async def get_available_tiers():
+    """
+    Get list of available membership tiers.
+    
+    Returns:
+        List of tiers with id, name, and color, ordered by priority (highest first).
+        
+    Example response:
+        {
+            "tiers": [
+                {"id": "paragon_of_virtue", "name": "Paragon of Virtue", "color": "#C27C0E"},
+                {"id": "exclusive", "name": "Exclusive", "color": "#F1C40F"},
+                {"id": "vip", "name": "VIP", "color": "#95A5A6"},
+                {"id": "all_access", "name": "All Access", "color": "#3498DB"}
+            ]
+        }
+    """
+    tiers = get_all_tiers()
+    return {"tiers": tiers}
