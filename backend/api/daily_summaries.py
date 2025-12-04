@@ -515,7 +515,7 @@ def log_rag_request(
     latency_ms: Optional[float] = None,
     success: bool = True,
     error_message: Optional[str] = None,
-    rag_profile_id: Optional[int] = None,
+    rag_profile_id: Optional[str] = None,
     rag_profile_name: Optional[str] = None,
     tenant_id: Optional[str] = None,
 ) -> None:
@@ -537,7 +537,7 @@ def log_rag_request(
         latency_ms: Request latency in milliseconds
         success: Whether the request succeeded
         error_message: Error message if failed
-        rag_profile_id: RAG profile ID used
+        rag_profile_id: RAG profile UUID string
         rag_profile_name: RAG profile name used
         tenant_id: Tenant ID for multi-tenant support
     """

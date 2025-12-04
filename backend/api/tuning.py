@@ -113,6 +113,8 @@ class TestSearchRequest(BaseModel):
     query: str
     model_key: Optional[str] = None  # Override active model for testing
     top_k: Optional[int] = None
+    
+    model_config = {"protected_namespaces": ()}  # Allow model_key field
 
 
 class TestSearchResult(BaseModel):

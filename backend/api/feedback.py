@@ -61,6 +61,8 @@ class FeedbackItem(BaseModel):
     input_text_snippet: Optional[str] = None
     output_text_snippet: Optional[str] = None
     model_name: Optional[str] = None
+    
+    model_config = {"protected_namespaces": ()}  # Allow model_name field
 
 
 class FeedbackListResponse(BaseModel):
