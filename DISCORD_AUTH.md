@@ -10,6 +10,21 @@ Discord OAuth allows users to log in using their Discord account. Access is gate
 
 This feature is **optional** and works alongside the existing password authentication.
 
+## Architecture
+
+- **Discord Application**: "AskDrChaffee" (do not confuse with "Dr Chaffee AI")
+- **Backend is the OAuth callback target** - Discord redirects directly to FastAPI
+- **Scopes**: `identify guilds guilds.members.read`
+
+### URL Structure
+
+| Environment | Backend Login | Discord Callback (redirect_uri) |
+|-------------|---------------|--------------------------------|
+| Development | `http://localhost:8000/auth/discord/login` | `http://localhost:8000/auth/discord/callback` |
+| Production  | `https://askdrchaffee.com/api/auth/discord/login` | `https://askdrchaffee.com/api/auth/discord/callback` |
+
+> **Note**: In production, the backend is mounted under `/api` via Coolify reverse proxy, so all backend routes have the `/api` prefix externally.
+
 ## Prerequisites
 
 - A Discord account
@@ -22,16 +37,16 @@ This feature is **optional** and works alongside the existing password authentic
 
 1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
 2. Click **"New Application"**
-3. Enter a name (e.g., "Ask Dr Chaffee")
+3. Enter name: **"AskDrChaffee"**
 4. Click **"Create"**
 
 ### 2. Configure OAuth2
 
 1. In your application, go to **OAuth2** → **General**
 2. Copy the **Client ID** and **Client Secret**
-3. Add a redirect URI:
+3. Add redirect URIs (both if you need dev + prod):
    - Development: `http://localhost:8000/auth/discord/callback`
-   - Production: `https://your-backend-domain.com/auth/discord/callback`
+   - Production: `https://askdrchaffee.com/api/auth/discord/callback`
 
 ### 3. Get Guild ID
 
@@ -53,11 +68,16 @@ This feature is **optional** and works alongside the existing password authentic
 # Discord OAuth Configuration
 DISCORD_CLIENT_ID=your_client_id_here
 DISCORD_CLIENT_SECRET=your_client_secret_here
-DISCORD_REDIRECT_URI=http://localhost:8000/auth/discord/callback
 DISCORD_GUILD_ID=your_guild_id_here
 DISCORD_ALLOWED_ROLE_IDS=role_id_1,role_id_2,role_id_3
-DISCORD_OAUTH_SCOPES=identify guilds.members.read
+DISCORD_OAUTH_SCOPES=identify guilds guilds.members.read
 FRONTEND_APP_URL=http://localhost:3000
+
+# IMPORTANT: redirect_uri must match exactly what's in Discord Developer Portal
+# Dev:
+DISCORD_REDIRECT_URI=http://localhost:8000/auth/discord/callback
+# Prod (note /api prefix):
+# DISCORD_REDIRECT_URI=https://askdrchaffee.com/api/auth/discord/callback
 ```
 
 #### Frontend (`frontend/.env.local`)
@@ -65,6 +85,11 @@ FRONTEND_APP_URL=http://localhost:3000
 ```env
 # Enable Discord login button
 DISCORD_LOGIN_ENABLED=true
+
+# Backend URL (for API proxying)
+# Dev:
+BACKEND_API_URL=http://localhost:8000
+# Prod: set via Coolify
 ```
 
 ### 6. Run Database Migration
@@ -181,11 +206,13 @@ Discord OAuth works alongside the existing password authentication:
 
 ## Production Checklist
 
-- [ ] Discord application created and configured
-- [ ] Redirect URI set for production domain
+- [ ] Discord application "AskDrChaffee" created and configured
+- [ ] Redirect URI `https://askdrchaffee.com/api/auth/discord/callback` added in Discord Developer Portal
+- [ ] `DISCORD_REDIRECT_URI=https://askdrchaffee.com/api/auth/discord/callback` set in backend env
+- [ ] `FRONTEND_APP_URL=https://askdrchaffee.com` set in backend env
 - [ ] `DISCORD_CLIENT_SECRET` stored securely (not in git)
 - [ ] `APP_SESSION_SECRET` set for token signing
-- [ ] Database migration applied
-- [ ] `DISCORD_LOGIN_ENABLED=true` in frontend
-- [ ] All backend Discord env vars configured
+- [ ] Database migration applied (`alembic upgrade head`)
+- [ ] `DISCORD_LOGIN_ENABLED=true` in frontend env
+- [ ] All backend Discord env vars configured (CLIENT_ID, SECRET, GUILD_ID, ROLE_IDS)
 - [ ] HTTPS enabled (required for secure cookies)

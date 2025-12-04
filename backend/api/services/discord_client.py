@@ -26,16 +26,37 @@ DISCORD_API_BASE = "https://discord.com/api/v10"
 DISCORD_OAUTH_AUTHORIZE = "https://discord.com/oauth2/authorize"
 DISCORD_OAUTH_TOKEN = f"{DISCORD_API_BASE}/oauth2/token"
 
+# Request timeout for Discord API calls (seconds)
+DISCORD_API_TIMEOUT = 10.0
+
 
 class DiscordConfig:
-    """Discord OAuth configuration from environment variables."""
+    """
+    Discord OAuth configuration from environment variables.
+    
+    Required env vars:
+        DISCORD_CLIENT_ID          - OAuth2 client ID from Discord Developer Portal
+        DISCORD_CLIENT_SECRET      - OAuth2 client secret
+        DISCORD_REDIRECT_URI       - Callback URL registered in Discord app
+                                     Dev:  http://localhost:8000/auth/discord/callback
+                                     Prod: https://askdrchaffee.com/api/auth/discord/callback
+        DISCORD_GUILD_ID           - Server ID users must be a member of
+        DISCORD_ALLOWED_ROLE_IDS   - Comma-separated role IDs that grant access
+    
+    Optional env vars:
+        DISCORD_OAUTH_SCOPES       - OAuth scopes (default: identify guilds guilds.members.read)
+        FRONTEND_APP_URL           - Where to redirect after auth (default: http://localhost:3000)
+    """
+    
+    # Default scopes: identify (user info), guilds (list guilds), guilds.members.read (role check)
+    DEFAULT_SCOPES = "identify guilds guilds.members.read"
     
     def __init__(self):
         self.client_id = os.getenv("DISCORD_CLIENT_ID", "")
         self.client_secret = os.getenv("DISCORD_CLIENT_SECRET", "")
         self.redirect_uri = os.getenv("DISCORD_REDIRECT_URI", "")
         self.guild_id = os.getenv("DISCORD_GUILD_ID", "")
-        self.scopes = os.getenv("DISCORD_OAUTH_SCOPES", "identify guilds.members.read")
+        self.scopes = os.getenv("DISCORD_OAUTH_SCOPES", self.DEFAULT_SCOPES)
         self.frontend_url = os.getenv("FRONTEND_APP_URL", "http://localhost:3000")
         
         # Parse allowed role IDs from comma-separated string
@@ -43,6 +64,9 @@ class DiscordConfig:
         self.allowed_role_ids: List[str] = [
             rid.strip() for rid in role_ids_str.split(",") if rid.strip()
         ]
+        
+        # Convert to set for O(1) membership checks
+        self.allowed_role_ids_set: set = set(self.allowed_role_ids)
     
     def is_configured(self) -> bool:
         """Check if Discord OAuth is properly configured."""
@@ -132,8 +156,10 @@ async def exchange_code_for_token(code: str) -> Optional[Dict[str, Any]]:
     # Use HTTP Basic auth as recommended by Discord
     auth = (config.client_id, config.client_secret)
     
+    logger.info("Exchanging authorization code for access token")
+    
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=DISCORD_API_TIMEOUT) as client:
             response = await client.post(
                 DISCORD_OAUTH_TOKEN,
                 data=data,
@@ -142,15 +168,18 @@ async def exchange_code_for_token(code: str) -> Optional[Dict[str, Any]]:
             )
             
             if response.status_code == 200:
+                logger.info("Token exchange successful")
                 return response.json()
             else:
-                logger.error(
-                    f"Discord token exchange failed: {response.status_code} - {response.text}"
-                )
+                # Don't log response body - may contain sensitive info
+                logger.error(f"Discord token exchange failed: HTTP {response.status_code}")
                 return None
                 
+    except httpx.TimeoutException:
+        logger.error("Discord token exchange timed out")
+        return None
     except httpx.RequestError as e:
-        logger.error(f"Discord token exchange request failed: {e}")
+        logger.error(f"Discord token exchange request failed: {type(e).__name__}")
         return None
 
 
@@ -165,22 +194,27 @@ async def get_discord_user(access_token: str) -> Optional[Dict[str, Any]]:
         User object with id, username, discriminator, global_name, avatar
     """
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=DISCORD_API_TIMEOUT) as client:
             response = await client.get(
                 f"{DISCORD_API_BASE}/users/@me",
                 headers={"Authorization": f"Bearer {access_token}"},
             )
             
             if response.status_code == 200:
-                return response.json()
+                user = response.json()
+                # Log only non-sensitive identifier (last 6 chars of Discord ID)
+                user_id = user.get("id", "")
+                logger.info(f"Fetched Discord user: ...{user_id[-6:]}")
+                return user
             else:
-                logger.error(
-                    f"Discord get user failed: {response.status_code} - {response.text}"
-                )
+                logger.error(f"Discord get user failed: HTTP {response.status_code}")
                 return None
                 
+    except httpx.TimeoutException:
+        logger.error("Discord get user timed out")
+        return None
     except httpx.RequestError as e:
-        logger.error(f"Discord get user request failed: {e}")
+        logger.error(f"Discord get user request failed: {type(e).__name__}")
         return None
 
 
@@ -198,27 +232,34 @@ async def get_guild_member(access_token: str, guild_id: str) -> Optional[Dict[st
     Returns:
         Member object with roles array, or None if not a member
     """
+    # Log only last 6 chars of guild ID for privacy
+    logger.info(f"Checking guild membership for guild ...{guild_id[-6:]}")
+    
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=DISCORD_API_TIMEOUT) as client:
             response = await client.get(
                 f"{DISCORD_API_BASE}/users/@me/guilds/{guild_id}/member",
                 headers={"Authorization": f"Bearer {access_token}"},
             )
             
             if response.status_code == 200:
-                return response.json()
+                member = response.json()
+                role_count = len(member.get("roles", []))
+                logger.info(f"User is guild member with {role_count} roles")
+                return member
             elif response.status_code == 404:
                 # User is not a member of this guild
-                logger.info(f"User is not a member of guild {guild_id}")
+                logger.info("User is not a member of the required guild")
                 return None
             else:
-                logger.error(
-                    f"Discord get guild member failed: {response.status_code} - {response.text}"
-                )
+                logger.error(f"Discord get guild member failed: HTTP {response.status_code}")
                 return None
                 
+    except httpx.TimeoutException:
+        logger.error("Discord get guild member timed out")
+        return None
     except httpx.RequestError as e:
-        logger.error(f"Discord get guild member request failed: {e}")
+        logger.error(f"Discord get guild member request failed: {type(e).__name__}")
         return None
 
 
@@ -234,14 +275,20 @@ def user_has_allowed_role(member: Dict[str, Any], allowed_role_ids: List[str]) -
         True if user has at least one allowed role
     """
     if not member or not allowed_role_ids:
+        logger.info("Role check failed: no member or no allowed roles configured")
         return False
     
-    user_roles = member.get("roles", [])
+    user_roles = set(member.get("roles", []))
+    allowed_set = set(allowed_role_ids)
     
-    for role_id in allowed_role_ids:
-        if role_id in user_roles:
-            return True
+    # Check intersection
+    matching_roles = user_roles & allowed_set
     
+    if matching_roles:
+        logger.info(f"User has {len(matching_roles)} matching role(s) - access granted")
+        return True
+    
+    logger.info(f"User has {len(user_roles)} roles but none match the {len(allowed_set)} allowed roles")
     return False
 
 

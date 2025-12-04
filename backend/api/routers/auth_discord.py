@@ -172,7 +172,7 @@ async def discord_login(request: Request, response: Response):
     # Build authorization URL
     auth_url = build_discord_authorize_url(state)
     
-    logger.info(f"Initiating Discord OAuth flow, redirecting to Discord")
+    logger.info(f"Initiating Discord OAuth flow (redirect_uri: {config.redirect_uri})")
     
     # Create redirect response
     redirect = RedirectResponse(url=auth_url, status_code=302)
