@@ -9,7 +9,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { RefreshCw, Filter, ChevronDown, ChevronUp, ThumbsUp, ThumbsDown, AlertCircle, MessageSquare } from 'lucide-react';
+import { RefreshCw, Filter, ChevronDown, ChevronUp, ThumbsUp, ThumbsDown, AlertCircle, MessageSquare, CheckCircle } from 'lucide-react';
 import '../tuning-pages.css';
 import { apiFetch } from '@/utils/api';
 
@@ -51,6 +51,7 @@ export default function FeedbackPage() {
   const [total, setTotal] = useState(0);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   
   // Filters
   const [targetType, setTargetType] = useState<string>('');
@@ -184,8 +185,13 @@ export default function FeedbackPage() {
         <button 
           onClick={async () => {
             setIsRefreshing(true);
+            setError(null);
             try {
               await Promise.all([loadFeedback(), loadStats()]);
+              setSuccessMessage('Feedback refreshed from server.');
+              setTimeout(() => setSuccessMessage(null), 3000);
+            } catch (err) {
+              setError('Could not refresh. Please try again.');
             } finally {
               setIsRefreshing(false);
             }
@@ -198,6 +204,14 @@ export default function FeedbackPage() {
           <RefreshCw style={{ width: 16, height: 16, animation: isRefreshing ? 'spin 1s linear infinite' : 'none' }} />
         </button>
       </div>
+
+      {/* Success Message */}
+      {successMessage && (
+        <div className="tuning-alert tuning-alert-success" style={{ marginBottom: 24 }}>
+          <CheckCircle style={{ width: 20, height: 20 }} />
+          {successMessage}
+        </div>
+      )}
 
       {/* Stats Cards */}
       {stats && (

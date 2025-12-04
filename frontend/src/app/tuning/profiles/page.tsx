@@ -31,6 +31,7 @@ export default function ProfilesPage() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [formData, setFormData] = useState<RagProfile>({
     name: '',
     description: '',
@@ -175,12 +176,25 @@ export default function ProfilesPage() {
         {!editMode && (
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button 
-              onClick={() => refreshProfiles()} 
+              onClick={async () => {
+                setIsRefreshing(true);
+                setError(null);
+                try {
+                  await refreshProfiles();
+                  setMessage('Configuration refreshed from server.');
+                  setTimeout(() => setMessage(null), 3000);
+                } catch (err) {
+                  setError('Could not refresh. Please try again.');
+                } finally {
+                  setIsRefreshing(false);
+                }
+              }} 
               className="tuning-btn tuning-btn-secondary"
-              title="Refresh profiles"
-              disabled={loading}
+              title="Refresh from server"
+              disabled={loading || isRefreshing}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
             >
-              <RefreshCw style={{ width: 16, height: 16 }} />
+              <RefreshCw style={{ width: 16, height: 16, animation: isRefreshing ? 'spin 1s linear infinite' : 'none' }} />
             </button>
             <button onClick={startNewProfile} className="tuning-btn tuning-btn-primary">
               <Plus style={{ width: 16, height: 16 }} />

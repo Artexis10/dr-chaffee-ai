@@ -66,13 +66,21 @@ export default function SummariesPage() {
           setError(null);
           return;
         }
-        throw new Error(`Failed to load summaries: ${res.status}`);
+        // Try to get error detail from response
+        const errorData = await res.json().catch(() => null);
+        const errorDetail = errorData?.detail || `Failed to load summaries (${res.status})`;
+        throw new Error(errorDetail);
       }
       const data = await res.json();
-      setSummaries(data);
+      // Ensure we have an array (handle both [] and {summaries: []} formats)
+      const summariesArray = Array.isArray(data) ? data : (data.summaries || []);
+      setSummaries(summariesArray);
+      // Clear any previous error on successful load
+      setError(null);
     } catch (err) {
       console.error('Failed to load summaries:', err);
       setError(err instanceof Error ? err.message : 'Failed to load summaries');
+      // Keep summaries empty on error so we show error state, not empty state
     } finally {
       setLoading(false);
     }
@@ -95,17 +103,22 @@ export default function SummariesPage() {
   const generateSummary = useCallback(async (date?: string) => {
     setGenerating(true);
     setError(null);
+    setSuccessMessage(null);
     try {
       const res = await apiFetch('/api/admin/daily-summaries/generate', {
         method: 'POST',
         body: JSON.stringify({ summary_date: date, force_regenerate: false }),
       });
       if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ detail: 'Unknown error' }));
+        const errorData = await res.json().catch(() => ({ detail: 'Failed to generate summary' }));
         throw new Error(errorData.detail || `Failed to generate: ${res.status}`);
       }
       const data = await res.json();
       setSelectedSummary(data);
+      // Show success message with date
+      const summaryDate = data.summary_date || date || 'yesterday';
+      setSuccessMessage(`Summary generated for ${summaryDate}.`);
+      setTimeout(() => setSuccessMessage(null), 5000);
       // Refresh list
       await loadSummaries();
     } catch (err) {
@@ -197,11 +210,14 @@ export default function SummariesPage() {
         </div>
       )}
 
-      {/* Error Alert - only show for real errors */}
-      {error && !error.includes('404') && (
+      {/* Error Alert - only show for real errors, not empty state */}
+      {error && (
         <div className="tuning-alert tuning-alert-error">
           <AlertCircle style={{ width: 20, height: 20 }} />
-          {error}
+          <div>
+            <p style={{ fontWeight: 600, marginBottom: 4 }}>Could not load summaries</p>
+            <p style={{ fontSize: '0.875rem', opacity: 0.9, margin: 0 }}>{error}</p>
+          </div>
         </div>
       )}
 

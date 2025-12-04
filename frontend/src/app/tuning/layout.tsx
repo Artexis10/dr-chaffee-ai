@@ -2,7 +2,7 @@
 
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Settings, BarChart3, Sparkles, Search, Home, LogOut, Menu, X, Sun, Moon, FileText, MessageSquare } from 'lucide-react';
+import { Settings, BarChart3, Sparkles, Search, Home, LogOut, Menu, X, Sun, Moon, FileText, MessageSquare, Calendar } from 'lucide-react';
 import '../../styles/tuning.css';
 import { useTuningAuth } from '../../hooks/useTuningData';
 import { apiFetch } from '../../utils/api';
@@ -98,6 +98,7 @@ export default function TuningLayout({
     if (pathname.includes('/tuning/search')) return 'search';
     if (pathname.includes('/tuning/instructions')) return 'instructions';
     if (pathname.includes('/tuning/feedback')) return 'feedback';
+    if (pathname.includes('/tuning/summaries')) return 'summaries';
     return 'overview';
   };
 
@@ -125,7 +126,8 @@ export default function TuningLayout({
     { id: 'models', label: 'Summarizer', icon: Sparkles, href: '/tuning/models' },
     { id: 'search', label: 'Search Config', icon: Search, href: '/tuning/search' },
     { id: 'instructions', label: 'Instructions', icon: Settings, href: '/tuning/instructions' },
-    { id: 'feedback', label: 'Feedback', icon: MessageSquare, href: '/tuning/feedback' }
+    { id: 'feedback', label: 'Feedback', icon: MessageSquare, href: '/tuning/feedback' },
+    { id: 'summaries', label: 'Daily Summaries', icon: Calendar, href: '/tuning/summaries' }
   ];
 
   // Loading state - simple centered spinner

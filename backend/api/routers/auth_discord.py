@@ -354,12 +354,15 @@ async def discord_auth_status():
     Check if Discord OAuth is configured.
     
     Returns configuration status (not secrets).
+    The 'enabled' field is the primary indicator for frontend to show/hide Discord login.
     """
     config = get_discord_config()
+    is_configured = config.is_configured()
     
     return {
-        "configured": config.is_configured(),
-        "missing": config.get_missing_config() if not config.is_configured() else [],
-        "guild_id": config.guild_id if config.is_configured() else None,
-        "role_count": len(config.allowed_role_ids) if config.is_configured() else 0,
+        "enabled": is_configured,  # Primary field for frontend
+        "configured": is_configured,  # Legacy field for backwards compatibility
+        "missing": config.get_missing_config() if not is_configured else [],
+        "guild_id": config.guild_id if is_configured else None,
+        "role_count": len(config.allowed_role_ids) if is_configured else 0,
     }

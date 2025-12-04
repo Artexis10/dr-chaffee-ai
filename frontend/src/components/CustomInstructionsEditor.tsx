@@ -31,6 +31,7 @@ export default function CustomInstructionsEditor() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'success' | 'error'>('success');
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState<CustomInstruction>({
@@ -218,29 +219,61 @@ export default function CustomInstructionsEditor() {
         </div>
         
         {!editMode && (
-          <button
-            onClick={startNewInstruction}
-            className="ci-new-btn"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              background: 'var(--accent, #000000)',
-              color: 'var(--accent-foreground, white)',
-              padding: '0.625rem 1rem',
-              borderRadius: '0.5rem',
-              border: 'none',
-              fontWeight: 500,
-              cursor: 'pointer',
-              transition: 'background 0.2s',
-              whiteSpace: 'nowrap'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--accent-hover, #333333)'}
-            onMouseLeave={(e) => e.currentTarget.style.background = 'var(--accent, #000000)'}
-          >
-            <Plus style={{ width: '1rem', height: '1rem' }} />
-            New Instruction Set
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button
+              onClick={async () => {
+                setIsRefreshing(true);
+                try {
+                  await refreshInstructions();
+                  showMessage('Configuration refreshed from server.', 'success');
+                } catch {
+                  showMessage('Could not refresh. Please try again.', 'error');
+                } finally {
+                  setIsRefreshing(false);
+                }
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '0.625rem',
+                background: 'transparent',
+                color: 'var(--text-muted, #6b7280)',
+                border: '1px solid var(--border-subtle, #e5e7eb)',
+                borderRadius: '0.5rem',
+                cursor: isRefreshing ? 'not-allowed' : 'pointer',
+                opacity: isRefreshing ? 0.5 : 1,
+                transition: 'all 0.2s'
+              }}
+              disabled={isRefreshing}
+              title="Refresh from server"
+            >
+              <RefreshCw style={{ width: '1rem', height: '1rem', animation: isRefreshing ? 'spin 1s linear infinite' : 'none' }} />
+            </button>
+            <button
+              onClick={startNewInstruction}
+              className="ci-new-btn"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                background: 'var(--accent, #000000)',
+                color: 'var(--accent-foreground, white)',
+                padding: '0.625rem 1rem',
+                borderRadius: '0.5rem',
+                border: 'none',
+                fontWeight: 500,
+                cursor: 'pointer',
+                transition: 'background 0.2s',
+                whiteSpace: 'nowrap'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--accent-hover, #333333)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'var(--accent, #000000)'}
+            >
+              <Plus style={{ width: '1rem', height: '1rem' }} />
+              New Instruction Set
+            </button>
+          </div>
         )}
       </div>
 
@@ -734,77 +767,81 @@ export default function CustomInstructionsEditor() {
               </p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {history.map((h, index) => (
-                  <div key={h.id} style={{
-                    border: '1px solid var(--border-subtle, #333)',
-                    borderRadius: '0.5rem',
-                    padding: '1rem',
-                    background: 'var(--bg-card-elevated, #0f0f0f)'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <span style={{
-                          background: index === 0 ? 'var(--accent, #3b82f6)' : 'var(--bg-card, #262626)',
-                          color: index === 0 ? 'white' : 'var(--text-muted)',
-                          fontSize: '0.75rem',
-                          fontWeight: 600,
-                          padding: '0.25rem 0.5rem',
-                          borderRadius: '0.25rem'
-                        }}>
-                          v{h.version}
-                        </span>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                          {new Date(h.changed_at).toLocaleDateString('en-US', { 
-                            month: 'short', 
-                            day: 'numeric', 
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </span>
-                      </div>
-                      <button
-                        onClick={() => rollbackToVersion(h.instruction_id, h.version)}
-                        disabled={loading}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.35rem',
-                          fontSize: '0.75rem',
-                          fontWeight: 500,
-                          background: 'var(--accent, #3b82f6)',
-                          color: 'white',
-                          padding: '0.35rem 0.75rem',
-                          borderRadius: '0.375rem',
-                          border: 'none',
-                          cursor: loading ? 'not-allowed' : 'pointer',
-                          opacity: loading ? 0.5 : 1,
-                          transition: 'opacity 0.15s'
-                        }}
-                      >
-                        <RefreshCw style={{ width: 12, height: 12 }} />
-                        Restore
-                      </button>
-                    </div>
-                    <p style={{
-                      fontSize: '0.8rem',
-                      color: 'var(--text-muted)',
-                      background: 'var(--bg-body, #0a0a0a)',
-                      borderRadius: '0.375rem',
-                      padding: '0.75rem',
-                      margin: 0,
-                      maxHeight: '80px',
-                      overflowY: 'auto',
-                      whiteSpace: 'pre-wrap',
-                      wordBreak: 'break-word',
-                      lineHeight: 1.5
+                {history.map((h, index) => {
+                  // Most recent version (index 0) gets highlighted styling
+                  const isLatest = index === 0;
+                  return (
+                    <div key={h.id} style={{
+                      border: isLatest ? '2px solid #22c55e' : '1px solid var(--border-subtle, #333)',
+                      borderRadius: '0.5rem',
+                      padding: '1rem',
+                      background: isLatest ? 'rgba(34, 197, 94, 0.1)' : 'var(--bg-card-elevated, #0f0f0f)'
                     }}>
-                      {h.instructions.length > 160 
-                        ? `${h.instructions.substring(0, 160)}...` 
-                        : h.instructions || '(Empty instructions)'}
-                    </p>
-                  </div>
-                ))}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          <span style={{
+                            background: isLatest ? '#22c55e' : 'var(--bg-card, #262626)',
+                            color: isLatest ? '#052e16' : 'var(--text-muted)',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            padding: '0.25rem 0.5rem',
+                            borderRadius: '0.25rem'
+                          }}>
+                            v{h.version}{isLatest ? ' (Latest)' : ''}
+                          </span>
+                          <span style={{ fontSize: '0.8rem', color: isLatest ? '#166534' : 'var(--text-muted)' }}>
+                            {new Date(h.changed_at).toLocaleDateString('en-US', { 
+                              month: 'short', 
+                              day: 'numeric', 
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => rollbackToVersion(h.instruction_id, h.version)}
+                          disabled={loading}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            fontSize: '0.75rem',
+                            fontWeight: 500,
+                            background: isLatest ? '#166534' : 'var(--accent, #3b82f6)',
+                            color: 'white',
+                            padding: '0.35rem 0.75rem',
+                            borderRadius: '0.375rem',
+                            border: 'none',
+                            cursor: loading ? 'not-allowed' : 'pointer',
+                            opacity: loading ? 0.5 : 1,
+                            transition: 'opacity 0.15s'
+                          }}
+                        >
+                          <RefreshCw style={{ width: 12, height: 12 }} />
+                          Restore
+                        </button>
+                      </div>
+                      <p style={{
+                        fontSize: '0.8rem',
+                        color: isLatest ? '#166534' : 'var(--text-muted)',
+                        background: isLatest ? 'rgba(34, 197, 94, 0.05)' : 'var(--bg-body, #0a0a0a)',
+                        borderRadius: '0.375rem',
+                        padding: '0.75rem',
+                        margin: 0,
+                        maxHeight: '80px',
+                        overflowY: 'auto',
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                        lineHeight: 1.5
+                      }}>
+                        {h.instructions.length > 160 
+                          ? `${h.instructions.substring(0, 160)}...` 
+                          : h.instructions || '(Empty instructions)'}
+                      </p>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

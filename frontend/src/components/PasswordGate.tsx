@@ -28,6 +28,7 @@ export function PasswordGate({ children }: PasswordGateProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [requiresPassword, setRequiresPassword] = useState(false);
   const [discordEnabled, setDiscordEnabled] = useState(false);
+  const [discordError, setDiscordError] = useState('');
 
   useEffect(() => {
     // Check localStorage first (synchronous, no flash)
@@ -257,57 +258,85 @@ export function PasswordGate({ children }: PasswordGateProps) {
           </button>
         </form>
 
-        {/* Discord Login Button - only shown when Discord OAuth is configured */}
-        {discordEnabled && (
-          <div style={{
-            marginTop: '1.5rem',
-            paddingTop: '1.5rem',
-            borderTop: '1px solid #2d2d2d'
-          }}>
-            <p style={{
-              color: '#909090',
-              fontSize: '0.85rem',
+        {/* Discord Login Section */}
+        <div style={{
+          marginTop: '1.5rem',
+          paddingTop: '1.5rem',
+          borderTop: '1px solid #2d2d2d'
+        }}>
+          {/* Discord error message */}
+          {discordError && (
+            <div style={{
+              background: '#fee2e2',
+              color: '#dc2626',
+              padding: '0.75rem',
+              borderRadius: '8px',
               marginBottom: '0.75rem',
-              fontWeight: 500
+              fontSize: '0.85rem'
             }}>
-              Or sign in with
+              {discordError}
+            </div>
+          )}
+          
+          {/* Discord Login Button - only shown when Discord OAuth is configured */}
+          {discordEnabled ? (
+            <>
+              <p style={{
+                color: '#909090',
+                fontSize: '0.85rem',
+                marginBottom: '0.75rem',
+                fontWeight: 500
+              }}>
+                Or sign in with
+              </p>
+              <button
+                onClick={() => {
+                  setDiscordError('');
+                  // Navigate to Discord login
+                  window.location.href = '/api/auth/discord/login';
+                }}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '0.875rem 1rem',
+                  fontSize: '1rem',
+                  fontWeight: 600,
+                  color: 'white',
+                  background: '#5865F2',
+                  border: 'none',
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  boxShadow: '0 4px 12px rgba(88, 101, 242, 0.3)'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#4752C4';
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(88, 101, 242, 0.4)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = '#5865F2';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(88, 101, 242, 0.3)';
+                }}
+              >
+                <DiscordIcon />
+                Log in with Discord
+              </button>
+            </>
+          ) : (
+            <p style={{
+              color: '#707070',
+              fontSize: '0.8rem',
+              textAlign: 'center',
+              margin: 0
+            }}>
+              Discord login isn't available yet. Please use the access password to sign in.
             </p>
-            <button
-              onClick={() => {
-                window.location.href = '/api/auth/discord/login';
-              }}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '0.875rem 1rem',
-                fontSize: '1rem',
-                fontWeight: 600,
-                color: 'white',
-                background: '#5865F2',
-                border: 'none',
-                borderRadius: '12px',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                boxShadow: '0 4px 12px rgba(88, 101, 242, 0.3)'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#4752C4';
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 6px 20px rgba(88, 101, 242, 0.4)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = '#5865F2';
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(88, 101, 242, 0.3)';
-              }}
-            >
-              <DiscordIcon />
-              Log in with Discord
-            </button>
-          </div>
-        )}
+          )}
+        </div>
 
         <div style={{
           marginTop: '1.5rem',

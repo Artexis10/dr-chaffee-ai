@@ -40,9 +40,11 @@ export default function ModelsPage() {
     }));
   }, [modelsData]);
 
-  // Set current model from API data
+  // Set current model from API data (prefer active_model_name, fallback to current_model)
   useEffect(() => {
-    if (modelsData?.current_model) {
+    if (modelsData?.active_model_name) {
+      setCurrentModel(modelsData.active_model_name);
+    } else if (modelsData?.current_model) {
       setCurrentModel(modelsData.current_model);
     }
   }, [modelsData]);

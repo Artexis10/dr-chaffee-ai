@@ -170,7 +170,8 @@ export interface SummarizerModel {
 }
 
 export interface SummarizerModelsData {
-  current_model: string;
+  active_model_name: string;  // Primary field from backend
+  current_model: string;  // Legacy field for backwards compatibility
   models: Record<string, Omit<SummarizerModel, 'key'>>;
 }
 

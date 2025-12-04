@@ -614,6 +614,28 @@ async def update_summarizer_config(config: SummarizerConfig, request: Request):
     }
 
 
+# Default summarizer model when none is configured
+DEFAULT_SUMMARIZER_MODEL = "gpt-4.1"
+
+
+def get_active_summarizer_model_name() -> str:
+    """
+    Get the active summarizer model name.
+    
+    Single source of truth for which model is used for answer generation.
+    
+    Returns:
+        Model name string (never empty in normal operation)
+    """
+    # Check environment variable (primary source)
+    model = os.getenv("SUMMARIZER_MODEL", "").strip()
+    if model:
+        return model
+    
+    # Fall back to default
+    return DEFAULT_SUMMARIZER_MODEL
+
+
 def _build_summarizer_models() -> dict:
     """Build summarizer models dict (cached internally)."""
     models = {
@@ -713,10 +735,11 @@ def _build_summarizer_models() -> dict:
         }
     }
     
-    current_model = os.getenv("SUMMARIZER_MODEL", "gpt-4.1")
+    active_model = get_active_summarizer_model_name()
     
     return {
-        "current_model": current_model,
+        "active_model_name": active_model,  # Primary field for frontend
+        "current_model": active_model,  # Legacy field for backwards compatibility
         "models": models,
         "note": "Only models in this list are allowed for security and cost control"
     }
