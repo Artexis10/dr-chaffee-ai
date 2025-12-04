@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Save, Loader2, AlertTriangle, CheckCircle, AlertCircle, Info, RefreshCw } from 'lucide-react';
 import { TuningFeedbackControl } from '@/components/TuningFeedbackControl';
+import { Checkbox } from '@/components/ui';
 import '../tuning-pages.css';
 import { useSearchConfig, invalidateTuningCache, type SearchConfig, type SearchConfigResponse } from '@/hooks/useTuningData';
 import { apiFetch } from '@/utils/api';
@@ -250,18 +251,13 @@ export default function SearchPage() {
           </div>
 
           <div className="tuning-form-group">
-            <label className="tuning-checkbox-label">
-              <input
-                type="checkbox"
-                checked={config.enable_reranker}
-                onChange={(e) => setConfig({ ...config, enable_reranker: e.target.checked })}
-                className="tuning-checkbox"
-              />
-              <span className="tuning-label" style={{ marginBottom: 0 }}>
-                Use extra AI step to improve ranking
-              </span>
-            </label>
-            <p className="tuning-hint" style={{ marginLeft: '2rem' }}>More accurate but slower.</p>
+            <Checkbox
+              id="enable_reranker"
+              checked={config.enable_reranker}
+              onChange={(e) => setConfig({ ...config, enable_reranker: e.target.checked })}
+              label="Use extra AI step to improve ranking"
+              description="More accurate but slower."
+            />
           </div>
 
           {config.enable_reranker && (

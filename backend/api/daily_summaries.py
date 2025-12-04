@@ -545,6 +545,20 @@ def log_rag_request(
         conn = get_db_connection()
         try:
             with conn.cursor() as cur:
+                # Check if rag_requests table exists
+                cur.execute("""
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.tables 
+                        WHERE table_schema = 'public' 
+                        AND table_name = 'rag_requests'
+                    )
+                """)
+                table_exists = cur.fetchone()['exists']
+                
+                if not table_exists:
+                    logger.debug("rag_requests table does not exist, skipping log")
+                    return
+                
                 cur.execute("""
                     INSERT INTO rag_requests (
                         request_type, query_text, request_id, session_id, style,
@@ -557,8 +571,13 @@ def log_rag_request(
                     success, error_message, rag_profile_id, rag_profile_name, tenant_id
                 ])
                 conn.commit()
+                logger.debug(f"Logged RAG request: type={request_type}, profile={rag_profile_name}")
         finally:
             conn.close()
     except Exception as e:
         # Log but don't raise - this is non-critical
-        logger.warning(f"Failed to log RAG request: {e}")
+        # Include more context for debugging
+        logger.warning(
+            f"Failed to log RAG request: {e} "
+            f"(type={request_type}, profile_id={rag_profile_id}, profile_name={rag_profile_name})"
+        )

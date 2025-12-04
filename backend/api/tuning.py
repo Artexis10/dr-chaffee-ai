@@ -753,11 +753,22 @@ async def list_summarizer_models(refresh: bool = False):
     
     Args:
         refresh: If true, bypass cache and fetch fresh data
+    
+    Note: active_model_name is always computed fresh (not cached) to reflect
+    runtime changes from POST /summarizer/config.
     """
     if refresh:
         _tuning_cache.invalidate("summarizer_models")
     
-    return _tuning_cache.get_or_compute("summarizer_models", _build_summarizer_models)
+    # Get cached models dict, but always compute active model fresh
+    result = _tuning_cache.get_or_compute("summarizer_models", _build_summarizer_models)
+    
+    # Override active_model_name with current value (may have changed since cache)
+    active_model = get_active_summarizer_model_name()
+    result["active_model_name"] = active_model
+    result["current_model"] = active_model
+    
+    return result
 
 
 @router.post(

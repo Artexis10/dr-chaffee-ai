@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FileText, Save, Check, X, Plus, Trash2, Edit2, AlertCircle, Zap, DollarSign, Sparkles, RefreshCw } from 'lucide-react';
+import { FileText, Save, Check, X, Plus, Trash2, Edit2, AlertCircle, Zap, RefreshCw } from 'lucide-react';
 import { TuningFeedbackControl } from '@/components/TuningFeedbackControl';
+import { Checkbox } from '@/components/ui';
 import '../tuning-pages.css';
 import type { RAGModelInfo, RagProfile } from '@/types/models';
 import { FALLBACK_RAG_MODELS } from '@/types/models';
@@ -327,21 +328,19 @@ export default function ProfilesPage() {
             </div>
 
             {/* Auto-select model checkbox */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
-              <input
-                type="checkbox"
+            <div style={{ marginTop: '8px' }}>
+              <Checkbox
                 id="auto_select_model"
                 checked={formData.auto_select_model}
                 onChange={(e) => setFormData({ ...formData, auto_select_model: e.target.checked })}
-                style={{ width: '16px', height: '16px' }}
+                label={
+                  <>
+                    <Zap size={14} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
+                    Auto-select model based on context
+                  </>
+                }
+                description="Automatically upgrades/downgrades model based on context length"
               />
-              <label htmlFor="auto_select_model" className="tuning-label" style={{ margin: 0, cursor: 'pointer' }}>
-                <Zap size={14} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
-                Auto-select model based on context
-              </label>
-              <span className="tuning-text-muted" style={{ fontSize: '12px' }}>
-                (Automatically upgrades/downgrades model based on context length)
-              </span>
             </div>
 
             {/* Base Instructions */}
@@ -396,17 +395,12 @@ export default function ProfilesPage() {
             </div>
 
             {/* Set as Default */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <input
-                type="checkbox"
-                id="is_default"
-                checked={formData.is_default}
-                onChange={(e) => setFormData({ ...formData, is_default: e.target.checked })}
-              />
-              <label htmlFor="is_default" style={{ cursor: 'pointer' }}>
-                Set as active profile (used for all answers)
-              </label>
-            </div>
+            <Checkbox
+              id="is_default"
+              checked={formData.is_default}
+              onChange={(e) => setFormData({ ...formData, is_default: e.target.checked })}
+              label="Set as active profile (used for all answers)"
+            />
 
             {/* Buttons */}
             <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
@@ -448,15 +442,7 @@ export default function ProfilesPage() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
                     <h3 className="tuning-card-title" style={{ margin: 0 }}>{profile.name}</h3>
                     {profile.is_default && (
-                      <span style={{
-                        background: 'var(--accent)',
-                        color: 'white',
-                        fontSize: '0.65rem',
-                        padding: '0.2rem 0.5rem',
-                        borderRadius: '9999px',
-                        fontWeight: 600,
-                        textTransform: 'uppercase',
-                      }}>Active</span>
+                      <span className="tuning-badge-active">Active</span>
                     )}
                     {profile.version && (
                       <span className="tuning-text-muted" style={{ fontSize: '0.75rem' }}>v{profile.version}</span>

@@ -418,6 +418,23 @@
   font-weight: 600;
 }
 
+/* Active badge - high contrast in both light and dark modes */
+.tuning-badge-active {
+  background: #059669;
+  color: #ffffff;
+  padding: 0.2rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.dark-mode .tuning-badge-active {
+  background: #10b981;
+  color: #ffffff;
+}
+
 /* Quality tier badges */
 .tuning-quality-badge {
   padding: 0.125rem 0.5rem;

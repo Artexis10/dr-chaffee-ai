@@ -195,10 +195,11 @@ def get_ai_request_metadata(ai_request_id: str) -> Optional[dict]:
         conn = get_db_connection()
         try:
             with conn.cursor() as cur:
+                # Cast to UUID explicitly for proper comparison
                 cur.execute("""
                     SELECT model_name, rag_profile_id, custom_instruction_id, search_config_id, request_type
                     FROM ai_requests
-                    WHERE id = %s
+                    WHERE id = %s::uuid
                 """, [ai_request_id])
                 result = cur.fetchone()
                 if result:
@@ -207,7 +208,7 @@ def get_ai_request_metadata(ai_request_id: str) -> Optional[dict]:
         finally:
             conn.close()
     except Exception as e:
-        logger.warning(f"Failed to fetch AI request metadata: {e}")
+        logger.warning(f"Failed to fetch AI request metadata for {ai_request_id}: {e}")
         return None
 
 

@@ -56,7 +56,16 @@ export function FeedbackStrip({ aiRequestId, onFeedbackSubmitted }: FeedbackStri
       });
 
       if (!response.ok) {
-        throw new Error('Failed to submit feedback');
+        // Try to get error detail from response
+        const errorData = await response.json().catch(() => null);
+        const errorMsg = errorData?.detail || `Server error (${response.status})`;
+        throw new Error(errorMsg);
+      }
+
+      // Verify we got a success response
+      const data = await response.json().catch(() => ({ success: true }));
+      if (data.success === false) {
+        throw new Error(data.message || 'Feedback submission failed');
       }
 
       setSubmitted(rating === 1 ? 'positive' : 'negative');
@@ -64,7 +73,8 @@ export function FeedbackStrip({ aiRequestId, onFeedbackSubmitted }: FeedbackStri
       onFeedbackSubmitted?.(rating);
     } catch (err) {
       console.error('Feedback submission error:', err);
-      setError('Failed to submit. Please try again.');
+      const message = err instanceof Error ? err.message : 'Failed to submit';
+      setError(message.length > 100 ? 'Failed to submit. Please try again.' : message);
     } finally {
       setSubmitting(false);
     }
