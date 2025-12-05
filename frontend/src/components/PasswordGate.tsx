@@ -19,9 +19,12 @@ interface DiscordUser {
   discord_tier_color?: string;
 }
 
-// Auth check timeout - if auth check takes longer than this, assume no password required
+// Auth check timeout - if auth check takes longer than this, show login form
 // This prevents infinite loading if backend is unreachable
-const AUTH_CHECK_TIMEOUT_MS = 8000;
+const AUTH_CHECK_TIMEOUT_MS = 5000;
+
+// Prefix for all console logs from this component
+const LOG_PREFIX = '[PasswordGate]';
 
 // Discord icon SVG component
 function DiscordIcon() {
@@ -47,31 +50,58 @@ export function PasswordGate({ children }: PasswordGateProps) {
   const [discordEnabled, setDiscordEnabled] = useState(false);
   const [discordError, setDiscordError] = useState('');
   const [discordUser, setDiscordUser] = useState<DiscordUser | null>(null);
-  const [authError, setAuthError] = useState<string | null>(null);
+  const [authCheckFailed, setAuthCheckFailed] = useState(false);
+  const [authCheckMessage, setAuthCheckMessage] = useState<string | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const hasStartedAuthCheck = useRef(false);
 
   useEffect(() => {
-    // Safety timeout: if auth check takes too long, show content anyway
-    // This prevents infinite loading if backend is unreachable
+    // Prevent double-execution in React StrictMode
+    if (hasStartedAuthCheck.current) {
+      console.info(LOG_PREFIX, 'Auth check already started, skipping duplicate');
+      return;
+    }
+    hasStartedAuthCheck.current = true;
+    
+    console.info(LOG_PREFIX, 'Component mounted, starting auth check');
+    
+    // Safety timeout: if auth check takes too long, show login form (not blank screen)
     timeoutRef.current = setTimeout(() => {
-      console.warn('[PasswordGate] Auth check timed out after', AUTH_CHECK_TIMEOUT_MS, 'ms - showing content');
+      console.warn(LOG_PREFIX, `Auth check timed out after ${AUTH_CHECK_TIMEOUT_MS}ms`);
       setIsLoading(false);
-      setRequiresPassword(false);
-      setAuthError('Auth check timed out. Showing content without authentication.');
+      // On timeout, show login form with a message instead of blank screen
+      setRequiresPassword(true);
+      setAuthCheckFailed(true);
+      setAuthCheckMessage('Auth check timed out. Please log in.');
     }, AUTH_CHECK_TIMEOUT_MS);
 
     // Check localStorage first (synchronous, no flash)
-    const authToken = localStorage.getItem('auth_token');
+    // Guard against SSR where localStorage doesn't exist
+    let authToken: string | null = null;
+    if (typeof window !== 'undefined') {
+      try {
+        authToken = localStorage.getItem('auth_token');
+        console.info(LOG_PREFIX, 'localStorage auth_token exists:', !!authToken);
+      } catch (e) {
+        console.error(LOG_PREFIX, 'Failed to read localStorage:', e);
+      }
+    }
     
-    console.log('[PasswordGate] Starting auth check...');
+    console.info(LOG_PREFIX, 'Fetching /api/auth/check and /api/auth/discord/status...');
     
     // Check if password is required and if Discord is enabled
     Promise.all([
-      apiFetch('/api/auth/check').then(res => res.json()),
-      apiFetch('/api/auth/discord/status').then(res => res.json()).catch(() => ({ enabled: false }))
+      apiFetch('/api/auth/check').then(res => {
+        console.info(LOG_PREFIX, '/api/auth/check response status:', res.status);
+        return res.json();
+      }),
+      apiFetch('/api/auth/discord/status').then(res => res.json()).catch((e) => {
+        console.warn(LOG_PREFIX, '/api/auth/discord/status failed:', e);
+        return { enabled: false };
+      })
     ])
       .then(([authData, discordData]) => {
-        console.log('[PasswordGate] Auth check response:', { requiresPassword: authData.requiresPassword, discordEnabled: discordData.enabled });
+        console.info(LOG_PREFIX, 'Auth check response:', { requiresPassword: authData?.requiresPassword, discordEnabled: discordData?.enabled });
         
         // Clear timeout since we got a response
         if (timeoutRef.current) {
@@ -79,50 +109,60 @@ export function PasswordGate({ children }: PasswordGateProps) {
           timeoutRef.current = null;
         }
         
-        setRequiresPassword(authData.requiresPassword);
-        setDiscordEnabled(discordData.enabled === true);
+        const passwordRequired = authData?.requiresPassword === true;
+        setRequiresPassword(passwordRequired);
+        setDiscordEnabled(discordData?.enabled === true);
         
         // If already have token and password is required, verify it
-        if (authToken && authData.requiresPassword) {
-          console.log('[PasswordGate] Verifying existing token...');
-          // Verify token
+        if (authToken && passwordRequired) {
+          console.info(LOG_PREFIX, 'Verifying existing token...');
           apiFetch('/api/auth/verify', {
             headers: { 'Authorization': `Bearer ${authToken}` }
           })
-            .then(res => res.json())
+            .then(res => {
+              console.info(LOG_PREFIX, '/api/auth/verify response status:', res.status);
+              return res.json();
+            })
             .then(result => {
-              if (result.valid) {
-                console.log('[PasswordGate] Token valid, user authenticated');
+              if (result?.valid) {
+                console.info(LOG_PREFIX, 'Token valid, user authenticated - rendering children');
                 setIsAuthenticated(true);
-                // Fetch Discord user info if authenticated
                 fetchDiscordUser();
               } else {
-                console.log('[PasswordGate] Token invalid, clearing');
-                localStorage.removeItem('auth_token');
+                console.info(LOG_PREFIX, 'Token invalid, clearing and showing login form');
+                if (typeof window !== 'undefined') {
+                  localStorage.removeItem('auth_token');
+                }
               }
               setIsLoading(false);
             })
             .catch((err) => {
-              console.error('[PasswordGate] Token verification failed:', err);
-              localStorage.removeItem('auth_token');
+              console.error(LOG_PREFIX, 'Token verification failed:', err);
+              if (typeof window !== 'undefined') {
+                localStorage.removeItem('auth_token');
+              }
               setIsLoading(false);
             });
+        } else if (!passwordRequired) {
+          console.info(LOG_PREFIX, 'No password required - rendering children');
+          setIsLoading(false);
         } else {
-          console.log('[PasswordGate] No token or no password required, loading complete');
+          console.info(LOG_PREFIX, 'Password required but no token - showing login form');
           setIsLoading(false);
         }
       })
       .catch((err) => {
-        console.error('[PasswordGate] Auth check failed:', err);
+        console.error(LOG_PREFIX, 'Auth check failed with error:', err);
         // Clear timeout
         if (timeoutRef.current) {
           clearTimeout(timeoutRef.current);
           timeoutRef.current = null;
         }
         setIsLoading(false);
-        // On error, assume no password required to avoid blocking users
-        setRequiresPassword(false);
-        setAuthError('Could not verify authentication. Showing content.');
+        // On error, show login form with message (don't assume no password required)
+        setRequiresPassword(true);
+        setAuthCheckFailed(true);
+        setAuthCheckMessage('Could not verify authentication. Please log in.');
       });
     
     // Cleanup timeout on unmount
@@ -173,22 +213,39 @@ export function PasswordGate({ children }: PasswordGateProps) {
     }
   };
 
+  // RENDER: Loading state - show a visible loading indicator
   if (isLoading) {
+    console.info(LOG_PREFIX, 'Render: showing loading state');
     return (
       <div style={{
         display: 'flex',
+        flexDirection: 'column',
         justifyContent: 'center',
         alignItems: 'center',
         minHeight: '100vh',
-        background: '#050505'
+        background: '#0a0a0a'
       }}>
-        <div style={{ color: '#a0a0a0', fontSize: '1rem', fontWeight: 500 }}>Loading...</div>
+        <div style={{ 
+          color: '#ffffff', 
+          fontSize: '1.25rem', 
+          fontWeight: 600,
+          marginBottom: '1rem'
+        }}>
+          Loading...
+        </div>
+        <div style={{ 
+          color: '#888888', 
+          fontSize: '0.875rem'
+        }}>
+          Checking authentication
+        </div>
       </div>
     );
   }
 
-  // If no password required or already authenticated, show content with optional tier badge
+  // RENDER: If no password required or already authenticated, show content
   if (!requiresPassword || isAuthenticated) {
+    console.info(LOG_PREFIX, 'Render: showing children (authenticated or no password required)');
     return (
       <>
         {/* Tier badge overlay - only shown for Discord users with a tier */}
@@ -227,7 +284,9 @@ export function PasswordGate({ children }: PasswordGateProps) {
     );
   }
 
-  // Show password gate
+  // RENDER: Show password gate / login form
+  console.info(LOG_PREFIX, 'Render: showing login form');
+  
   return (
     <div style={{
       display: 'flex',
@@ -247,6 +306,21 @@ export function PasswordGate({ children }: PasswordGateProps) {
         border: '1px solid #2a2a2a',
         textAlign: 'center'
       }}>
+        {/* Auth check failure message */}
+        {authCheckFailed && authCheckMessage && (
+          <div style={{
+            background: '#422006',
+            color: '#fbbf24',
+            padding: '0.75rem',
+            borderRadius: '8px',
+            marginBottom: '1rem',
+            fontSize: '0.85rem',
+            border: '1px solid #854d0e'
+          }}>
+            ⚠️ {authCheckMessage}
+          </div>
+        )}
+        
         {/* Dr. Chaffee Photo */}
         <div style={{
           width: '120px',
