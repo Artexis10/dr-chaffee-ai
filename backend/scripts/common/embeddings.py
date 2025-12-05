@@ -1,3 +1,44 @@
+"""
+Embedding Generation Module
+============================
+
+ARCHITECTURE OVERVIEW (Dec 2025)
+--------------------------------
+
+This module provides the EmbeddingGenerator class which is the SINGLE source of
+embedding generation for the entire application. There is NO separate "embedding
+service" - all embeddings are generated IN-PROCESS.
+
+EMBEDDING FLOW:
+---------------
+1. INGESTION: scripts/ingest_*.py → EmbeddingGenerator.generate_embeddings() → DB
+2. SEARCH: /api/search → get_embedding_generator() → EmbeddingGenerator → query embedding
+3. ANSWER: /api/answer → calls /api/search internally → same flow as above
+4. /embed endpoint: Uses the same get_embedding_generator() singleton
+
+KEY POINTS:
+-----------
+- EmbeddingGenerator is a SINGLETON (shared across all requests via get_embedding_generator())
+- Model is loaded ONCE on first use and cached in class-level _shared_model
+- No HTTP calls to external embedding services (unless using OpenAI/Nomic API providers)
+- For sentence-transformers provider: model runs locally on CPU/GPU
+- Configuration comes from resolve_embedding_config() which reads env vars
+
+PROVIDERS:
+----------
+- 'sentence-transformers' (default): Local model, e.g., BAAI/bge-small-en-v1.5
+- 'openai': OpenAI API (text-embedding-3-large)
+- 'nomic': Nomic Atlas API
+- 'huggingface': HuggingFace Inference API
+
+DEVICE SELECTION:
+-----------------
+- FORCE_CPU_ONLY=1: Always use CPU (for CPU-only PyTorch builds)
+- EMBEDDING_DEVICE=cuda: Use GPU if available
+- EMBEDDING_DEVICE=cpu: Force CPU
+- Auto-detect: Check torch.cuda.is_available()
+"""
+
 import os
 from typing import List, Optional, Dict, Any
 import logging

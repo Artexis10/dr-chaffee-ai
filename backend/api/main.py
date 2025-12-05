@@ -761,9 +761,14 @@ async def semantic_search(request: SearchRequest):
     
     1. Load search config from database (or use defaults) - CACHED
     2. Detect available embeddings in database - CACHED
-    3. Generate query embedding with matching model
+    3. Generate query embedding with matching model (IN-PROCESS, no HTTP call)
     4. Search database using vector similarity
     5. Optionally rerank results for better quality
+    
+    EMBEDDING FLOW:
+    - Embeddings are generated IN-PROCESS by EmbeddingGenerator class
+    - No separate "embedding service" HTTP call - it's all in this FastAPI app
+    - The /embed endpoint uses the same EmbeddingGenerator
     
     Logs include request_id/session_id and latency metrics.
     """
@@ -782,8 +787,10 @@ async def semantic_search(request: SearchRequest):
         logger.info(f"{log_prefix()} Search: query={request.query[:50]!r} top_k={top_k} min_sim={min_similarity:.2f} rerank={use_rerank}")
         
         # Get embedding stats from cache (60s TTL)
+        logger.debug(f"{log_prefix()} Fetching embedding stats from cache...")
         available_models = get_cached_embedding_stats()
         if not available_models:
+            logger.error(f"{log_prefix()} No embeddings found in database - cannot perform search")
             raise HTTPException(
                 status_code=503, 
                 detail="No embeddings found in database. Please run ingestion first."
@@ -793,33 +800,47 @@ async def semantic_search(request: SearchRequest):
         db_model = available_models[0]
         model_key = db_model['model_key']
         expected_dim = db_model['dimensions']
+        logger.debug(f"{log_prefix()} Using model: {model_key} ({expected_dim} dims)")
         
         # Load embedding catalog from cache (300s TTL)
         config = get_cached_embedding_catalog()
         
         # Check if model exists in config
         if model_key not in config['models']:
+            available_keys = list(config['models'].keys())
+            logger.error(f"{log_prefix()} Model '{model_key}' not in config. Available: {available_keys}")
             raise HTTPException(
                 status_code=503,
-                detail=f"Model '{model_key}' not found in config. Available: {list(config['models'].keys())}"
+                detail=f"Model '{model_key}' not found in config. Available: {available_keys}"
             )
         
         model_config = config['models'][model_key]
         
-        # Generate query embedding with the singleton generator
+        # Generate query embedding with the singleton generator (IN-PROCESS, no HTTP call)
         t_embed_start = time.perf_counter()
-        generator = get_embedding_generator()
-        embeddings = generator.generate_embeddings([request.query])
+        logger.debug(f"{log_prefix()} Generating embedding in-process...")
+        try:
+            generator = get_embedding_generator()
+            embeddings = generator.generate_embeddings([request.query])
+        except Exception as embed_err:
+            logger.exception(f"{log_prefix()} Embedding generation failed: {embed_err}")
+            raise HTTPException(
+                status_code=503, 
+                detail=f"Embedding generation failed: {str(embed_err)[:200]}"
+            )
         t_embed_ms = (time.perf_counter() - t_embed_start) * 1000
         
         if not embeddings or len(embeddings) == 0:
-            raise HTTPException(status_code=500, detail="Failed to generate query embedding")
+            logger.error(f"{log_prefix()} Embedding generator returned empty result")
+            raise HTTPException(status_code=503, detail="Embedding generation returned empty result")
         
         query_embedding = embeddings[0]
         embedding_dim = len(query_embedding)
+        logger.debug(f"{log_prefix()} Generated embedding: {embedding_dim} dims in {t_embed_ms:.1f}ms")
         
         # Verify dimensions match
         if embedding_dim != expected_dim:
+            logger.error(f"{log_prefix()} Dimension mismatch: generated={embedding_dim}, expected={expected_dim}")
             raise HTTPException(
                 status_code=503, 
                 detail=f"Dimension mismatch: generated={embedding_dim}, database={expected_dim} for model {model_key}"

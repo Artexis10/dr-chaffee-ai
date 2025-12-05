@@ -4,6 +4,11 @@ import { BACKEND_API_URL, INTERNAL_API_KEY } from '../../utils/env';
 /**
  * Search API proxy - forwards requests to backend with internal API key.
  * 
+ * ARCHITECTURE:
+ * - Frontend (Vercel) → This proxy → Backend (Coolify/Hetzner) /search endpoint
+ * - Backend generates embeddings IN-PROCESS (no separate embedding service)
+ * - The "Embedding service error" message refers to the backend /search endpoint failing
+ * 
  * This prevents direct public access to the backend /search endpoint.
  * The INTERNAL_API_KEY is injected here and validated by the backend.
  */
@@ -154,12 +159,20 @@ export default async function handler(
     });
 
     if (!embeddingResponse.ok) {
-      console.error('Embedding service error:', embeddingResponse.status);
-      throw new Error(`Embedding service returned ${embeddingResponse.status}`);
+      // Get the actual error details from backend
+      let errorDetail = '';
+      try {
+        const errorBody = await embeddingResponse.json();
+        errorDetail = errorBody.detail || JSON.stringify(errorBody);
+      } catch {
+        errorDetail = await embeddingResponse.text().catch(() => 'Unknown error');
+      }
+      console.error(`[Search API] Backend error: ${embeddingResponse.status} - ${errorDetail}`);
+      throw new Error(`Backend returned ${embeddingResponse.status}: ${errorDetail}`);
     }
 
     const embeddingData = await embeddingResponse.json();
-    console.log('Embedding service returned:', embeddingData.total_results, 'results');
+    console.log('[Search API] Backend returned:', embeddingData.total_results, 'results');
 
     // Transform results to match expected format
     let searchResults = embeddingData.results.map((row: any) => {
