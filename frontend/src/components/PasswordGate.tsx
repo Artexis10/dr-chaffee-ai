@@ -65,45 +65,51 @@ export function PasswordGate({ children }: PasswordGateProps) {
     
     console.info(LOG_PREFIX, 'Component mounted, starting auth check');
     
-    // Safety timeout: if auth check takes too long, show login form (not blank screen)
-    timeoutRef.current = setTimeout(() => {
-      console.warn(LOG_PREFIX, `Auth check timed out after ${AUTH_CHECK_TIMEOUT_MS}ms`);
-      setIsLoading(false);
-      // On timeout, show login form with a message instead of blank screen
-      setRequiresPassword(true);
-      setAuthCheckFailed(true);
-      setAuthCheckMessage('Auth check timed out. Please log in.');
-    }, AUTH_CHECK_TIMEOUT_MS);
+    // Use async function for cleaner control flow with try/catch/finally
+    const performAuthCheck = async () => {
+      // Safety timeout: if auth check takes too long, show login form (not blank screen)
+      timeoutRef.current = setTimeout(() => {
+        console.warn(LOG_PREFIX, `Auth check timed out after ${AUTH_CHECK_TIMEOUT_MS}ms - forcing login form`);
+        setIsLoading(false);
+        setRequiresPassword(true);
+        setAuthCheckFailed(true);
+        setAuthCheckMessage('Auth check timed out. Please log in.');
+      }, AUTH_CHECK_TIMEOUT_MS);
 
-    // Check localStorage first (synchronous, no flash)
-    // Guard against SSR where localStorage doesn't exist
-    let authToken: string | null = null;
-    if (typeof window !== 'undefined') {
-      try {
-        authToken = localStorage.getItem('auth_token');
-        console.info(LOG_PREFIX, 'localStorage auth_token exists:', !!authToken);
-      } catch (e) {
-        console.error(LOG_PREFIX, 'Failed to read localStorage:', e);
+      // Check localStorage first (synchronous, no flash)
+      // Guard against SSR where localStorage doesn't exist
+      let authToken: string | null = null;
+      if (typeof window !== 'undefined') {
+        try {
+          authToken = localStorage.getItem('auth_token');
+          console.info(LOG_PREFIX, 'localStorage auth_token exists:', !!authToken);
+        } catch (e) {
+          console.error(LOG_PREFIX, 'Failed to read localStorage:', e);
+        }
       }
-    }
-    
-    console.info(LOG_PREFIX, 'Fetching /api/auth/check and /api/auth/discord/status...');
-    
-    // Check if password is required and if Discord is enabled
-    Promise.all([
-      apiFetch('/api/auth/check').then(res => {
-        console.info(LOG_PREFIX, '/api/auth/check response status:', res.status);
-        return res.json();
-      }),
-      apiFetch('/api/auth/discord/status').then(res => res.json()).catch((e) => {
-        console.warn(LOG_PREFIX, '/api/auth/discord/status failed:', e);
-        return { enabled: false };
-      })
-    ])
-      .then(([authData, discordData]) => {
-        console.info(LOG_PREFIX, 'Auth check response:', { requiresPassword: authData?.requiresPassword, discordEnabled: discordData?.enabled });
+
+      try {
+        console.info(LOG_PREFIX, 'Fetching /api/auth/check...');
         
-        // Clear timeout since we got a response
+        // Fetch auth check - this is the critical call
+        const authResponse = await apiFetch('/api/auth/check');
+        console.info(LOG_PREFIX, '/api/auth/check response status:', authResponse.status);
+        
+        if (!authResponse.ok) {
+          throw new Error(`Auth check returned ${authResponse.status}`);
+        }
+        
+        let authData: { requiresPassword?: boolean };
+        try {
+          authData = await authResponse.json();
+        } catch (jsonErr) {
+          console.error(LOG_PREFIX, 'Failed to parse auth check JSON:', jsonErr);
+          throw new Error('Invalid JSON response from auth check');
+        }
+        
+        console.info(LOG_PREFIX, 'Auth check response data:', authData);
+        
+        // Clear timeout since we got a valid response
         if (timeoutRef.current) {
           clearTimeout(timeoutRef.current);
           timeoutRef.current = null;
@@ -111,59 +117,76 @@ export function PasswordGate({ children }: PasswordGateProps) {
         
         const passwordRequired = authData?.requiresPassword === true;
         setRequiresPassword(passwordRequired);
-        setDiscordEnabled(discordData?.enabled === true);
         
-        // If already have token and password is required, verify it
-        if (authToken && passwordRequired) {
-          console.info(LOG_PREFIX, 'Verifying existing token...');
-          apiFetch('/api/auth/verify', {
-            headers: { 'Authorization': `Bearer ${authToken}` }
-          })
-            .then(res => {
-              console.info(LOG_PREFIX, '/api/auth/verify response status:', res.status);
-              return res.json();
-            })
-            .then(result => {
-              if (result?.valid) {
-                console.info(LOG_PREFIX, 'Token valid, user authenticated - rendering children');
-                setIsAuthenticated(true);
-                fetchDiscordUser();
-              } else {
-                console.info(LOG_PREFIX, 'Token invalid, clearing and showing login form');
-                if (typeof window !== 'undefined') {
-                  localStorage.removeItem('auth_token');
-                }
-              }
-              setIsLoading(false);
-            })
-            .catch((err) => {
-              console.error(LOG_PREFIX, 'Token verification failed:', err);
-              if (typeof window !== 'undefined') {
-                localStorage.removeItem('auth_token');
-              }
-              setIsLoading(false);
-            });
-        } else if (!passwordRequired) {
+        // Fetch Discord status in parallel (non-blocking, failures are OK)
+        apiFetch('/api/auth/discord/status')
+          .then(res => res.ok ? res.json() : { enabled: false })
+          .then(data => setDiscordEnabled(data?.enabled === true))
+          .catch(() => setDiscordEnabled(false));
+        
+        // CASE 1: No password required - show children immediately
+        if (!passwordRequired) {
           console.info(LOG_PREFIX, 'No password required - rendering children');
-          setIsLoading(false);
-        } else {
-          console.info(LOG_PREFIX, 'Password required but no token - showing login form');
-          setIsLoading(false);
+          // isLoading will be set false in finally block
+          return;
         }
-      })
-      .catch((err) => {
+        
+        // CASE 2: Password required but no stored token - show login form
+        if (!authToken) {
+          console.info(LOG_PREFIX, 'Password required, no token found - showing login form');
+          // isLoading will be set false in finally block
+          return;
+        }
+        
+        // CASE 3: Password required and we have a token - verify it
+        console.info(LOG_PREFIX, 'Password required, verifying existing token...');
+        try {
+          const verifyResponse = await apiFetch('/api/auth/verify', {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+          });
+          console.info(LOG_PREFIX, '/api/auth/verify response status:', verifyResponse.status);
+          
+          const verifyResult = await verifyResponse.json();
+          
+          if (verifyResult?.valid) {
+            console.info(LOG_PREFIX, 'Token valid, user authenticated - rendering children');
+            setIsAuthenticated(true);
+            fetchDiscordUser();
+          } else {
+            console.info(LOG_PREFIX, 'Token invalid, clearing and showing login form');
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem('auth_token');
+            }
+          }
+        } catch (verifyErr) {
+          console.error(LOG_PREFIX, 'Token verification failed:', verifyErr);
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('auth_token');
+          }
+          // Token verification failed - show login form (isLoading will be set false in finally)
+        }
+        
+      } catch (err) {
         console.error(LOG_PREFIX, 'Auth check failed with error:', err);
-        // Clear timeout
+        // Clear timeout if still pending
         if (timeoutRef.current) {
           clearTimeout(timeoutRef.current);
           timeoutRef.current = null;
         }
-        setIsLoading(false);
-        // On error, show login form with message (don't assume no password required)
+        // On error, show login form with message
         setRequiresPassword(true);
         setAuthCheckFailed(true);
-        setAuthCheckMessage('Could not verify authentication. Please log in.');
-      });
+        setAuthCheckMessage('Auth check failed. Please enter the app password to continue.');
+      } finally {
+        // CRITICAL: This finally block ALWAYS runs, guaranteeing isLoading becomes false.
+        // This is the ONLY place where isLoading is set to false, ensuring no code path
+        // can leave the component stuck in loading state.
+        console.info(LOG_PREFIX, 'Auth check complete (finally block), setting isLoading=false');
+        setIsLoading(false);
+      }
+    };
+
+    performAuthCheck();
     
     // Cleanup timeout on unmount
     return () => {
