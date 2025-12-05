@@ -199,47 +199,46 @@ CREATE TABLE users (
 );
 ```
 
-## Coexistence with Password Auth
+## Authentication Layer Separation
 
-Discord OAuth works alongside the existing password authentication:
-- Both methods issue the same `auth_token` cookie
-- Users can choose either method on the login page
-- **Discord login now also grants tuning dashboard access** via `tuning_auth` cookie
+**IMPORTANT**: Discord OAuth and Tuning Dashboard authentication are completely separate systems.
 
-## Tuning Dashboard Access
+### Main App (Public Users)
+- ✅ Discord OAuth for authentication
+- ✅ Password authentication (fallback)
+- Sets `auth_token` cookie for main app access
 
-### How Discord Login Flows into Tuning Dashboard
+### Tuning Dashboard (Admins Only)
+- ✅ Password authentication ONLY
+- ❌ NO Discord OAuth
+- ❌ NO role-based access
+- Sets `tuning_auth` cookie for dashboard access
 
-1. User clicks "Log in with Discord" on the main app or tuning auth page
-2. Frontend redirects to `/api/auth/discord/login` (Next.js proxy)
-3. Backend redirects to Discord OAuth consent screen
-4. User authorizes the application
-5. Discord redirects to backend callback: `/auth/discord/callback`
-6. Backend validates guild membership and roles
-7. Backend sets three cookies:
-   - `auth_token` - Main app authentication (7 days)
-   - `discord_user_id` - User identification (7 days)
-   - `tuning_auth=authenticated` - Tuning dashboard access (24 hours)
-8. User is redirected to `FRONTEND_APP_URL`
-9. Tuning dashboard checks `tuning_auth` cookie via `/api/tuning/auth/status`
-10. If valid, dashboard loads; if not, redirects to `/tuning/auth`
+### Why Separate?
 
-### What Happens When Tuning Auth is Missing
+The tuning dashboard is an internal admin-only interface for 2 people (you and Dr. Chaffee).
+It should NOT be accessible via Discord login because:
+1. Discord users should not have admin access
+2. Keeps the admin panel isolated and secure
+3. Simpler security model (single strong password)
 
-When the `tuning_auth` cookie is missing or expired:
+### Tuning Dashboard Authentication Flow
 
-1. **Layout redirect**: `useTuningAuth` hook returns `isAuthenticated: false`
-2. **Automatic redirect**: User is sent to `/tuning/auth` page
-3. **Data hooks stop**: All `useTuningData` hooks detect 401 and stop retrying
-4. **Clear UI message**: Pages show "Authentication required. Please log in again."
+1. User visits `/tuning` or any `/tuning/*` page
+2. `useTuningAuth` hook checks for `tuning_auth` cookie
+3. If missing, user is redirected to `/tuning/auth`
+4. User enters admin password
+5. Password verified via `/api/tuning/auth/verify`
+6. On success, `tuning_auth=authenticated` cookie is set
+7. User is redirected to `/tuning`
 
-### Re-authentication
+### What Discord Login Does NOT Do
 
-To re-authenticate:
-1. Go to `/tuning/auth` and enter the admin password, OR
-2. Click "Log in with Discord" (if Discord OAuth is configured)
-
-Both methods set the `tuning_auth` cookie and grant dashboard access
+Discord login:
+- ✅ Sets `auth_token` cookie (main app)
+- ✅ Sets `discord_user_id` cookie (user info)
+- ❌ Does NOT set `tuning_auth` cookie
+- ❌ Does NOT grant tuning dashboard access
 
 ## Production Checklist
 
@@ -290,27 +289,26 @@ Both methods set the `tuning_auth` cookie and grant dashboard access
 #### Production Setup
 - Frontend: `https://askdrchaffee.com` (Vercel)
 - Backend: `https://app.askdrchaffee.com` (Coolify)
-- Discord OAuth: Fully configured and working
+- Discord OAuth: Enabled for main app login
 - `DISCORD_LOGIN_ENABLED=true` in frontend env
+- Tuning dashboard: Password-only (separate from Discord)
 
-#### Local Development (Recommended: Password Auth Only)
+#### Local Development
 
-For most local development, **use password authentication only**:
+For local development:
 
 ```env
 # frontend/.env.local
-DISCORD_LOGIN_ENABLED=false  # Hide Discord button
-BACKEND_API_URL=https://app.askdrchaffee.com  # Can still use remote backend
+DISCORD_LOGIN_ENABLED=false  # Hide Discord button on main app
+BACKEND_API_URL=https://app.askdrchaffee.com  # Can use remote backend
 ```
 
-This is the simplest setup:
-- Password login works with remote backend
-- No Discord OAuth configuration needed locally
-- Discord button is hidden on login pages
+**Main app login**: Use password authentication (Discord button hidden)
+**Tuning dashboard**: Always use password authentication at `/tuning/auth`
 
-#### Local Development (Advanced: Full Discord Flow)
+#### Testing Discord OAuth Locally (Main App Only)
 
-If you need to test Discord OAuth locally:
+If you need to test Discord OAuth for the main app:
 
 1. **Add local redirect URI to Discord Developer Portal:**
    - Go to https://discord.com/developers/applications
@@ -335,4 +333,4 @@ If you need to test Discord OAuth locally:
    - Backend: `uvicorn api.main:app --reload --port 8000`
    - Frontend: `npm run dev`
 
-**Note:** Local Discord OAuth requires running the backend locally. If your `BACKEND_API_URL` points to the remote backend, Discord OAuth won't work because the callback URL won't match.
+**Note:** This only affects the main app login. The tuning dashboard (`/tuning/*`) always uses password authentication regardless of Discord settings.

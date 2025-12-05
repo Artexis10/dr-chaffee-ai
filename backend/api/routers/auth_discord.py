@@ -382,12 +382,13 @@ async def discord_callback(
         )
     
     # Success! Redirect to frontend with auth cookies
+    # NOTE: Discord OAuth is for the MAIN APP only, NOT the tuning dashboard.
+    # Tuning dashboard uses password-only authentication via /api/tuning/auth/verify.
     redirect = RedirectResponse(url=frontend_url, status_code=302)
     
-    # Set auth_token cookie (same as password login does)
+    # Set auth_token cookie (for main app authentication)
     is_production = os.getenv("NODE_ENV") == "production"
     max_age = 7 * 24 * 60 * 60  # 7 days
-    tuning_max_age = 24 * 60 * 60  # 1 day for tuning (matches password auth)
     
     redirect.set_cookie(
         key="auth_token",
@@ -410,22 +411,14 @@ async def discord_callback(
         path="/",
     )
     
-    # Set tuning_auth cookie - grants access to tuning dashboard
-    # Discord-authenticated users with valid roles get tuning access
-    redirect.set_cookie(
-        key="tuning_auth",
-        value="authenticated",
-        max_age=tuning_max_age,
-        httponly=True,
-        secure=is_production,
-        samesite="lax",
-        path="/",
-    )
+    # NOTE: We do NOT set tuning_auth cookie here.
+    # Tuning dashboard access requires separate password authentication.
+    # This keeps the admin panel isolated from Discord OAuth.
     
     # Delete state cookie
     redirect.delete_cookie(STATE_COOKIE_NAME, path="/")
     
-    logger.info(f"Discord login successful for user {discord_id}, redirecting to {frontend_url} (tuning access granted)")
+    logger.info(f"Discord login successful for user {discord_id}, redirecting to {frontend_url}")
     
     return redirect
 
