@@ -1,4 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
+import { BACKEND_API_URL, INTERNAL_API_KEY } from '../../utils/env';
 
 /**
  * Answer API - Thin proxy to backend /answer endpoint
@@ -8,12 +9,6 @@ import { NextApiRequest, NextApiResponse } from 'next';
  * 
  * Auth: Requires INTERNAL_API_KEY to be set and passed via X-Internal-Key header.
  */
-
-// Backend API URL - configured via environment variable
-const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:8001';
-
-// Internal API key for backend authentication
-const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
 
 // Configure API route for longer timeouts (needed for answer generation)
 export const config = {
@@ -60,7 +55,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    console.log(`[Answer API] Proxying to backend: query="${query}", top_k=${top_k}, style=${style}`);
+    console.log(`[Answer API] Proxying to backend: ${BACKEND_API_URL}/answer`);
+    console.log(`[Answer API] Query: "${query.substring(0, 50)}...", top_k=${top_k}, style=${style}`);
 
     // Build headers with internal API key
     const headers: Record<string, string> = {

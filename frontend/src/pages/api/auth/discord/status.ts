@@ -1,4 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
+import { BACKEND_API_URL } from '../../../../utils/env';
 
 /**
  * Discord Auth Status - Check if Discord OAuth is configured
@@ -6,8 +7,6 @@ import { NextApiRequest, NextApiResponse } from 'next';
  * Returns whether Discord login should be shown on the login page.
  * This checks both the frontend env var and the backend configuration.
  */
-
-const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:8000';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {

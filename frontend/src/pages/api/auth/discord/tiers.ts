@@ -1,12 +1,11 @@
 import { NextApiRequest, NextApiResponse } from 'next';
+import { BACKEND_API_URL } from '../../../../utils/env';
 
 /**
  * Discord Tiers Proxy - Fetches available membership tiers from backend
  * 
  * Proxies the request to backend /auth/discord/tiers endpoint.
  */
-
-const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:8000';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {

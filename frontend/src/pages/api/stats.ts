@@ -1,4 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
+import { BACKEND_API_URL, INTERNAL_API_KEY } from '../../utils/env';
 
 /**
  * Stats API - Thin proxy to backend /stats endpoint
@@ -9,18 +10,15 @@ import { NextApiRequest, NextApiResponse } from 'next';
  * Auth: Requires INTERNAL_API_KEY to be set and passed via X-Internal-Key header.
  */
 
-// Internal API key for backend authentication (same as search.ts and answer.ts)
-const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
-
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const backendBaseUrl = process.env.BACKEND_API_URL;
+  console.log(`[Stats API] Proxying to backend: ${BACKEND_API_URL}/stats`);
   
-  if (!backendBaseUrl) {
-    console.error('Stats API error: BACKEND_API_URL not configured');
+  if (!BACKEND_API_URL) {
+    console.error('[Stats API] BACKEND_API_URL not configured');
     return res.status(200).json({
       total_segments: 0,
       total_videos: 0,
@@ -40,7 +38,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       headers['X-Internal-Key'] = INTERNAL_API_KEY;
     }
     
-    const response = await fetch(`${backendBaseUrl}/stats`, { headers });
+    const response = await fetch(`${BACKEND_API_URL}/stats`, { headers });
     
     if (!response.ok) {
       throw new Error(`Backend /stats responded with ${response.status}`);

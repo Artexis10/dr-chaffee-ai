@@ -1,4 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
+import { BACKEND_API_URL, INTERNAL_API_KEY } from '../../utils/env';
 
 /**
  * Search API proxy - forwards requests to backend with internal API key.
@@ -6,9 +7,6 @@ import { NextApiRequest, NextApiResponse } from 'next';
  * This prevents direct public access to the backend /search endpoint.
  * The INTERNAL_API_KEY is injected here and validated by the backend.
  */
-
-// Get internal API key for backend authentication
-const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
 
 interface SearchResult {
   id: number;
@@ -133,9 +131,8 @@ export default async function handler(
 
   try {
     // Call backend API for semantic search
-    const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:8001';
-    
-    console.log('Calling backend API at:', BACKEND_API_URL);
+    console.log(`[Search API] Proxying to backend: ${BACKEND_API_URL}/search`);
+    console.log(`[Search API] Query: "${query.substring(0, 50)}...", limit=${limit}`);
     
     // Build headers with internal API key for backend authentication
     const headers: Record<string, string> = {

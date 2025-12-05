@@ -1,4 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
+import { BACKEND_API_URL } from '../../../../utils/env';
 
 /**
  * Discord User Info Proxy - Fetches current user info from backend
@@ -6,8 +7,6 @@ import { NextApiRequest, NextApiResponse } from 'next';
  * Proxies the request to backend /auth/discord/me endpoint,
  * forwarding cookies for authentication.
  */
-
-const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:8000';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {

@@ -1,13 +1,11 @@
 import { NextApiRequest, NextApiResponse } from 'next';
+import { BACKEND_API_URL } from '../../../utils/env';
 
 /**
  * Embedding Models API - Proxy to backend tuning/models endpoint
  * 
  * Requires tuning authentication (tuning_auth cookie).
  */
-
-// Backend API URL - configured via environment variable
-const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:8001';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {

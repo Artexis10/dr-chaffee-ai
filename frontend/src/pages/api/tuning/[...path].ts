@@ -1,4 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
+import { BACKEND_API_URL } from '../../../utils/env';
 
 /**
  * Tuning API Catch-All Proxy
@@ -9,8 +10,6 @@ import { NextApiRequest, NextApiResponse } from 'next';
  * Protected endpoints on the backend require the tuning_auth cookie.
  * This proxy forwards the cookie from the frontend domain to the backend.
  */
-
-const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:8001';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   // Get the path segments after /api/tuning/

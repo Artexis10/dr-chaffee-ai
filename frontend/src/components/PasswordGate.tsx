@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { apiFetch } from '@/utils/api';
 
@@ -18,6 +18,10 @@ interface DiscordUser {
   discord_tier_label?: string;
   discord_tier_color?: string;
 }
+
+// Auth check timeout - if auth check takes longer than this, assume no password required
+// This prevents infinite loading if backend is unreachable
+const AUTH_CHECK_TIMEOUT_MS = 8000;
 
 // Discord icon SVG component
 function DiscordIcon() {
@@ -43,10 +47,23 @@ export function PasswordGate({ children }: PasswordGateProps) {
   const [discordEnabled, setDiscordEnabled] = useState(false);
   const [discordError, setDiscordError] = useState('');
   const [discordUser, setDiscordUser] = useState<DiscordUser | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    // Safety timeout: if auth check takes too long, show content anyway
+    // This prevents infinite loading if backend is unreachable
+    timeoutRef.current = setTimeout(() => {
+      console.warn('[PasswordGate] Auth check timed out after', AUTH_CHECK_TIMEOUT_MS, 'ms - showing content');
+      setIsLoading(false);
+      setRequiresPassword(false);
+      setAuthError('Auth check timed out. Showing content without authentication.');
+    }, AUTH_CHECK_TIMEOUT_MS);
+
     // Check localStorage first (synchronous, no flash)
     const authToken = localStorage.getItem('auth_token');
+    
+    console.log('[PasswordGate] Starting auth check...');
     
     // Check if password is required and if Discord is enabled
     Promise.all([
@@ -54,11 +71,20 @@ export function PasswordGate({ children }: PasswordGateProps) {
       apiFetch('/api/auth/discord/status').then(res => res.json()).catch(() => ({ enabled: false }))
     ])
       .then(([authData, discordData]) => {
+        console.log('[PasswordGate] Auth check response:', { requiresPassword: authData.requiresPassword, discordEnabled: discordData.enabled });
+        
+        // Clear timeout since we got a response
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
+        }
+        
         setRequiresPassword(authData.requiresPassword);
         setDiscordEnabled(discordData.enabled === true);
         
         // If already have token and password is required, verify it
         if (authToken && authData.requiresPassword) {
+          console.log('[PasswordGate] Verifying existing token...');
           // Verify token
           apiFetch('/api/auth/verify', {
             headers: { 'Authorization': `Bearer ${authToken}` }
@@ -66,26 +92,45 @@ export function PasswordGate({ children }: PasswordGateProps) {
             .then(res => res.json())
             .then(result => {
               if (result.valid) {
+                console.log('[PasswordGate] Token valid, user authenticated');
                 setIsAuthenticated(true);
                 // Fetch Discord user info if authenticated
                 fetchDiscordUser();
               } else {
+                console.log('[PasswordGate] Token invalid, clearing');
                 localStorage.removeItem('auth_token');
               }
               setIsLoading(false);
             })
-            .catch(() => {
+            .catch((err) => {
+              console.error('[PasswordGate] Token verification failed:', err);
               localStorage.removeItem('auth_token');
               setIsLoading(false);
             });
         } else {
+          console.log('[PasswordGate] No token or no password required, loading complete');
           setIsLoading(false);
         }
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error('[PasswordGate] Auth check failed:', err);
+        // Clear timeout
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
+        }
         setIsLoading(false);
+        // On error, assume no password required to avoid blocking users
         setRequiresPassword(false);
+        setAuthError('Could not verify authentication. Showing content.');
       });
+    
+    // Cleanup timeout on unmount
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
   }, []);
 
   // Fetch Discord user info (tier, username, etc.)
