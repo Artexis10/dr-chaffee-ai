@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
-import { apiFetch } from '@/utils/api';
 
 interface PasswordGateProps {
   children: React.ReactNode;
@@ -65,49 +64,34 @@ export function PasswordGate({ children }: PasswordGateProps) {
     
     console.info(LOG_PREFIX, 'Component mounted, starting auth check');
     
-    // Use async function for cleaner control flow with try/catch/finally
+    // Simple async function with try/catch/finally
     const performAuthCheck = async () => {
-      // Safety timeout: if auth check takes too long, show login form (not blank screen)
+      // Safety timeout: if auth check takes too long, show login form
       timeoutRef.current = setTimeout(() => {
-        console.warn(LOG_PREFIX, `Auth check timed out after ${AUTH_CHECK_TIMEOUT_MS}ms - forcing login form`);
+        console.warn(LOG_PREFIX, `Auth check timed out after ${AUTH_CHECK_TIMEOUT_MS}ms - showing login form`);
         setIsLoading(false);
         setRequiresPassword(true);
         setAuthCheckFailed(true);
         setAuthCheckMessage('Auth check timed out. Please log in.');
       }, AUTH_CHECK_TIMEOUT_MS);
 
-      // Check localStorage first (synchronous, no flash)
-      // Guard against SSR where localStorage doesn't exist
-      let authToken: string | null = null;
-      if (typeof window !== 'undefined') {
-        try {
-          authToken = localStorage.getItem('auth_token');
-          console.info(LOG_PREFIX, 'localStorage auth_token exists:', !!authToken);
-        } catch (e) {
-          console.error(LOG_PREFIX, 'Failed to read localStorage:', e);
-        }
-      }
-
       try {
-        console.info(LOG_PREFIX, 'Fetching /api/auth/check...');
+        console.info(LOG_PREFIX, 'Fetching /api/auth/check with credentials...');
         
-        // Fetch auth check - this is the critical call
-        const authResponse = await apiFetch('/api/auth/check');
-        console.info(LOG_PREFIX, '/api/auth/check response status:', authResponse.status);
+        // Single fetch call with credentials: 'include' to send cookies
+        const response = await fetch('/api/auth/check', {
+          method: 'GET',
+          credentials: 'include',
+        });
         
-        if (!authResponse.ok) {
-          throw new Error(`Auth check returned ${authResponse.status}`);
+        console.info(LOG_PREFIX, '/api/auth/check response status:', response.status);
+        
+        if (!response.ok) {
+          throw new Error(`Auth check returned HTTP ${response.status}`);
         }
         
-        let authData: { requiresPassword?: boolean };
-        try {
-          authData = await authResponse.json();
-        } catch (jsonErr) {
-          console.error(LOG_PREFIX, 'Failed to parse auth check JSON:', jsonErr);
-          throw new Error('Invalid JSON response from auth check');
-        }
-        
-        console.info(LOG_PREFIX, 'Auth check response data:', authData);
+        const data = await response.json();
+        console.info(LOG_PREFIX, 'Auth check response data:', data);
         
         // Clear timeout since we got a valid response
         if (timeoutRef.current) {
@@ -115,73 +99,36 @@ export function PasswordGate({ children }: PasswordGateProps) {
           timeoutRef.current = null;
         }
         
-        const passwordRequired = authData?.requiresPassword === true;
-        setRequiresPassword(passwordRequired);
+        // Simple decision: requiresPassword true or false
+        if (data.requiresPassword === false) {
+          console.info(LOG_PREFIX, 'requiresPassword=false - rendering children');
+          setRequiresPassword(false);
+        } else {
+          // requiresPassword === true OR any unexpected value
+          console.info(LOG_PREFIX, 'requiresPassword=true - showing login form');
+          setRequiresPassword(true);
+        }
         
-        // Fetch Discord status in parallel (non-blocking, failures are OK)
-        apiFetch('/api/auth/discord/status')
+        // Fetch Discord status in background (non-blocking)
+        fetch('/api/auth/discord/status', { credentials: 'include' })
           .then(res => res.ok ? res.json() : { enabled: false })
-          .then(data => setDiscordEnabled(data?.enabled === true))
+          .then(d => setDiscordEnabled(d?.enabled === true))
           .catch(() => setDiscordEnabled(false));
         
-        // CASE 1: No password required - show children immediately
-        if (!passwordRequired) {
-          console.info(LOG_PREFIX, 'No password required - rendering children');
-          // isLoading will be set false in finally block
-          return;
-        }
-        
-        // CASE 2: Password required but no stored token - show login form
-        if (!authToken) {
-          console.info(LOG_PREFIX, 'Password required, no token found - showing login form');
-          // isLoading will be set false in finally block
-          return;
-        }
-        
-        // CASE 3: Password required and we have a token - verify it
-        console.info(LOG_PREFIX, 'Password required, verifying existing token...');
-        try {
-          const verifyResponse = await apiFetch('/api/auth/verify', {
-            headers: { 'Authorization': `Bearer ${authToken}` }
-          });
-          console.info(LOG_PREFIX, '/api/auth/verify response status:', verifyResponse.status);
-          
-          const verifyResult = await verifyResponse.json();
-          
-          if (verifyResult?.valid) {
-            console.info(LOG_PREFIX, 'Token valid, user authenticated - rendering children');
-            setIsAuthenticated(true);
-            fetchDiscordUser();
-          } else {
-            console.info(LOG_PREFIX, 'Token invalid, clearing and showing login form');
-            if (typeof window !== 'undefined') {
-              localStorage.removeItem('auth_token');
-            }
-          }
-        } catch (verifyErr) {
-          console.error(LOG_PREFIX, 'Token verification failed:', verifyErr);
-          if (typeof window !== 'undefined') {
-            localStorage.removeItem('auth_token');
-          }
-          // Token verification failed - show login form (isLoading will be set false in finally)
-        }
-        
       } catch (err) {
-        console.error(LOG_PREFIX, 'Auth check failed with error:', err);
+        console.error(LOG_PREFIX, 'Auth check failed:', err);
         // Clear timeout if still pending
         if (timeoutRef.current) {
           clearTimeout(timeoutRef.current);
           timeoutRef.current = null;
         }
-        // On error, show login form with message
+        // On ANY error, show login form with message
         setRequiresPassword(true);
         setAuthCheckFailed(true);
         setAuthCheckMessage('Auth check failed. Please enter the app password to continue.');
       } finally {
-        // CRITICAL: This finally block ALWAYS runs, guaranteeing isLoading becomes false.
-        // This is the ONLY place where isLoading is set to false, ensuring no code path
-        // can leave the component stuck in loading state.
-        console.info(LOG_PREFIX, 'Auth check complete (finally block), setting isLoading=false');
+        // CRITICAL: Always set isLoading=false, no matter what
+        console.info(LOG_PREFIX, 'Auth check complete (finally), setting isLoading=false');
         setIsLoading(false);
       }
     };
@@ -196,10 +143,10 @@ export function PasswordGate({ children }: PasswordGateProps) {
     };
   }, []);
 
-  // Fetch Discord user info (tier, username, etc.)
+  // Fetch Discord user info after successful login
   const fetchDiscordUser = async () => {
     try {
-      const response = await apiFetch('/api/auth/discord/me');
+      const response = await fetch('/api/auth/discord/me', { credentials: 'include' });
       if (response.ok) {
         const data = await response.json();
         if (data.authenticated) {
@@ -207,8 +154,7 @@ export function PasswordGate({ children }: PasswordGateProps) {
         }
       }
     } catch (err) {
-      // Silently fail - user may have logged in via password
-      console.debug('Could not fetch Discord user info:', err);
+      console.debug(LOG_PREFIX, 'Could not fetch Discord user info:', err);
     }
   };
 
@@ -217,21 +163,25 @@ export function PasswordGate({ children }: PasswordGateProps) {
     setError('');
 
     try {
-      const response = await apiFetch('/api/auth/login', {
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ password })
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ password }),
       });
 
       const data = await response.json();
 
-      if (response.ok && data.token) {
-        localStorage.setItem('auth_token', data.token);
+      if (response.ok && data.success) {
+        console.info(LOG_PREFIX, 'Login successful, rendering children');
         setIsAuthenticated(true);
+        fetchDiscordUser();
       } else {
-        setError('Invalid password. Please try again.');
+        setError(data.error || 'Invalid password. Please try again.');
         setPassword('');
       }
     } catch (err) {
+      console.error(LOG_PREFIX, 'Login request failed:', err);
       setError('Authentication failed. Please try again.');
     }
   };
