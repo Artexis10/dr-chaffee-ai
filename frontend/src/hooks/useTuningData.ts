@@ -9,12 +9,24 @@
  * - Shared data across components
  * - Manual refresh with ?refresh=true
  * - Loading and error states
+ * - 401 handling: stops retrying, sets unauthorized state
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiFetch } from '../utils/api';
 import type { RAGModelInfo, RagProfile } from '../types/models';
 import { FALLBACK_RAG_MODELS } from '../types/models';
+
+// Track if we've seen a 401 to prevent retry loops across all hooks
+let globalUnauthorized = false;
+
+export function isGloballyUnauthorized(): boolean {
+  return globalUnauthorized;
+}
+
+export function resetGlobalUnauthorized(): void {
+  globalUnauthorized = false;
+}
 
 // =============================================================================
 // Cache Configuration
@@ -60,6 +72,7 @@ interface UseTuningDataResult<T> {
   data: T | null;
   loading: boolean;
   error: string | null;
+  isUnauthorized: boolean;
   refresh: () => Promise<void>;
 }
 
@@ -71,9 +84,18 @@ function useTuningData<T>(
   const [data, setData] = useState<T | null>(() => getCached<T>(cacheKey) || fallback);
   const [loading, setLoading] = useState(!getCached<T>(cacheKey));
   const [error, setError] = useState<string | null>(null);
+  const [isUnauthorized, setIsUnauthorized] = useState(globalUnauthorized);
   const mountedRef = useRef(true);
+  const hasFetchedRef = useRef(false);
 
   const fetchData = useCallback(async (forceRefresh = false) => {
+    // Don't fetch if globally unauthorized (prevents 401 loops)
+    if (globalUnauthorized && !forceRefresh) {
+      setIsUnauthorized(true);
+      setLoading(false);
+      return;
+    }
+
     // Check cache first (unless forcing refresh)
     if (!forceRefresh) {
       const cached = getCached<T>(cacheKey);
@@ -93,7 +115,16 @@ function useTuningData<T>(
       
       if (!res.ok) {
         if (res.status === 401) {
-          throw new Error('Authentication required');
+          // Mark globally unauthorized to prevent other hooks from retrying
+          globalUnauthorized = true;
+          setIsUnauthorized(true);
+          setLoading(false);
+          setError('Authentication required');
+          // Use fallback if available
+          if (fallback) {
+            setData(fallback);
+          }
+          return; // Don't throw - just stop
         }
         throw new Error(`Failed to fetch: ${res.status}`);
       }
@@ -104,13 +135,14 @@ function useTuningData<T>(
         setData(result);
         setCache(cacheKey, result);
         setError(null);
+        setIsUnauthorized(false);
       }
     } catch (err) {
       console.warn(`[useTuningData] ${cacheKey} fetch failed:`, err);
       if (mountedRef.current) {
         setError(err instanceof Error ? err.message : 'Failed to fetch');
-        // Keep existing data or fallback on error
-        if (!data && fallback) {
+        // Use fallback on error if we don't have cached data
+        if (fallback && !getCached<T>(cacheKey)) {
           setData(fallback);
         }
       }
@@ -119,22 +151,29 @@ function useTuningData<T>(
         setLoading(false);
       }
     }
-  }, [cacheKey, fetchUrl, fallback, data]);
+  }, [cacheKey, fetchUrl, fallback]); // Removed 'data' from deps to prevent loop
 
   useEffect(() => {
     mountedRef.current = true;
-    fetchData();
+    // Only fetch once on mount (hasFetchedRef prevents re-fetches)
+    if (!hasFetchedRef.current) {
+      hasFetchedRef.current = true;
+      fetchData();
+    }
     return () => {
       mountedRef.current = false;
     };
   }, [fetchData]);
 
   const refresh = useCallback(async () => {
+    // Reset unauthorized state on manual refresh (user might have re-authenticated)
+    globalUnauthorized = false;
+    setIsUnauthorized(false);
     invalidateCache(cacheKey);
     await fetchData(true);
   }, [cacheKey, fetchData]);
 
-  return { data, loading, error, refresh };
+  return { data, loading, error, isUnauthorized, refresh };
 }
 
 // =============================================================================

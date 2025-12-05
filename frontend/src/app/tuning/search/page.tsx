@@ -17,7 +17,7 @@ const DEFAULT_CONFIG: SearchConfig = {
 };
 
 export default function SearchPage() {
-  const { data: configData, loading, error: loadError, refresh: refreshConfig } = useSearchConfig();
+  const { data: configData, loading, error: loadError, isUnauthorized, refresh: refreshConfig } = useSearchConfig();
   const [config, setConfig] = useState<SearchConfig>(DEFAULT_CONFIG);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -154,6 +154,15 @@ export default function SearchPage() {
     return (
       <div className="tuning-page tuning-centered">
         <p className="tuning-text-muted">Loading configuration...</p>
+      </div>
+    );
+  }
+
+  if (isUnauthorized) {
+    return (
+      <div className="tuning-page tuning-centered">
+        <AlertCircle style={{ width: 48, height: 48, opacity: 0.5, marginBottom: '1rem' }} />
+        <p className="tuning-text-muted">Authentication required. Please log in again.</p>
       </div>
     );
   }

@@ -23,10 +23,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const tuningAuth = req.cookies.tuning_auth;
   const hasAccess = tuningAuth === 'authenticated';
 
-  // Log for debugging (can be removed in production)
-  if (!hasAccess) {
-    console.log('[Tuning Auth Status] No valid tuning_auth cookie found');
-  }
+  // Log for debugging
+  console.log('[Tuning Auth Status] Cookie value:', tuningAuth, '| hasAccess:', hasAccess);
+  console.log('[Tuning Auth Status] All cookies:', Object.keys(req.cookies));
 
   return res.status(200).json({ hasAccess });
 }

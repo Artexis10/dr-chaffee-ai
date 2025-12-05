@@ -208,7 +208,9 @@ async def require_tuning_auth(request: Request):
     
     # Check for valid authentication cookie
     cookie = request.cookies.get("tuning_auth")
+    logger.debug(f"Tuning auth check - cookie value: '{cookie}', all cookies: {list(request.cookies.keys())}")
     if cookie != "authenticated":
+        logger.warning(f"Tuning auth denied - cookie value: '{cookie}'")
         raise HTTPException(
             status_code=401, 
             detail="Tuning dashboard access denied. Please authenticate first."

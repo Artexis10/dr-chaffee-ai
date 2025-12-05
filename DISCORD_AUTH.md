@@ -21,9 +21,9 @@ This feature is **optional** and works alongside the existing password authentic
 | Environment | Backend Login | Discord Callback (redirect_uri) |
 |-------------|---------------|--------------------------------|
 | Development | `http://localhost:8000/auth/discord/login` | `http://localhost:8000/auth/discord/callback` |
-| Production  | `https://askdrchaffee.com/api/auth/discord/login` | `https://askdrchaffee.com/api/auth/discord/callback` |
+| Production  | `https://app.askdrchaffee.com/api/auth/discord/login` | `https://app.askdrchaffee.com/api/auth/discord/callback` |
 
-> **Note**: In production, the backend is mounted under `/api` via Coolify reverse proxy, so all backend routes have the `/api` prefix externally.
+> **Note**: In production, the backend is at `app.askdrchaffee.com` (via Traefik), and routes have the `/api` prefix externally.
 
 ## Prerequisites
 
@@ -46,7 +46,9 @@ This feature is **optional** and works alongside the existing password authentic
 2. Copy the **Client ID** and **Client Secret**
 3. Add redirect URIs (both if you need dev + prod):
    - Development: `http://localhost:8000/auth/discord/callback`
-   - Production: `https://askdrchaffee.com/api/auth/discord/callback`
+   - Production: `https://app.askdrchaffee.com/api/auth/discord/callback`
+   
+   > **CRITICAL**: The redirect URI must match EXACTLY - including scheme (https), subdomain (app.), and path. No trailing slash!
 
 ### 3. Get Guild ID
 
@@ -73,11 +75,11 @@ DISCORD_ALLOWED_ROLE_IDS=role_id_1,role_id_2,role_id_3
 DISCORD_OAUTH_SCOPES=identify guilds guilds.members.read
 FRONTEND_APP_URL=http://localhost:3000
 
-# IMPORTANT: redirect_uri must match exactly what's in Discord Developer Portal
+# IMPORTANT: redirect_uri must match EXACTLY what's in Discord Developer Portal
 # Dev:
 DISCORD_REDIRECT_URI=http://localhost:8000/auth/discord/callback
-# Prod (note /api prefix):
-# DISCORD_REDIRECT_URI=https://askdrchaffee.com/api/auth/discord/callback
+# Prod (note: app. subdomain + /api prefix):
+# DISCORD_REDIRECT_URI=https://app.askdrchaffee.com/api/auth/discord/callback
 ```
 
 #### Frontend (`frontend/.env.local`)
@@ -202,17 +204,94 @@ CREATE TABLE users (
 Discord OAuth works alongside the existing password authentication:
 - Both methods issue the same `auth_token` cookie
 - Users can choose either method on the login page
-- Tuning dashboard continues to use its separate `tuning_auth` system
+- **Discord login now also grants tuning dashboard access** via `tuning_auth` cookie
+
+## Tuning Dashboard Access
+
+### How Discord Login Flows into Tuning Dashboard
+
+1. User clicks "Log in with Discord" on the main app or tuning auth page
+2. Frontend redirects to `/api/auth/discord/login` (Next.js proxy)
+3. Backend redirects to Discord OAuth consent screen
+4. User authorizes the application
+5. Discord redirects to backend callback: `/auth/discord/callback`
+6. Backend validates guild membership and roles
+7. Backend sets three cookies:
+   - `auth_token` - Main app authentication (7 days)
+   - `discord_user_id` - User identification (7 days)
+   - `tuning_auth=authenticated` - Tuning dashboard access (24 hours)
+8. User is redirected to `FRONTEND_APP_URL`
+9. Tuning dashboard checks `tuning_auth` cookie via `/api/tuning/auth/status`
+10. If valid, dashboard loads; if not, redirects to `/tuning/auth`
+
+### What Happens When Tuning Auth is Missing
+
+When the `tuning_auth` cookie is missing or expired:
+
+1. **Layout redirect**: `useTuningAuth` hook returns `isAuthenticated: false`
+2. **Automatic redirect**: User is sent to `/tuning/auth` page
+3. **Data hooks stop**: All `useTuningData` hooks detect 401 and stop retrying
+4. **Clear UI message**: Pages show "Authentication required. Please log in again."
+
+### Re-authentication
+
+To re-authenticate:
+1. Go to `/tuning/auth` and enter the admin password, OR
+2. Click "Log in with Discord" (if Discord OAuth is configured)
+
+Both methods set the `tuning_auth` cookie and grant dashboard access
 
 ## Production Checklist
 
 - [ ] Discord application "AskDrChaffee" created and configured
-- [ ] Redirect URI `https://askdrchaffee.com/api/auth/discord/callback` added in Discord Developer Portal
-- [ ] `DISCORD_REDIRECT_URI=https://askdrchaffee.com/api/auth/discord/callback` set in backend env
-- [ ] `FRONTEND_APP_URL=https://askdrchaffee.com` set in backend env
+- [ ] Redirect URI `https://app.askdrchaffee.com/api/auth/discord/callback` added in Discord Developer Portal
+- [ ] `DISCORD_REDIRECT_URI=https://app.askdrchaffee.com/api/auth/discord/callback` set in backend env (Coolify)
+- [ ] `FRONTEND_APP_URL=https://askdrchaffee.com` set in backend env (where users land after auth)
 - [ ] `DISCORD_CLIENT_SECRET` stored securely (not in git)
 - [ ] `APP_SESSION_SECRET` set for token signing
 - [ ] Database migration applied (`alembic upgrade head`)
 - [ ] `DISCORD_LOGIN_ENABLED=true` in frontend env
 - [ ] All backend Discord env vars configured (CLIENT_ID, SECRET, GUILD_ID, ROLE_IDS)
 - [ ] HTTPS enabled (required for secure cookies)
+
+## Testing Discord Login End-to-End
+
+### Quick Verification Steps
+
+1. **Check backend config status:**
+   ```bash
+   curl https://app.askdrchaffee.com/api/auth/discord/status
+   ```
+   Verify `enabled: true` and `redirect_uri` matches what's in Discord Developer Portal.
+
+2. **Check Discord Developer Portal:**
+   - Go to https://discord.com/developers/applications
+   - Select "AskDrChaffee" application
+   - OAuth2 → Redirects
+   - Verify `https://app.askdrchaffee.com/api/auth/discord/callback` is listed
+
+3. **Test the login flow:**
+   - Visit https://askdrchaffee.com
+   - Click "Log in with Discord"
+   - Should redirect to Discord authorization page
+   - After authorizing, should redirect back to the app
+
+### Common Issues
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| "Invalid OAuth2 redirect_uri" | Mismatch between `DISCORD_REDIRECT_URI` and Discord Portal | Add exact URI to Discord Developer Portal |
+| Redirect to wrong domain | `FRONTEND_APP_URL` incorrect | Set `FRONTEND_APP_URL=https://askdrchaffee.com` |
+| "State mismatch" error | Cookies not being set/read | Check SameSite cookie settings, HTTPS requirement |
+| "Not in server" after auth | User not in Discord guild | Verify `DISCORD_GUILD_ID` is correct |
+
+### Development Testing
+
+For local development:
+```env
+# backend/.env
+DISCORD_REDIRECT_URI=http://localhost:8000/auth/discord/callback
+FRONTEND_APP_URL=http://localhost:3000
+
+# Discord Developer Portal: Add http://localhost:8000/auth/discord/callback
+```

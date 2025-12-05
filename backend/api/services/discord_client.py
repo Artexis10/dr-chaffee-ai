@@ -39,7 +39,8 @@ class DiscordConfig:
         DISCORD_CLIENT_SECRET      - OAuth2 client secret
         DISCORD_REDIRECT_URI       - Callback URL registered in Discord app
                                      Dev:  http://localhost:8000/auth/discord/callback
-                                     Prod: https://askdrchaffee.com/api/auth/discord/callback
+                                     Prod: https://app.askdrchaffee.com/api/auth/discord/callback
+                                     MUST match exactly what's in Discord Developer Portal!
         DISCORD_GUILD_ID           - Server ID users must be a member of
         DISCORD_ALLOWED_ROLE_IDS   - Comma-separated role IDs that grant access
     
@@ -120,8 +121,26 @@ def build_discord_authorize_url(state: str) -> str:
         
     Returns:
         Full authorization URL to redirect user to
+        
+    Raises:
+        ValueError: If DISCORD_REDIRECT_URI is not configured
     """
     config = get_discord_config()
+    
+    # Validate redirect_uri is set
+    if not config.redirect_uri:
+        logger.error("DISCORD_REDIRECT_URI is not set! Cannot build OAuth URL.")
+        raise ValueError("DISCORD_REDIRECT_URI environment variable is required")
+    
+    # Log the redirect_uri being used (helps debug mismatches)
+    logger.info(f"Building Discord OAuth URL with redirect_uri: {config.redirect_uri}")
+    
+    # Warn if redirect_uri looks like localhost in production
+    if "localhost" in config.redirect_uri and os.getenv("NODE_ENV") == "production":
+        logger.warning(
+            f"DISCORD_REDIRECT_URI contains 'localhost' but NODE_ENV=production. "
+            f"This will likely cause OAuth failures. Current value: {config.redirect_uri}"
+        )
     
     params = {
         "response_type": "code",

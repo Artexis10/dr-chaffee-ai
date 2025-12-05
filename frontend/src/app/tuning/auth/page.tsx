@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import '../tuning-pages.css';
 import { apiFetch } from '@/utils/api';
+import { resetGlobalUnauthorized, invalidateAllTuningCaches } from '@/hooks/useTuningData';
 
 // Theme constants - must match DarkModeToggle.tsx
 const THEME_KEY = 'askdrchaffee.theme';
@@ -67,6 +68,13 @@ export default function TuningAuth() {
           localStorage.setItem('auth_token', data.token);
           console.log('[Tuning Auth Page] Main app token stored in localStorage');
         }
+        
+        // CRITICAL: Reset the global unauthorized flag and clear caches
+        // This ensures useTuningData hooks will fetch fresh data after login
+        resetGlobalUnauthorized();
+        invalidateAllTuningCaches();
+        console.log('[Tuning Auth Page] Reset unauthorized state and cleared caches');
+        
         console.log('[Tuning Auth Page] Authentication successful, redirecting...');
         // Use window.location for full page navigation to ensure cookie is sent
         window.location.href = '/tuning';

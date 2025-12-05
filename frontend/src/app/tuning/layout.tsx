@@ -4,7 +4,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Settings, BarChart3, Sparkles, Search, Home, LogOut, Menu, X, Sun, Moon, FileText, MessageSquare, Calendar } from 'lucide-react';
 import '../../styles/tuning.css';
-import { useTuningAuth } from '../../hooks/useTuningData';
+import { useTuningAuth, resetGlobalUnauthorized } from '../../hooks/useTuningData';
 import { apiFetch } from '../../utils/api';
 
 // Theme constants - must match DarkModeToggle.tsx
@@ -28,6 +28,9 @@ export default function TuningLayout({
   // Redirect to auth if not authenticated
   useEffect(() => {
     if (!isAuthPage && !isLoading && !isAuthenticated) {
+      // Reset global unauthorized state before redirecting to auth
+      // This ensures hooks will retry after re-authentication
+      resetGlobalUnauthorized();
       router.replace('/tuning/auth');
     }
   }, [isAuthPage, isLoading, isAuthenticated, router]);

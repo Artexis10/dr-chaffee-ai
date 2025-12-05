@@ -17,7 +17,8 @@ import { createSessionToken } from '../../../../utils/authToken';
  */
 
 // Backend API URL - configured via environment variable
-const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:8001';
+// Use the same import as other tuning endpoints for consistency
+import { BACKEND_API_URL } from '../../../../utils/env';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -65,6 +66,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
       
       // Build cookie array - tuning_auth for dashboard, auth_token for main app
+      // IMPORTANT: tuning_auth must NOT be HttpOnly so it can be read by the catch-all proxy
+      // Actually, Next.js API routes CAN read HttpOnly cookies from req.cookies
+      // The issue might be something else - let's add more logging
       const cookies = [
         `tuning_auth=authenticated; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400${isProduction ? '; Secure' : ''}`
       ];
@@ -79,7 +83,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       
       res.setHeader('Set-Cookie', cookies);
       
-      console.log('[Tuning Auth] Authentication successful, cookies set for tuning + main app');
+      console.log('[Tuning Auth] Authentication successful, setting cookies:', cookies.map(c => c.split('=')[0]));
       return res.status(200).json({ 
         success: true, 
         message: 'Authentication successful',

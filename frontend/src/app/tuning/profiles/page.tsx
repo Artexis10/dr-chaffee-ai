@@ -25,8 +25,8 @@ const TAG_COLORS: Record<string, string> = {
 
 export default function ProfilesPage() {
   // Use cached hooks for data fetching
-  const { data: ragModels, loading: ragModelsLoading } = useRagModels();
-  const { data: profiles, loading: profilesLoading, error: profilesError, refresh: refreshProfiles } = useProfiles();
+  const { data: ragModels, loading: ragModelsLoading, isUnauthorized: ragModelsUnauthorized } = useRagModels();
+  const { data: profiles, loading: profilesLoading, error: profilesError, isUnauthorized: profilesUnauthorized, refresh: refreshProfiles } = useProfiles();
   
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -158,10 +158,21 @@ export default function ProfilesPage() {
     setEditMode(true);
   };
 
+  const isUnauthorized = ragModelsUnauthorized || profilesUnauthorized;
+
   if (loading) {
     return (
       <div className="tuning-page tuning-centered">
         <p className="tuning-text-muted">Loading profiles...</p>
+      </div>
+    );
+  }
+
+  if (isUnauthorized) {
+    return (
+      <div className="tuning-page tuning-centered">
+        <AlertCircle style={{ width: 48, height: 48, opacity: 0.5, marginBottom: '1rem' }} />
+        <p className="tuning-text-muted">Authentication required. Please log in again.</p>
       </div>
     );
   }

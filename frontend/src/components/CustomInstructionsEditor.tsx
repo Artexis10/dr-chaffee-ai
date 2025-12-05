@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FileText, Save, Eye, History, Check, X, Plus, Trash2, RefreshCw, Edit2, Copy } from 'lucide-react';
+import { FileText, Save, Eye, History, Check, X, Plus, Trash2, RefreshCw, Edit2, Copy, AlertCircle } from 'lucide-react';
 import { useInstructions, invalidateTuningCache, type CustomInstruction } from '@/hooks/useTuningData';
 import { apiFetch } from '@/utils/api';
 
@@ -22,7 +22,7 @@ interface InstructionHistory {
 }
 
 export default function CustomInstructionsEditor() {
-  const { data: instructions, loading: instructionsLoading, refresh: refreshInstructions } = useInstructions();
+  const { data: instructions, loading: instructionsLoading, isUnauthorized, refresh: refreshInstructions } = useInstructions();
   const [activeInstruction, setActiveInstruction] = useState<CustomInstruction | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [preview, setPreview] = useState<InstructionPreview | null>(null);
@@ -199,6 +199,23 @@ export default function CustomInstructionsEditor() {
     setEditMode(true);
     setPreview(null);
   };
+
+  if (instructionsLoading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '3rem' }}>
+        <p style={{ color: 'var(--text-muted, #6b7280)' }}>Loading instructions...</p>
+      </div>
+    );
+  }
+
+  if (isUnauthorized) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3rem' }}>
+        <AlertCircle style={{ width: 48, height: 48, opacity: 0.5, marginBottom: '1rem', color: 'var(--text-muted, #6b7280)' }} />
+        <p style={{ color: 'var(--text-muted, #6b7280)' }}>Authentication required. Please log in again.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="custom-instructions-container" style={{

@@ -381,12 +381,13 @@ async def discord_callback(
             status_code=302
         )
     
-    # Success! Redirect to frontend with auth cookie
+    # Success! Redirect to frontend with auth cookies
     redirect = RedirectResponse(url=frontend_url, status_code=302)
     
     # Set auth_token cookie (same as password login does)
     is_production = os.getenv("NODE_ENV") == "production"
     max_age = 7 * 24 * 60 * 60  # 7 days
+    tuning_max_age = 24 * 60 * 60  # 1 day for tuning (matches password auth)
     
     redirect.set_cookie(
         key="auth_token",
@@ -409,10 +410,22 @@ async def discord_callback(
         path="/",
     )
     
+    # Set tuning_auth cookie - grants access to tuning dashboard
+    # Discord-authenticated users with valid roles get tuning access
+    redirect.set_cookie(
+        key="tuning_auth",
+        value="authenticated",
+        max_age=tuning_max_age,
+        httponly=True,
+        secure=is_production,
+        samesite="lax",
+        path="/",
+    )
+    
     # Delete state cookie
     redirect.delete_cookie(STATE_COOKIE_NAME, path="/")
     
-    logger.info(f"Discord login successful for user {discord_id}, redirecting to {frontend_url}")
+    logger.info(f"Discord login successful for user {discord_id}, redirecting to {frontend_url} (tuning access granted)")
     
     return redirect
 
@@ -428,12 +441,15 @@ async def discord_auth_status():
     config = get_discord_config()
     is_configured = config.is_configured()
     
+    # Include redirect_uri for debugging (not a secret - it's visible in the OAuth URL)
+    # This helps verify the redirect_uri matches what's in Discord Developer Portal
     return {
         "enabled": is_configured,  # Primary field for frontend
         "configured": is_configured,  # Legacy field for backwards compatibility
         "missing": config.get_missing_config() if not is_configured else [],
         "guild_id": config.guild_id if is_configured else None,
         "role_count": len(config.allowed_role_ids) if is_configured else 0,
+        "redirect_uri": config.redirect_uri if is_configured else None,  # For debugging OAuth mismatches
     }
 
 

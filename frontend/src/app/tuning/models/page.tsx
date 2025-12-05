@@ -7,7 +7,7 @@ import { useSummarizerModels, type SummarizerModel } from '@/hooks/useTuningData
 import { apiFetch } from '@/utils/api';
 
 export default function ModelsPage() {
-  const { data: modelsData, loading, error: loadError, refresh: refreshModels } = useSummarizerModels();
+  const { data: modelsData, loading, error: loadError, isUnauthorized, refresh: refreshModels } = useSummarizerModels();
   const [currentModel, setCurrentModel] = useState<string>('');
   const [settingActive, setSettingActive] = useState<string | null>(null);
   const [message, setMessage] = useState('');
@@ -106,6 +106,15 @@ export default function ModelsPage() {
     return (
       <div className="tuning-page tuning-centered">
         <p className="tuning-text-muted">Loading models...</p>
+      </div>
+    );
+  }
+
+  if (isUnauthorized) {
+    return (
+      <div className="tuning-page tuning-centered">
+        <AlertCircle style={{ width: 48, height: 48, opacity: 0.5, marginBottom: '1rem' }} />
+        <p className="tuning-text-muted">Authentication required. Please log in again.</p>
       </div>
     );
   }

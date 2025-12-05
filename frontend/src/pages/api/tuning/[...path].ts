@@ -17,19 +17,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const pathSegments = Array.isArray(path) ? path : [path];
   const subPath = pathSegments.join('/');
   
-  // Skip if this is the auth/verify endpoint (handled by its own file)
-  if (subPath === 'auth/verify') {
-    return res.status(404).json({ error: 'Use /api/tuning/auth/verify directly' });
+  // Skip auth endpoints - they have their own handlers in /api/tuning/auth/
+  // Next.js should route to specific files first, but we double-check here
+  const authEndpoints = ['auth/verify', 'auth/status', 'auth/logout'];
+  if (authEndpoints.includes(subPath)) {
+    // Let the specific handler deal with it (this shouldn't normally be reached)
+    return res.status(404).json({ error: `Use /api/tuning/${subPath} directly` });
   }
   
   // Check for tuning_auth cookie (set by our auth/verify endpoint)
   const tuningAuth = req.cookies.tuning_auth;
   if (tuningAuth !== 'authenticated') {
+    console.log(`[Tuning Proxy] Auth check failed for ${subPath}. Cookie value:`, tuningAuth);
     return res.status(401).json({ error: 'Tuning authentication required' });
   }
   
   const backendUrl = `${BACKEND_API_URL}/api/tuning/${subPath}`;
   console.log(`[Tuning Proxy] ${req.method} ${backendUrl}`);
+  console.log(`[Tuning Proxy] Forwarding cookie: tuning_auth=${tuningAuth}`);
   
   try {
     const headers: Record<string, string> = {
@@ -51,9 +56,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const response = await fetch(backendUrl, fetchOptions);
     const contentType = response.headers.get('content-type');
     
+    console.log(`[Tuning Proxy] Backend response status: ${response.status}`);
+    
     // Forward the response status and body
     if (contentType?.includes('application/json')) {
       const data = await response.json();
+      if (response.status !== 200) {
+        console.log(`[Tuning Proxy] Backend error response:`, data);
+      }
       return res.status(response.status).json(data);
     } else {
       const text = await response.text();
