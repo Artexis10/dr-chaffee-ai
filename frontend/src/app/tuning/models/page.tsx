@@ -42,10 +42,10 @@ export default function ModelsPage() {
 
   // Set current model from API data (prefer active_model_name, fallback to current_model)
   useEffect(() => {
-    if (modelsData?.active_model_name) {
-      setCurrentModel(modelsData.active_model_name);
-    } else if (modelsData?.current_model) {
-      setCurrentModel(modelsData.current_model);
+    if (modelsData) {
+      const activeModelKey = modelsData.active_model_name || modelsData.current_model || '';
+      console.log('[ModelsPage] Setting currentModel from API:', activeModelKey, 'modelsData:', modelsData);
+      setCurrentModel(activeModelKey);
     }
   }, [modelsData]);
 

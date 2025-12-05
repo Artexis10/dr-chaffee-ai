@@ -285,13 +285,54 @@ Both methods set the `tuning_auth` cookie and grant dashboard access
 | "State mismatch" error | Cookies not being set/read | Check SameSite cookie settings, HTTPS requirement |
 | "Not in server" after auth | User not in Discord guild | Verify `DISCORD_GUILD_ID` is correct |
 
-### Development Testing
+### Local Development vs Production
 
-For local development:
+#### Production Setup
+- Frontend: `https://askdrchaffee.com` (Vercel)
+- Backend: `https://app.askdrchaffee.com` (Coolify)
+- Discord OAuth: Fully configured and working
+- `DISCORD_LOGIN_ENABLED=true` in frontend env
+
+#### Local Development (Recommended: Password Auth Only)
+
+For most local development, **use password authentication only**:
+
 ```env
-# backend/.env
-DISCORD_REDIRECT_URI=http://localhost:8000/auth/discord/callback
-FRONTEND_APP_URL=http://localhost:3000
-
-# Discord Developer Portal: Add http://localhost:8000/auth/discord/callback
+# frontend/.env.local
+DISCORD_LOGIN_ENABLED=false  # Hide Discord button
+BACKEND_API_URL=https://app.askdrchaffee.com  # Can still use remote backend
 ```
+
+This is the simplest setup:
+- Password login works with remote backend
+- No Discord OAuth configuration needed locally
+- Discord button is hidden on login pages
+
+#### Local Development (Advanced: Full Discord Flow)
+
+If you need to test Discord OAuth locally:
+
+1. **Add local redirect URI to Discord Developer Portal:**
+   - Go to https://discord.com/developers/applications
+   - Select "AskDrChaffee" application
+   - OAuth2 → Redirects → Add `http://localhost:8000/auth/discord/callback`
+
+2. **Configure backend:**
+   ```env
+   # backend/.env
+   DISCORD_REDIRECT_URI=http://localhost:8000/auth/discord/callback
+   FRONTEND_APP_URL=http://localhost:3000
+   ```
+
+3. **Configure frontend:**
+   ```env
+   # frontend/.env.local
+   DISCORD_LOGIN_ENABLED=true
+   BACKEND_API_URL=http://localhost:8000
+   ```
+
+4. **Run both services locally:**
+   - Backend: `uvicorn api.main:app --reload --port 8000`
+   - Frontend: `npm run dev`
+
+**Note:** Local Discord OAuth requires running the backend locally. If your `BACKEND_API_URL` points to the remote backend, Discord OAuth won't work because the callback URL won't match.
