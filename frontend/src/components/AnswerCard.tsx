@@ -5,7 +5,7 @@
  * See: frontend/docs/ui-theme-guidelines.md
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactElement } from 'react';
 import { apiFetch } from '@/utils/api';
 import { FeedbackStrip } from './FeedbackStrip';
 
@@ -431,7 +431,7 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
   const renderAnswerWithCitations = (text: string) => {
     // First, split by paragraphs and headings
     const lines = text.split('\n');
-    const elements: JSX.Element[] = [];
+    const elements: ReactElement[] = [];
     let currentParagraph: string[] = [];
     let elementKey = 0;
 
@@ -474,7 +474,7 @@ export function AnswerCard({ answer, loading, error, onPlayClip, onCopyLink, onC
   const parseInlineCitations = (text: string) => {
     // Match numbered citations [1], [2], etc. or legacy format [video_id@mm:ss]
     const citationRegex = /\[(\d+)\]|\[([^@\]]+)@(\d+:\d+)\]/g;
-    const parts: (string | JSX.Element)[] = [];
+    const parts: (string | ReactElement)[] = [];
     let lastIndex = 0;
     let match;
     const seenCitations = new Set<string>();

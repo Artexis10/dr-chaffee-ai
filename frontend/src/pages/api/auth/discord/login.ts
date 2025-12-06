@@ -26,7 +26,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
     
-    const response = await fetch(`${BACKEND_API_URL}/auth/discord/login`, {
+    const response = await fetch(`${BACKEND_API_URL}/api/auth/discord/login`, {
       method: 'GET',
       redirect: 'manual', // Don't follow redirects - we want to get the Location header
       signal: controller.signal,

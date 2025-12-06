@@ -41,7 +41,7 @@ from ..services.discord_roles_loader import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/auth/discord", tags=["discord-auth"])
+router = APIRouter(prefix="/api/auth/discord", tags=["discord-auth"])
 
 # Cookie settings
 STATE_COOKIE_NAME = "discord_oauth_state"

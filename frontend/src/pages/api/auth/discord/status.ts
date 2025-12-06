@@ -25,7 +25,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
     
-    const response = await fetch(`${BACKEND_API_URL}/auth/discord/status`, {
+    const response = await fetch(`${BACKEND_API_URL}/api/auth/discord/status`, {
       signal: controller.signal,
     });
     
