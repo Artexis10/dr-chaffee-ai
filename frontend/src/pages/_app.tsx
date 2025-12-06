@@ -2,14 +2,17 @@ import { useEffect, ReactElement, ReactNode } from 'react';
 import type { AppProps } from 'next/app';
 import type { NextPage } from 'next';
 import '../styles/globals.css';
-import { PasswordGate } from '../components/PasswordGate';
 import { getSessionId } from '../utils/session';
 
 /**
  * Custom page type that supports per-page layouts.
- * Pages can define getLayout to bypass or customize the default layout.
+ * Pages can define getLayout to customize the default layout.
+ * 
+ * NOTE: Authentication is now handled by middleware.ts, not PasswordGate.
+ * - Unauthenticated users are redirected to /login by middleware
+ * - / and other protected routes assume user is authenticated
  */
-export type NextPageWithLayout<P = {}, IP = P> = NextPage<P, IP> & {
+export type NextPageWithLayout<P = object, IP = P> = NextPage<P, IP> & {
   getLayout?: (page: ReactElement) => ReactNode;
 };
 
@@ -26,12 +29,9 @@ export default function App({ Component, pageProps }: AppPropsWithLayout) {
     }
   }, []);
 
-  // Use the page's custom layout if defined, otherwise use PasswordGate
-  const getLayout = Component.getLayout ?? ((page) => (
-    <PasswordGate>
-      {page}
-    </PasswordGate>
-  ));
+  // Use the page's custom layout if defined, otherwise render directly
+  // Auth is handled by middleware - no need for PasswordGate wrapper
+  const getLayout = Component.getLayout ?? ((page) => page);
 
   return getLayout(<Component {...pageProps} />);
 }

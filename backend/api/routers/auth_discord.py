@@ -2,8 +2,8 @@
 Discord OAuth Authentication Router
 
 Provides endpoints for Discord OAuth2 authentication flow:
-- GET /auth/discord/login - Initiates OAuth flow
-- GET /auth/discord/callback - Handles OAuth callback
+- GET /api/auth/discord/login - Initiates OAuth flow
+- GET /api/auth/discord/callback - Handles OAuth callback
 
 After successful authentication:
 1. Validates user is in required guild
@@ -11,12 +11,22 @@ After successful authentication:
 3. Upserts user record in database
 4. Issues auth_token cookie (same as password login)
 5. Redirects to frontend app
+
+STATE MANAGEMENT:
+We use a SERVER-SIDE state store (not cookies) to avoid cross-domain/SameSite issues.
+The state is stored in an in-memory TTL cache with 10-minute expiry.
+This is more robust than cookie-based state because:
+- No cookie domain/path issues between frontend and backend hosts
+- No SameSite restrictions on cross-site redirects from Discord
+- State is validated server-side, not dependent on browser cookie handling
 """
 
 import os
 import logging
+import time
+import threading
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict
 
 from fastapi import APIRouter, Request, Response, HTTPException
 from fastapi.responses import RedirectResponse
@@ -43,9 +53,75 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/auth/discord", tags=["discord-auth"])
 
-# Cookie settings
+# ============================================
+# SERVER-SIDE STATE STORE
+# ============================================
+# Using in-memory store instead of cookies to avoid cross-domain issues.
+# State tokens expire after 10 minutes and are single-use.
+
+STATE_TTL_SECONDS = 600  # 10 minutes
+_state_store: Dict[str, float] = {}  # state -> expiry_timestamp
+_state_lock = threading.Lock()
+
+
+def _cleanup_expired_states():
+    """Remove expired states from the store."""
+    now = time.time()
+    with _state_lock:
+        expired = [s for s, exp in _state_store.items() if exp < now]
+        for s in expired:
+            del _state_store[s]
+
+
+def store_oauth_state(state: str) -> None:
+    """
+    Store an OAuth state token with TTL.
+    
+    Args:
+        state: The state token to store
+    """
+    _cleanup_expired_states()
+    expiry = time.time() + STATE_TTL_SECONDS
+    with _state_lock:
+        _state_store[state] = expiry
+    logger.info(f"Stored OAuth state (server-side): ...{state[-8:]}, expires in {STATE_TTL_SECONDS}s")
+
+
+def validate_and_consume_state(state: str) -> bool:
+    """
+    Validate and consume an OAuth state token.
+    
+    Returns True if state is valid and not expired, False otherwise.
+    State is removed after validation (single-use).
+    
+    Args:
+        state: The state token to validate
+        
+    Returns:
+        True if valid, False otherwise
+    """
+    _cleanup_expired_states()
+    now = time.time()
+    
+    with _state_lock:
+        if state not in _state_store:
+            logger.warning(f"OAuth state not found in store: ...{state[-8:] if state else 'None'}")
+            return False
+        
+        expiry = _state_store[state]
+        if expiry < now:
+            logger.warning(f"OAuth state expired: ...{state[-8:]}")
+            del _state_store[state]
+            return False
+        
+        # Valid - consume it (single-use)
+        del _state_store[state]
+        logger.info(f"OAuth state validated and consumed: ...{state[-8:]}")
+        return True
+
+
+# Legacy cookie name (kept for backwards compatibility during transition)
 STATE_COOKIE_NAME = "discord_oauth_state"
-STATE_COOKIE_MAX_AGE = 600  # 10 minutes
 
 
 def get_db_connection():
@@ -202,8 +278,13 @@ async def discord_login(request: Request, response: Response):
     Initiate Discord OAuth flow.
     
     1. Generate secure state token
-    2. Store state in HttpOnly cookie
+    2. Store state in SERVER-SIDE cache (not cookie - avoids cross-domain issues)
     3. Redirect to Discord authorization URL
+    
+    NOTE: We use server-side state storage instead of cookies because:
+    - Cookie-based state was causing invalid_state errors due to SameSite/cross-domain issues
+    - Server-side state is more reliable across different browser configurations
+    - State is single-use and expires after 10 minutes
     """
     config = get_discord_config()
     
@@ -218,25 +299,16 @@ async def discord_login(request: Request, response: Response):
     # Generate state token for CSRF protection
     state = generate_state_token()
     
+    # Store state in server-side cache (NOT cookie)
+    store_oauth_state(state)
+    
     # Build authorization URL
     auth_url = build_discord_authorize_url(state)
     
-    logger.info(f"Initiating Discord OAuth flow (redirect_uri: {config.redirect_uri})")
+    logger.info(f"Initiating Discord OAuth flow (redirect_uri: {config.redirect_uri}, state: ...{state[-8:]})")
     
-    # Create redirect response
+    # Create redirect response - no state cookie needed
     redirect = RedirectResponse(url=auth_url, status_code=302)
-    
-    # Set state cookie (HttpOnly, Secure in production)
-    is_production = os.getenv("NODE_ENV") == "production"
-    redirect.set_cookie(
-        key=STATE_COOKIE_NAME,
-        value=state,
-        max_age=STATE_COOKIE_MAX_AGE,
-        httponly=True,
-        secure=is_production,
-        samesite="lax",
-        path="/",
-    )
     
     return redirect
 
@@ -252,16 +324,21 @@ async def discord_callback(
     """
     Handle Discord OAuth callback.
     
-    1. Validate state against cookie
+    1. Validate state against SERVER-SIDE store (not cookie)
     2. Exchange code for access token
     3. Fetch user info and guild membership
     4. Check role requirements
     5. Upsert user in database
     6. Issue auth_token cookie
     7. Redirect to frontend
+    
+    NOTE: State validation uses server-side store, not cookies.
+    This avoids cross-domain/SameSite issues that were causing invalid_state errors.
     """
     config = get_discord_config()
     frontend_url = config.frontend_url
+    
+    logger.info(f"Discord OAuth callback received (state: ...{state[-8:] if state else 'None'})")
     
     # Handle OAuth errors from Discord
     if error:
@@ -279,10 +356,10 @@ async def discord_callback(
             status_code=302
         )
     
-    # Validate state against cookie
-    stored_state = request.cookies.get(STATE_COOKIE_NAME)
-    if not stored_state or stored_state != state:
-        logger.error("State mismatch - possible CSRF attack")
+    # Validate state against SERVER-SIDE store (not cookie)
+    # This is more robust than cookie-based validation
+    if not validate_and_consume_state(state):
+        logger.error(f"State validation failed - state not found or expired: ...{state[-8:]}")
         return RedirectResponse(
             url=f"{frontend_url}/auth/discord/error?error=invalid_state",
             status_code=302
@@ -326,25 +403,19 @@ async def discord_callback(
     member = await get_guild_member(access_token, config.guild_id)
     if not member:
         logger.info(f"User {discord_id} is not in guild {config.guild_id}")
-        # Clear state cookie and redirect to not-in-server page
-        redirect = RedirectResponse(
+        return RedirectResponse(
             url=f"{frontend_url}/auth/discord/not-in-server",
             status_code=302
         )
-        redirect.delete_cookie(STATE_COOKIE_NAME, path="/")
-        return redirect
     
     # Check role requirements
     member_roles = member.get('roles', [])
     if not user_has_allowed_role(member, config.allowed_role_ids):
         logger.info(f"User {discord_id} lacks required roles. Has: {member_roles}, needs one of: {config.allowed_role_ids}")
-        # Clear state cookie and redirect to insufficient-role page
-        redirect = RedirectResponse(
+        return RedirectResponse(
             url=f"{frontend_url}/auth/discord/insufficient-role",
             status_code=302
         )
-        redirect.delete_cookie(STATE_COOKIE_NAME, path="/")
-        return redirect
     
     # Resolve user's tier from their Discord roles
     user_tier = resolve_user_tier(member_roles)
@@ -415,8 +486,7 @@ async def discord_callback(
     # Tuning dashboard access requires separate password authentication.
     # This keeps the admin panel isolated from Discord OAuth.
     
-    # Delete state cookie
-    redirect.delete_cookie(STATE_COOKIE_NAME, path="/")
+    # NOTE: No state cookie to delete - we use server-side state store now
     
     logger.info(f"Discord login successful for user {discord_id}, redirecting to {frontend_url}")
     
