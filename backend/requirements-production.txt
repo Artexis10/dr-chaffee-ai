@@ -46,7 +46,7 @@ h11==0.14.0
 # ============================================================================
 # Versions compatible with torch==2.1.2 and numpy==1.24.3
 sentence-transformers==2.2.2
-transformers==4.36.2
+transformers==4.53.0
 tokenizers==0.15.0
 huggingface-hub==0.19.4
 safetensors==0.4.1
