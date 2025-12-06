@@ -134,7 +134,8 @@ export default function LoginPage() {
 
     const checkAuth = async () => {
       try {
-        const response = await fetch('/api/auth/check', {
+        // Use /api/auth/me for unified auth check
+        const response = await fetch('/api/auth/me', {
           method: 'GET',
           credentials: 'include',
         });
@@ -142,8 +143,8 @@ export default function LoginPage() {
         if (response.ok) {
           const data = await response.json();
           
-          // If user is already authenticated, redirect to home
-          if (data.requiresPassword === false) {
+          // If user is authenticated, redirect to home
+          if (data.authenticated) {
             router.replace('/');
             return;
           }

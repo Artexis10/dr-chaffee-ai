@@ -58,6 +58,9 @@ from .tuning import router as tuning_router, get_search_config_from_db, SearchCo
 # Import Discord auth router
 from .routers.auth_discord import router as discord_auth_router
 
+# Import unified auth router
+from .routers.auth import router as auth_router
+
 # Import admin summaries router
 from .routers.admin_summaries import router as admin_summaries_router
 
@@ -103,6 +106,9 @@ app.include_router(tuning_router)
 
 # Include Discord auth API
 app.include_router(discord_auth_router)
+
+# Include unified auth API
+app.include_router(auth_router)
 
 # Include admin summaries API
 app.include_router(admin_summaries_router)

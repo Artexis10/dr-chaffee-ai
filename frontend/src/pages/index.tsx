@@ -9,6 +9,7 @@ import { ErrorBoundary } from '../components/ErrorBoundary';
 import { DarkModeToggle } from '../components/DarkModeToggle';
 import { DisclaimerBanner } from '../components/DisclaimerBanner';
 import { GlobalFeedbackModal } from '../components/GlobalFeedbackModal';
+import WelcomeCard from '../components/WelcomeCard';
 import { SearchResult, VideoGroup } from '../types';
 import { analytics, setupAnalyticsListeners, trackEvent } from '../utils/analytics';
 import { apiFetch } from '../utils/api';
@@ -723,6 +724,9 @@ export default function Home() {
 
       <main className="container">
         <div className="header">
+          {/* Welcome Card with user info and logout */}
+          <WelcomeCard className="welcome-card-header" />
+          
           <div className="header-top-bar">
             <Link href="/tuning" className="nav-link" title="Go to Tuning Dashboard">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">

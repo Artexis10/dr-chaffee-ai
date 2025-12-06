@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifySessionTokenEdge } from './src/utils/authTokenEdge';
+import { verifyAccessToken, hasAccessToken } from './src/utils/jwtEdge';
 
 /**
  * Next.js Middleware for authentication
  * 
  * Main App Protection:
- * - / (home) requires valid auth_token cookie
+ * - / (home) requires valid access_token cookie (JWT)
  * - Unauthenticated users are redirected to /login
  * - /login is public (the login page itself)
  * 
@@ -19,6 +19,11 @@ import { verifySessionTokenEdge } from './src/utils/authTokenEdge';
  * - /tuning/auth - Tuning login page
  * - /auth/discord/* - Discord OAuth flow pages (error, not-in-server, insufficient-role)
  * - Static assets (/_next/*, favicon.ico, etc.)
+ * 
+ * Token Strategy:
+ * - access_token: Short-lived JWT (8h), HttpOnly cookie
+ * - refresh_token: Long-lived JWT (30d), HttpOnly cookie
+ * - Middleware only checks access_token; refresh happens via /api/auth/me
  */
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
@@ -66,21 +71,41 @@ export async function middleware(request: NextRequest) {
   // MAIN APP PROTECTION (/, and any other routes)
   // ============================================
   
-  const authTokenCookie = request.cookies.get('auth_token');
-  const token = authTokenCookie?.value;
+  // Try new JWT access_token first
+  const accessTokenCookie = request.cookies.get('access_token');
+  const accessToken = accessTokenCookie?.value;
   
-  if (!token) {
-    // No token - redirect to login page
+  // Check if we have a refresh token (for potential refresh via /api/auth/me)
+  const refreshTokenCookie = request.cookies.get('refresh_token');
+  const hasRefreshToken = !!refreshTokenCookie?.value && hasAccessToken(refreshTokenCookie.value);
+  
+  if (!accessToken) {
+    // No access token - check if we have refresh token
+    // If we have refresh token, allow through so /api/auth/me can refresh
+    // The page will call /api/auth/me which handles the refresh
+    if (hasRefreshToken) {
+      // Allow through - the page should call /api/auth/me to refresh
+      return NextResponse.next();
+    }
+    
+    // No tokens at all - redirect to login
     return NextResponse.redirect(new URL('/login', request.url));
   }
   
-  // Verify the signed token (checks signature and expiration)
-  const payload = await verifySessionTokenEdge(token);
+  // Verify the JWT access token
+  const payload = await verifyAccessToken(accessToken);
   
   if (!payload) {
-    // Invalid or expired token - clear cookie and redirect to login
+    // Access token invalid/expired - check for refresh token
+    if (hasRefreshToken) {
+      // Allow through - the page should call /api/auth/me to refresh
+      return NextResponse.next();
+    }
+    
+    // No valid tokens - clear cookies and redirect to login
     const response = NextResponse.redirect(new URL('/login', request.url));
-    response.cookies.delete('auth_token');
+    response.cookies.delete('access_token');
+    response.cookies.delete('refresh_token');
     return response;
   }
   

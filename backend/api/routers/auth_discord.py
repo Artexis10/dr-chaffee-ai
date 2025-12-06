@@ -48,6 +48,12 @@ from ..services.discord_roles_loader import (
     get_tier_color,
     get_all_tiers,
 )
+from ..services.auth_tokens import (
+    create_access_token,
+    create_refresh_token,
+    set_auth_cookies,
+    decode_and_validate,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -138,47 +144,8 @@ def get_db_connection():
     return psycopg2.connect(database_url, cursor_factory=RealDictCursor)
 
 
-def create_session_token() -> str:
-    """
-    Create a signed session token compatible with the frontend auth system.
-    
-    This replicates the token format from frontend/src/utils/authToken.ts
-    to ensure middleware compatibility.
-    """
-    import hmac
-    import hashlib
-    import base64
-    import json
-    import time
-    
-    # Get session secret (same as frontend uses)
-    secret = os.getenv("APP_SESSION_SECRET", "")
-    if not secret:
-        # In dev, use fallback (matches frontend behavior)
-        if os.getenv("NODE_ENV") != "production":
-            secret = "dev-only-secret-do-not-use-in-production"
-        else:
-            raise HTTPException(status_code=500, detail="APP_SESSION_SECRET not configured")
-    
-    # Token expiry: 7 days
-    now = int(time.time())
-    expiry = now + (7 * 24 * 60 * 60)
-    
-    payload = {"iat": now, "exp": expiry}
-    payload_json = json.dumps(payload, separators=(',', ':'))
-    
-    # Base64url encode payload
-    payload_b64 = base64.urlsafe_b64encode(payload_json.encode()).decode().rstrip('=')
-    
-    # Create HMAC-SHA256 signature
-    signature = hmac.new(
-        secret.encode(),
-        payload_b64.encode(),
-        hashlib.sha256
-    ).digest()
-    signature_b64 = base64.urlsafe_b64encode(signature).decode().rstrip('=')
-    
-    return f"{payload_b64}.{signature_b64}"
+# Legacy create_session_token removed - now using auth_tokens service
+# See backend/api/services/auth_tokens.py for JWT token creation
 
 
 def upsert_discord_user(
@@ -442,11 +409,17 @@ async def discord_callback(
             status_code=302
         )
     
-    # Create session token (same format as password login)
+    # Create JWT tokens (same as password login - unified auth)
     try:
-        auth_token = create_session_token()
+        extra_claims = {
+            "discord_id": discord_id,
+            "tier": user_tier,
+            "username": username,
+        }
+        access_token = create_access_token(user_id, extra_claims)
+        refresh_token = create_refresh_token(user_id, {"discord_id": discord_id})
     except Exception as e:
-        logger.error(f"Failed to create session token: {e}")
+        logger.error(f"Failed to create tokens: {e}")
         return RedirectResponse(
             url=f"{frontend_url}/auth/discord/error?error=token_creation_failed",
             status_code=302
@@ -457,30 +430,8 @@ async def discord_callback(
     # Tuning dashboard uses password-only authentication via /api/tuning/auth/verify.
     redirect = RedirectResponse(url=frontend_url, status_code=302)
     
-    # Set auth_token cookie (for main app authentication)
-    is_production = os.getenv("NODE_ENV") == "production"
-    max_age = 7 * 24 * 60 * 60  # 7 days
-    
-    redirect.set_cookie(
-        key="auth_token",
-        value=auth_token,
-        max_age=max_age,
-        httponly=False,  # Match existing behavior - frontend reads from localStorage
-        secure=is_production,
-        samesite="lax",
-        path="/",
-    )
-    
-    # Set discord_user_id cookie for /me endpoint to fetch user data
-    redirect.set_cookie(
-        key="discord_user_id",
-        value=discord_id,
-        max_age=max_age,
-        httponly=True,  # Not needed by frontend JS
-        secure=is_production,
-        samesite="lax",
-        path="/",
-    )
+    # Set JWT tokens as HttpOnly cookies (tokens never exposed to JS)
+    set_auth_cookies(redirect, access_token, refresh_token)
     
     # NOTE: We do NOT set tuning_auth cookie here.
     # Tuning dashboard access requires separate password authentication.
@@ -488,7 +439,7 @@ async def discord_callback(
     
     # NOTE: No state cookie to delete - we use server-side state store now
     
-    logger.info(f"Discord login successful for user {discord_id}, redirecting to {frontend_url}")
+    logger.info(f"Discord login successful for user_id={user_id}, discord_id={discord_id}")
     
     return redirect
 
@@ -517,74 +468,48 @@ async def discord_auth_status():
 
 
 @router.get("/me")
-async def get_current_user(request: Request):
+async def get_current_discord_user(request: Request):
     """
-    Get current authenticated user's information.
+    Get current Discord user's information.
     
-    Requires valid auth_token cookie (set by Discord OAuth callback).
+    DEPRECATED: Use /api/auth/me instead for unified auth.
+    This endpoint is kept for backwards compatibility.
+    
+    Requires valid access_token cookie (JWT).
     
     Returns:
         User info including discord_tier and discord_tier_label.
     """
-    # Get auth token from cookie
-    auth_token = request.cookies.get("auth_token")
-    if not auth_token:
+    # Try new JWT access token first
+    access_token = request.cookies.get("access_token")
+    
+    user_id = None
+    discord_id = None
+    
+    if access_token:
+        payload = decode_and_validate(access_token, "access")
+        if payload:
+            user_id = int(payload["sub"])
+            discord_id = payload.get("discord_id")
+    
+    if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    # Verify token signature and expiry
-    import hmac
-    import hashlib
-    import base64
-    import json
-    import time
-    
-    secret = os.getenv("APP_SESSION_SECRET", "")
-    if not secret:
-        if os.getenv("NODE_ENV") != "production":
-            secret = "dev-only-secret-do-not-use-in-production"
-        else:
-            raise HTTPException(status_code=500, detail="APP_SESSION_SECRET not configured")
-    
-    try:
-        parts = auth_token.split(".")
-        if len(parts) != 2:
-            raise HTTPException(status_code=401, detail="Invalid token format")
-        
-        payload_b64, signature_b64 = parts
-        
-        # Verify signature
-        expected_sig = hmac.new(
-            secret.encode(),
-            payload_b64.encode(),
-            hashlib.sha256
-        ).digest()
-        expected_sig_b64 = base64.urlsafe_b64encode(expected_sig).decode().rstrip('=')
-        
-        if not hmac.compare_digest(signature_b64, expected_sig_b64):
-            raise HTTPException(status_code=401, detail="Invalid token signature")
-        
-        # Decode and check expiry
-        # Add padding if needed
-        padding = 4 - len(payload_b64) % 4
-        if padding != 4:
-            payload_b64 += '=' * padding
-        
-        payload = json.loads(base64.urlsafe_b64decode(payload_b64))
-        if payload.get("exp", 0) < time.time():
-            raise HTTPException(status_code=401, detail="Token expired")
-            
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Token verification failed: {e}")
-        raise HTTPException(status_code=401, detail="Invalid token")
-    
-    # Token is valid, but we need to get user info
-    # Since the token doesn't contain user ID, we need to get it from a cookie or session
-    # For now, we'll use a discord_user_id cookie that's set alongside auth_token
-    discord_id = request.cookies.get("discord_user_id")
+    # If we have discord_id from token, use it; otherwise fetch from DB
     if not discord_id:
-        # Fallback: return minimal info indicating authenticated but no user data
+        # Fetch user to get discord_id
+        conn = get_db_connection()
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT discord_id FROM users WHERE id = %s", (user_id,))
+            result = cur.fetchone()
+            if result:
+                discord_id = result["discord_id"]
+        finally:
+            conn.close()
+    
+    if not discord_id or discord_id == "password_user_local":
+        # Not a Discord user
         return {
             "authenticated": True,
             "discord_id": None,
@@ -596,7 +521,7 @@ async def get_current_user(request: Request):
             "discord_tier_color": None,
         }
     
-    # Fetch user from database
+    # Fetch full user from database
     user = get_user_by_discord_id(discord_id)
     if not user:
         return {
