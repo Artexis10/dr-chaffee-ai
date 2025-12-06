@@ -53,6 +53,10 @@ class DailyStats:
     top_queries: List[str]
     error_messages: List[str]
     feedback_summary: Optional[FeedbackSummary] = None
+    # Per-request-type breakdown (e.g., 'search', 'answer')
+    stats_by_type: Optional[Dict[str, Dict[str, Any]]] = None
+    # Per-source-app breakdown (e.g., 'main_app', 'tuning_dashboard')
+    stats_by_source: Optional[Dict[str, Dict[str, Any]]] = None
 
     @property
     def success_rate(self) -> float:
@@ -77,6 +81,11 @@ class DailyStats:
         }
         if self.feedback_summary:
             result["feedback_summary"] = self.feedback_summary.to_dict()
+        # Include breakdowns if available (backward-compatible: only added if present)
+        if self.stats_by_type:
+            result["stats_by_type"] = self.stats_by_type
+        if self.stats_by_source:
+            result["stats_by_source"] = self.stats_by_source
         return result
 
 
@@ -226,6 +235,59 @@ def aggregate_daily_stats(summary_date: date, tenant_id: Optional[str] = None) -
             """, params)
             error_messages = [r['error_message'] for r in cur.fetchall()]
 
+            # Aggregate stats by request_type
+            cur.execute(f"""
+                SELECT
+                    request_type,
+                    COUNT(*) as queries,
+                    COALESCE(AVG(latency_ms), 0) as avg_latency_ms,
+                    COALESCE(AVG(input_tokens + output_tokens), 0) as avg_tokens,
+                    CASE 
+                        WHEN COUNT(*) > 0 
+                        THEN COUNT(*) FILTER (WHERE success = true)::float / COUNT(*)
+                        ELSE 1.0
+                    END as success_rate
+                FROM rag_requests
+                WHERE DATE(created_at) = %s
+                {tenant_filter}
+                AND request_type IS NOT NULL
+                GROUP BY request_type
+            """, params)
+            stats_by_type = {}
+            for r in cur.fetchall():
+                stats_by_type[r['request_type']] = {
+                    'queries': r['queries'],
+                    'avg_latency_ms': round(float(r['avg_latency_ms']), 1),
+                    'avg_tokens': int(r['avg_tokens']),
+                    'success_rate': round(float(r['success_rate']), 3),
+                }
+
+            # Aggregate stats by source_app
+            cur.execute(f"""
+                SELECT
+                    COALESCE(source_app, 'unknown') as source_app,
+                    COUNT(*) as queries,
+                    COALESCE(AVG(latency_ms), 0) as avg_latency_ms,
+                    COALESCE(AVG(input_tokens + output_tokens), 0) as avg_tokens,
+                    CASE 
+                        WHEN COUNT(*) > 0 
+                        THEN COUNT(*) FILTER (WHERE success = true)::float / COUNT(*)
+                        ELSE 1.0
+                    END as success_rate
+                FROM rag_requests
+                WHERE DATE(created_at) = %s
+                {tenant_filter}
+                GROUP BY COALESCE(source_app, 'unknown')
+            """, params)
+            stats_by_source = {}
+            for r in cur.fetchall():
+                stats_by_source[r['source_app']] = {
+                    'queries': r['queries'],
+                    'avg_latency_ms': round(float(r['avg_latency_ms']), 1),
+                    'avg_tokens': int(r['avg_tokens']),
+                    'success_rate': round(float(r['success_rate']), 3),
+                }
+
             # Aggregate feedback stats for the same date
             feedback_summary = aggregate_feedback_stats(summary_date)
             
@@ -244,6 +306,8 @@ def aggregate_daily_stats(summary_date: date, tenant_id: Optional[str] = None) -
                 top_queries=top_queries,
                 error_messages=error_messages,
                 feedback_summary=feedback_summary,
+                stats_by_type=stats_by_type if stats_by_type else None,
+                stats_by_source=stats_by_source if stats_by_source else None,
             )
     finally:
         conn.close()
@@ -518,6 +582,7 @@ def log_rag_request(
     rag_profile_id: Optional[str] = None,
     rag_profile_name: Optional[str] = None,
     tenant_id: Optional[str] = None,
+    source_app: Optional[str] = None,
 ) -> None:
     """
     Log a RAG request for daily aggregation.
@@ -540,6 +605,7 @@ def log_rag_request(
         rag_profile_id: RAG profile UUID string
         rag_profile_name: RAG profile name used
         tenant_id: Tenant ID for multi-tenant support
+        source_app: Source application (e.g., 'main_app', 'tuning_dashboard', 'discord_bot')
     """
     try:
         conn = get_db_connection()
@@ -563,15 +629,17 @@ def log_rag_request(
                     INSERT INTO rag_requests (
                         request_type, query_text, request_id, session_id, style,
                         results_count, input_tokens, output_tokens, cost_usd, latency_ms,
-                        success, error_message, rag_profile_id, rag_profile_name, tenant_id
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        success, error_message, rag_profile_id, rag_profile_name, tenant_id,
+                        source_app
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, [
                     request_type, query_text[:2000], request_id, session_id, style,
                     results_count, input_tokens, output_tokens, cost_usd, latency_ms,
-                    success, error_message, rag_profile_id, rag_profile_name, tenant_id
+                    success, error_message, rag_profile_id, rag_profile_name, tenant_id,
+                    source_app or 'unknown'
                 ])
                 conn.commit()
-                logger.debug(f"Logged RAG request: type={request_type}, profile={rag_profile_name}")
+                logger.debug(f"Logged RAG request: type={request_type}, source={source_app}, profile={rag_profile_name}")
         finally:
             conn.close()
     except Exception as e:

@@ -1057,6 +1057,7 @@ async def semantic_search(request: SearchRequest):
             results_count=len(search_results),
             latency_ms=t_total_ms,
             success=True,
+            source_app='main_app',
         )
         
         return SearchResponse(
@@ -1079,6 +1080,7 @@ async def semantic_search(request: SearchRequest):
             latency_ms=t_total_ms,
             success=False,
             error_message=str(e)[:500],
+            source_app='main_app',
         )
         
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
@@ -1676,6 +1678,7 @@ async def answer_question(request: AnswerRequest):
             success=True,
             rag_profile_id=profile_meta.get('id'),
             rag_profile_name=profile_meta.get('name'),
+            source_app='main_app',
         )
         
         # Log AI request for feedback system (returns ai_request_id)
@@ -1737,6 +1740,7 @@ async def answer_question(request: AnswerRequest):
             latency_ms=t_total_ms,
             success=False,
             error_message=str(e)[:500],
+            source_app='main_app',
         )
         
         raise HTTPException(status_code=500, detail=f"Answer generation failed: {str(e)}")
