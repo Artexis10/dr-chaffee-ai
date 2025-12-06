@@ -117,12 +117,43 @@ app.include_router(admin_summaries_router)
 app.include_router(feedback_router)
 
 # CORS middleware
+# SECURITY: When allow_credentials=True, allow_origins CANNOT be "*" per CORS spec.
+# We dynamically build the allowed origins list from environment.
+def _get_cors_origins() -> list:
+    """Get allowed CORS origins from environment."""
+    origins = []
+    
+    # Add frontend URL if configured
+    frontend_url = os.getenv("FRONTEND_URL", "")
+    if frontend_url:
+        origins.append(frontend_url.rstrip("/"))
+    
+    # Add Render preview URLs pattern (if deployed on Render)
+    render_service = os.getenv("RENDER_SERVICE_NAME", "")
+    if render_service:
+        # Render preview deployments use pattern: https://<service>-<pr-number>.onrender.com
+        origins.append(f"https://{render_service}.onrender.com")
+    
+    # Development origins
+    if os.getenv("NODE_ENV") != "production" and os.getenv("RENDER") != "true":
+        origins.extend([
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:8000",
+        ])
+    
+    # If no origins configured, allow localhost only (safe default)
+    if not origins:
+        origins = ["http://localhost:3000"]
+    
+    return origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure for production
+    allow_origins=_get_cors_origins(),
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
 )
 
 # Request ID middleware for log correlation

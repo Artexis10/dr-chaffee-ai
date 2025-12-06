@@ -52,8 +52,19 @@ def _get_secret() -> str:
         secret = os.getenv("APP_SESSION_SECRET", "")
     
     if not secret:
-        is_production = os.getenv("NODE_ENV") == "production"
-        if is_production:
+        # Use the same production detection as _is_production()
+        # (defined below, but we inline the check here to avoid circular dependency)
+        is_prod = (
+            os.getenv("NODE_ENV") == "production" or
+            os.getenv("PYTHON_ENV") == "production" or
+            os.getenv("RENDER") == "true" or
+            os.getenv("RAILWAY_ENVIRONMENT") == "production" or
+            os.getenv("VERCEL_ENV") == "production" or
+            bool(os.getenv("HEROKU_APP_NAME")) or
+            bool(os.getenv("FLY_APP_NAME")) or
+            os.getenv("FRONTEND_URL", "").startswith("https://")
+        )
+        if is_prod:
             raise ValueError("AUTH_SESSION_SECRET must be set in production")
         # Dev fallback
         logger.warning("[Auth] Using dev-only secret. Set AUTH_SESSION_SECRET in production.")
@@ -63,8 +74,37 @@ def _get_secret() -> str:
 
 
 def _is_production() -> bool:
-    """Check if running in production mode."""
-    return os.getenv("NODE_ENV") == "production"
+    """
+    Check if running in production mode.
+    
+    Checks multiple environment indicators to ensure Secure cookies
+    are set correctly across different deployment platforms.
+    """
+    # Explicit production flag
+    if os.getenv("NODE_ENV") == "production":
+        return True
+    if os.getenv("PYTHON_ENV") == "production":
+        return True
+    
+    # Platform-specific indicators
+    if os.getenv("RENDER") == "true":  # Render.com
+        return True
+    if os.getenv("RAILWAY_ENVIRONMENT") == "production":  # Railway
+        return True
+    if os.getenv("VERCEL_ENV") == "production":  # Vercel
+        return True
+    if os.getenv("HEROKU_APP_NAME"):  # Heroku (any deployed app)
+        return True
+    if os.getenv("FLY_APP_NAME"):  # Fly.io
+        return True
+    
+    # Check if HTTPS is being used (via proxy headers)
+    # This is a fallback for platforms that don't set specific env vars
+    frontend_url = os.getenv("FRONTEND_URL", "")
+    if frontend_url.startswith("https://"):
+        return True
+    
+    return False
 
 
 def create_access_token(

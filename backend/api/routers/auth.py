@@ -166,9 +166,6 @@ async def get_current_user(
     access_token = request.cookies.get("access_token")
     refresh_token = request.cookies.get("refresh_token")
     
-    # Also check legacy auth_token for backwards compatibility during transition
-    legacy_token = request.cookies.get("auth_token")
-    
     user_id = None
     needs_token_refresh = False
     
@@ -187,9 +184,8 @@ async def get_current_user(
             needs_token_refresh = True
             logger.debug(f"[Auth /me] Using refresh token for user_id={user_id}")
     
-    # If still no user, check legacy token (one-time migration path)
-    # Legacy tokens don't contain user_id, so we can't migrate them
-    # Users with only legacy tokens will need to re-login
+    # NOTE: Legacy auth_token cookies are no longer checked.
+    # Users with only legacy tokens must re-login to get new JWT tokens.
     
     if not user_id:
         logger.debug("[Auth /me] No valid tokens found")

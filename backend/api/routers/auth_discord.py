@@ -90,7 +90,8 @@ def store_oauth_state(state: str) -> None:
     expiry = time.time() + STATE_TTL_SECONDS
     with _state_lock:
         _state_store[state] = expiry
-    logger.info(f"Stored OAuth state (server-side): ...{state[-8:]}, expires in {STATE_TTL_SECONDS}s")
+    # Log only that state was stored, not any part of the token
+    logger.debug("[OAuth] State token stored, expires in %ds", STATE_TTL_SECONDS)
 
 
 def validate_and_consume_state(state: str) -> bool:
