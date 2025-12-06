@@ -2,34 +2,34 @@
 # This avoids the 20+ minute dependency resolution timeout
 
 # Core dependencies
-psycopg2-binary==2.9.9
-alembic==1.13.0
-sqlalchemy==2.0.25
-python-dotenv==1.0.0
+psycopg2-binary==2.9.11
+alembic==1.17.2
+sqlalchemy==2.0.44
+python-dotenv==1.2.1
 
 # Web API (minimal for cron)
-fastapi==0.104.1
-uvicorn==0.24.0
-python-multipart==0.0.18
+fastapi==0.124.0
+uvicorn==0.38.0
+python-multipart==0.0.20
 
 # Database and async
 asyncio-throttle==1.0.2
-aiohttp==3.9.1
+aiohttp==3.13.2
 
 # YouTube API
-google-api-python-client==2.108.0
-google-auth-httplib2==0.1.1
-google-auth-oauthlib==1.1.0
+google-api-python-client==2.187.0
+google-auth-httplib2==0.2.1
+google-auth-oauthlib==1.2.3
 
 # ML dependencies - EXACT VERSIONS
-torch==2.5.0
-torchaudio==2.5.0
-transformers==4.47.0
+torch==2.9.1+cpu
+torchaudio==2.9.1+cpu
+transformers==4.57.3
 sentence-transformers==2.7.0
 
 # Whisper (lightweight, CPU-optimized)
-faster-whisper==1.0.3
-ctranslate2==4.4.0
+faster-whisper==1.2.1
+ctranslate2==4.6.2
 av==12.3.0
 
 # Audio processing
@@ -37,9 +37,9 @@ soundfile==0.13.1
 webvtt-py==0.5.1
 
 # Utilities
-tqdm==4.66.1
-isodate==0.6.1
-psutil==5.9.0
+tqdm==4.67.1
+isodate==0.7.2
+psutil==5.9.8
 numpy==1.26.4
 
 # Skip heavy packages that cause conflicts
