@@ -5,25 +5,25 @@
 psycopg2-binary>=2.9.9
 alembic>=1.13.0
 sqlalchemy>=2.0.07
-python-dotenv==1.0.0
+python-dotenv==1.2.1
 numpy<2.0.0  # CRITICAL: NumPy 2.x breaks PyTorch/sentence-transformers
-tqdm==4.66.1
+tqdm==4.67.1
 
 # Web API
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-python-multipart==0.0.6
+fastapi==0.124.0
+uvicorn[standard]==0.38.0
+python-multipart==0.0.20
 aiofiles==23.2.1
-celery==5.3.4
-redis==5.0.1
+celery==5.6.0
+redis==5.3.1
 
 # YouTube
-youtube-transcript-api==0.6.1
+youtube-transcript-api==0.6.3
 yt-dlp[default]>=2025.11.12
 yt-dlp-ejs>=0.3.0
-google-api-python-client==2.108.0
-google-auth-httplib2==0.1.1
-google-auth-oauthlib==1.1.0
+google-api-python-client==2.187.0
+google-auth-httplib2==0.2.1
+google-auth-oauthlib==1.2.3
 # JavaScript runtime for yt-dlp challenge solving (required for YouTube SABR streaming)
 pycryptodome>=3.19.0
 brotli>=1.1.0
@@ -32,8 +32,8 @@ mutagen>=1.46.0
 # ML/AI - Core (pre-built wheels available)
 sentence-transformers>=2.7.0
 transformers>=4.41.0
-torch>=2.2.0,<2.3.0
-torchaudio>=2.2.0,<2.3.0
+torch>=2.2.0,<2.10.0
+torchaudio>=2.2.0,<2.10.0
 
 # Audio transcription - ESSENTIAL
 faster-whisper>=1.0.2
@@ -50,15 +50,15 @@ pyannote.audio>=3.0.0,<4.0.0
 speechbrain>=0.5.16
 
 # Utilities
-isodate==0.6.1
+isodate==0.7.2
 asyncio-throttle==1.0.2
-apscheduler==3.10.4
-aiohttp==3.9.1
-aiohttp-socks==0.8.4
+apscheduler==3.11.1
+aiohttp==3.13.2
+aiohttp-socks==0.10.2
 
 # Development
-black==23.9.1
-ruff==0.0.292
+black==23.12.1
+ruff==0.14.8
 beautifulsoup4>=4.12.0
 lxml>=4.9.0
 
