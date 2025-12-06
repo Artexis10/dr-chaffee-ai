@@ -14,6 +14,14 @@ interface FeedbackSummary {
   top_tags?: Array<{ tag: string; count: number }>;
 }
 
+/** Per-type or per-source breakdown stats */
+interface StatsBreakdown {
+  queries: number;
+  avg_latency_ms: number;
+  avg_tokens: number;
+  success_rate: number;
+}
+
 interface SummaryStats {
   queries: number;
   answers: number;
@@ -27,6 +35,10 @@ interface SummaryStats {
   success_count: number;
   error_count: number;
   feedback_summary?: FeedbackSummary;
+  /** Per-request-type breakdown (e.g., 'answer', 'search') */
+  stats_by_type?: Record<string, StatsBreakdown>;
+  /** Per-source-app breakdown (e.g., 'main_app', 'tuning_dashboard') */
+  stats_by_source?: Record<string, StatsBreakdown>;
 }
 
 interface SummaryListItem {
@@ -260,12 +272,18 @@ export default function SummariesPage() {
 
         {/* Summary Detail */}
         <div className="tuning-card">
-          <h3 className="tuning-card-title">
-            {selectedSummary ? `Summary: ${formatDate(selectedSummary.summary_date)}` : 'Select a Summary'}
-          </h3>
-          
           {selectedSummary ? (
             <>
+              {/* Header with subline */}
+              <div style={{ marginBottom: '1rem' }}>
+                <h3 className="tuning-card-title" style={{ marginBottom: '0.25rem' }}>
+                  Daily Summary — {formatDate(selectedSummary.summary_date)}
+                </h3>
+                <p style={{ fontSize: '0.8rem', opacity: 0.7, margin: 0 }}>
+                  {selectedSummary.stats.queries} queries · {selectedSummary.stats.answers} answers · {selectedSummary.stats.searches} searches · {(selectedSummary.stats.success_rate * 100).toFixed(0)}% success · {Math.round(selectedSummary.stats.avg_latency_ms)}ms avg latency
+                </p>
+              </div>
+
               {/* Stats Grid */}
               <div style={{ 
                 display: 'grid', 
@@ -376,6 +394,84 @@ export default function SummariesPage() {
                 </div>
               )}
 
+              {/* Stats by Request Type */}
+              {selectedSummary.stats.stats_by_type && 
+               Object.keys(selectedSummary.stats.stats_by_type).length > 0 && (
+                <div style={{ 
+                  background: 'var(--bg-card-elevated)', 
+                  borderRadius: '0.5rem', 
+                  padding: '1rem',
+                  marginBottom: '1rem'
+                }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.875rem', marginBottom: '0.75rem' }}>
+                    By Request Type
+                  </div>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                          <th style={{ textAlign: 'left', padding: '0.5rem 0.75rem', opacity: 0.7, fontWeight: 500 }}>Type</th>
+                          <th style={{ textAlign: 'right', padding: '0.5rem 0.75rem', opacity: 0.7, fontWeight: 500 }}>Queries</th>
+                          <th style={{ textAlign: 'right', padding: '0.5rem 0.75rem', opacity: 0.7, fontWeight: 500 }}>Avg Latency</th>
+                          <th style={{ textAlign: 'right', padding: '0.5rem 0.75rem', opacity: 0.7, fontWeight: 500 }}>Avg Tokens</th>
+                          <th style={{ textAlign: 'right', padding: '0.5rem 0.75rem', opacity: 0.7, fontWeight: 500 }}>Success</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Object.entries(selectedSummary.stats.stats_by_type).map(([type, breakdown]) => (
+                          <tr key={type} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                            <td style={{ padding: '0.5rem 0.75rem', textTransform: 'capitalize' }}>{type}</td>
+                            <td style={{ textAlign: 'right', padding: '0.5rem 0.75rem' }}>{breakdown.queries}</td>
+                            <td style={{ textAlign: 'right', padding: '0.5rem 0.75rem' }}>{Math.round(breakdown.avg_latency_ms)}ms</td>
+                            <td style={{ textAlign: 'right', padding: '0.5rem 0.75rem' }}>{Math.round(breakdown.avg_tokens)}</td>
+                            <td style={{ textAlign: 'right', padding: '0.5rem 0.75rem' }}>{(breakdown.success_rate * 100).toFixed(0)}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Stats by Source App */}
+              {selectedSummary.stats.stats_by_source && 
+               Object.keys(selectedSummary.stats.stats_by_source).length > 0 && (
+                <div style={{ 
+                  background: 'var(--bg-card-elevated)', 
+                  borderRadius: '0.5rem', 
+                  padding: '1rem',
+                  marginBottom: '1rem'
+                }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.875rem', marginBottom: '0.75rem' }}>
+                    By Source App
+                  </div>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                          <th style={{ textAlign: 'left', padding: '0.5rem 0.75rem', opacity: 0.7, fontWeight: 500 }}>Source</th>
+                          <th style={{ textAlign: 'right', padding: '0.5rem 0.75rem', opacity: 0.7, fontWeight: 500 }}>Queries</th>
+                          <th style={{ textAlign: 'right', padding: '0.5rem 0.75rem', opacity: 0.7, fontWeight: 500 }}>Avg Latency</th>
+                          <th style={{ textAlign: 'right', padding: '0.5rem 0.75rem', opacity: 0.7, fontWeight: 500 }}>Avg Tokens</th>
+                          <th style={{ textAlign: 'right', padding: '0.5rem 0.75rem', opacity: 0.7, fontWeight: 500 }}>Success</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Object.entries(selectedSummary.stats.stats_by_source).map(([source, breakdown]) => (
+                          <tr key={source} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                            <td style={{ padding: '0.5rem 0.75rem' }}>{source.replace(/_/g, ' ')}</td>
+                            <td style={{ textAlign: 'right', padding: '0.5rem 0.75rem' }}>{breakdown.queries}</td>
+                            <td style={{ textAlign: 'right', padding: '0.5rem 0.75rem' }}>{Math.round(breakdown.avg_latency_ms)}ms</td>
+                            <td style={{ textAlign: 'right', padding: '0.5rem 0.75rem' }}>{Math.round(breakdown.avg_tokens)}</td>
+                            <td style={{ textAlign: 'right', padding: '0.5rem 0.75rem' }}>{(breakdown.success_rate * 100).toFixed(0)}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
               {/* Summary Text */}
               <div style={{ 
                 background: 'var(--bg-card-elevated)', 
@@ -384,6 +480,9 @@ export default function SummariesPage() {
                 maxHeight: '500px',
                 overflowY: 'auto'
               }}>
+                <div style={{ fontWeight: 600, fontSize: '0.875rem', marginBottom: '0.75rem' }}>
+                  AI Summary
+                </div>
                 <div style={{ 
                   whiteSpace: 'pre-wrap', 
                   fontSize: '0.875rem', 
@@ -414,12 +513,15 @@ export default function SummariesPage() {
               </div>
             </>
           ) : (
-            <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-              <FileText style={{ width: 48, height: 48, opacity: 0.3, marginBottom: '1rem' }} />
-              <p className="tuning-text-muted">
-                Select a date from the list to view its summary, or generate a new one.
-              </p>
-            </div>
+            <>
+              <h3 className="tuning-card-title">Select a Summary</h3>
+              <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+                <FileText style={{ width: 48, height: 48, opacity: 0.3, marginBottom: '1rem' }} />
+                <p className="tuning-text-muted">
+                  Select a date from the list to view its summary, or generate a new one.
+                </p>
+              </div>
+            </>
           )}
         </div>
       </div>
