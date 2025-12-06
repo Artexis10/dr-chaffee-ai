@@ -742,9 +742,14 @@ export default function Home() {
               Feedback
             </button>
             <button 
-              onClick={() => {
-                localStorage.removeItem('auth_token');
-                window.location.href = '/';
+              onClick={async () => {
+                try {
+                  await fetch('/api/auth/logout', { method: 'POST' });
+                } catch (e) {
+                  console.error('[Logout] Failed:', e);
+                }
+                // Always redirect to login, even if API call fails
+                window.location.href = '/login';
               }}
               className="nav-link"
               title="Logout from application"

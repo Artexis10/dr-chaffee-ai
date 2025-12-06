@@ -1,21 +1,29 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 
 /**
- * Tuning Auth Logout - Clears BOTH tuning_auth and auth_token cookies
- * This ensures logging out from tuning also logs out from the main app (shared session)
+ * Tuning Auth Logout - Clears tuning_auth cookie ONLY
+ * 
+ * This endpoint clears the tuning dashboard authentication cookie.
+ * It does NOT clear auth_token - main app and tuning have separate sessions.
+ * 
+ * After tuning logout:
+ * - User is redirected to / (main app)
+ * - If they have a valid auth_token, they can still use the main app
+ * - If they try to access /tuning, they'll need to re-authenticate
  */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Clear both cookies by setting them with max-age=0
-  // This ensures logout from tuning also logs out from main app
+  const isProduction = process.env.NODE_ENV === 'production';
+  
+  // Clear only tuning_auth cookie - do NOT clear auth_token
+  // Main app and tuning dashboard have separate sessions
   res.setHeader('Set-Cookie', [
-    `tuning_auth=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`,
-    `auth_token=; Path=/; SameSite=Lax; Max-Age=0`
+    `tuning_auth=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${isProduction ? '; Secure' : ''}`,
   ]);
   
-  console.log('[Tuning Auth] Logout successful, both cookies cleared');
-  return res.status(200).json({ success: true, message: 'Logged out' });
+  console.log('[Tuning Auth] Logout successful, tuning_auth cookie cleared');
+  return res.status(200).json({ success: true, message: 'Logged out from tuning' });
 }
