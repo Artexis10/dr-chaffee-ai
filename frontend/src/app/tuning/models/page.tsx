@@ -43,8 +43,16 @@ export default function ModelsPage() {
   // Set current model from API data (prefer active_model_name, fallback to current_model)
   useEffect(() => {
     if (modelsData) {
-      const activeModelKey = modelsData.active_model_name || modelsData.current_model || '';
-      console.log('[ModelsPage] Setting currentModel from API:', activeModelKey, 'modelsData:', modelsData);
+      // Use explicit truthy check to handle empty strings
+      const activeModelKey = 
+        (modelsData.active_model_name && modelsData.active_model_name.trim()) ||
+        (modelsData.current_model && modelsData.current_model.trim()) ||
+        '';
+      console.log('[ModelsPage] Setting currentModel from API:', activeModelKey, 'raw data:', {
+        active_model_name: modelsData.active_model_name,
+        current_model: modelsData.current_model,
+        models_keys: modelsData.models ? Object.keys(modelsData.models) : []
+      });
       setCurrentModel(activeModelKey);
     }
   }, [modelsData]);
@@ -217,7 +225,7 @@ export default function ModelsPage() {
                 <span className={`tuning-quality-badge ${getQualityBadgeClass(model.quality_tier)}`}>
                   {model.quality_tier}
                 </span>
-                {model.key === currentModel && <span className="tuning-badge">Active</span>}
+                {model.key === currentModel && <span className="tuning-badge-active">Active</span>}
               </div>
             </div>
 
